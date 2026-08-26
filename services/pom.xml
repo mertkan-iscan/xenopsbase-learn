@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    The parent every service inherits (T-9.10).
+
+    THIS IS THE PART THAT IS NOT COPIED FROM THE STEMCELL, AND THE REASON IS
+    ARITHMETIC RATHER THAN TASTE.
+
+    xenopsbase-stemcell gives each of its two services an independent pom under
+    spring-boot-starter-parent. With two services that is fine: one duplicated
+    plugin block is cheaper than an extra layer of indirection.
+
+    This project has six modules and ADR-0109 leaves room for eight. At that
+    size the duplication is the problem the template exists to prevent — a
+    change to the error shape, the coverage floor or the JDK becomes eight
+    edits, seven of which get made and one of which does not, and the one that
+    does not is found much later.
+
+    Everything else here IS the stemcell: same Boot version, same Java version,
+    same plugins, same conventions. What moved is where it is declared, not
+    what it says.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.xenopsoftware.learn</groupId>
+    <artifactId>services</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <name>XenOpsBase Learn services</name>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.0.8</version>
+        <relativePath/>
+    </parent>
+
+    <modules>
+        <module>platform-common</module>
+        <module>identity</module>
+    </modules>
+
+    <properties>
+        <java.version>25</java.version>
+        <maven.compiler.source>${java.version}</maven.compiler.source>
+        <maven.compiler.target>${java.version}</maven.compiler.target>
+        <maven.compiler.release>${java.version}</maven.compiler.release>
+
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+        <!--
+            Reproducible builds. Without it spring-boot:build-info writes a
+            wall-clock timestamp into the jar, and two builds of the same commit
+            produce different artifacts — which makes "is this the image we
+            reviewed?" unanswerable. The stemcell measured this rather than
+            assuming it. Bump on release.
+        -->
+        <project.build.outputTimestamp>2026-08-27T00:00:00Z</project.build.outputTimestamp>
+
+        <archunit-junit5.version>1.4.2</archunit-junit5.version>
+        <awssdk.version>2.46.7</awssdk.version>
+        <springdoc-openapi.version>3.0.3</springdoc-openapi.version>
+        <testcontainers.version>1.21.3</testcontainers.version>
+        <spring-cloud-dependencies.version>2025.1.2</spring-cloud-dependencies.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!--
+                The AWS SDK is used as an S3 CLIENT, not as an AWS integration.
+                Every call is plain S3, so the same code runs against MinIO
+                locally, Hetzner Object Storage or R2. Nothing may reach for an
+                AWS-only service — that is what makes the local stack faithful
+                rather than an approximation.
+            -->
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${awssdk.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud-dependencies.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers-bom</artifactId>
+                <version>${testcontainers.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>com.xenopsoftware.learn</groupId>
+                <artifactId>platform-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.springdoc</groupId>
+                <artifactId>springdoc-openapi-starter-webmvc-api</artifactId>
+                <version>${springdoc-openapi.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.tngtech.archunit</groupId>
+                <artifactId>archunit-junit5-api</artifactId>
+                <version>${archunit-junit5.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.tngtech.archunit</groupId>
+                <artifactId>archunit-junit5-engine</artifactId>
+                <version>${archunit-junit5.version}</version>
+                <scope>test</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-enforcer-plugin</artifactId>
+                    <executions>
+                        <execution>
+                            <id>enforce-java</id>
+                            <goals><goal>enforce</goal></goals>
+                            <configuration>
+                                <rules>
+                                    <!--
+                                        DERIVED FROM ${java.version}, NOT TYPED
+                                        SEPARATELY.
+
+                                        The stemcell hit this exactly: a
+                                        hand-written range accepted JDK 21 while
+                                        java.version said 25, so the guard
+                                        passed and the compiler failed three
+                                        phases later with "release version 25
+                                        not supported" — naming neither the JDK
+                                        in use nor where it came from.
+
+                                        A guard that can disagree with what the
+                                        build targets is not a guard.
+                                    -->
+                                    <requireJavaVersion>
+                                        <version>[${java.version},${java.version}.999]</version>
+                                        <message>
+                                            This build targets Java ${java.version}. Run `make java-home`
+                                            to see which JDK is selected and why.
+                                        </message>
+                                    </requireJavaVersion>
+                                </rules>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>

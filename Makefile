@@ -66,3 +66,32 @@ token: ## Print an access token for a user (make token U=acme-learner)
 		-d username=$(or $(U),acme-learner) \
 		-d password=$(or $(U),acme-learner) \
 		| sed 's/.*"access_token":"\([^"]*\)".*/\1/'
+
+# ---------------------------------------------------------------------------
+# Services
+#
+# Every target here resolves the JDK itself rather than trusting JAVA_HOME.
+# That is not defensive coding, it is the bug this machine already had: a Java 8
+# JRE first on PATH, JAVA_HOME on 21, and the 25 the build needs installed but
+# unreferenced. Setting JAVA_HOME does not change which `java` runs, so `java
+# -jar` still picked 8 and failed with UnsupportedClassVersionError naming
+# neither JDK.
+# ---------------------------------------------------------------------------
+
+JAVA_HOME_RESOLVED = $(shell bash scripts/java-home.sh)
+
+.PHONY: java-home build test run
+
+java-home: ## Report which JDK the build will use, and why
+	@echo "required:  Java $$(grep -oE '<java\.version>[0-9]+' services/pom.xml | head -1 | grep -oE '[0-9]+')  (services/pom.xml)"
+	@echo "JAVA_HOME: $${JAVA_HOME:-<unset>}"
+	@printf "selected:  "; bash scripts/java-home.sh
+
+build: ## Compile and install every service
+	@JAVA_HOME="$(JAVA_HOME_RESOLVED)" mvn -f services/pom.xml -DskipTests install
+
+test: ## Run every service's tests
+	@JAVA_HOME="$(JAVA_HOME_RESOLVED)" mvn -f services/pom.xml test
+
+run: ## Run one service against the local stack (make run S=identity)
+	@JAVA_HOME="$(JAVA_HOME_RESOLVED)" 		"$(JAVA_HOME_RESOLVED)/bin/java" -jar services/$(or $(S),identity)/target/$(or $(S),identity)-0.0.1-SNAPSHOT.jar

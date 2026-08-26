@@ -1,0 +1,76 @@
+# identity — configuration.
+#
+# Values here are the LOCAL STACK's. Anything that differs per environment is an
+# environment variable with this as the development default, so a developer runs
+# `make up` and then the service, with no setup step in between.
+
+spring:
+  application:
+    name: identity
+
+  datasource:
+    url: ${IDENTITY_DB_URL:jdbc:postgresql://localhost:5432/identity}
+    username: ${IDENTITY_DB_USER:identity}
+    password: ${IDENTITY_DB_PASSWORD:identity}
+    hikari:
+      # Named, because a pool size is part of the connection budget across every
+      # service and the database's max_connections. An unstated default becomes
+      # a number nobody can account for when the eighth service is added.
+      maximum-pool-size: 10
+      pool-name: identity
+
+  jpa:
+    hibernate:
+      # validate, never update. An entity that disagrees with its migration
+      # refuses to start, which is the point: the migration is written first and
+      # the entity matches it. `update` would silently reshape the schema and
+      # the migration history would stop describing the database.
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate.jdbc.time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # No baseline-on-migrate. It exists to adopt a database that already has a
+    # schema, and using it on a fresh project means a failed first migration is
+    # recorded as "already applied" instead of failing.
+    baseline-on-migrate: false
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OIDC_ISSUER_URI:http://localhost:8081/realms/xenopslearn}
+
+server:
+  port: ${SERVER_PORT:8082}
+
+management:
+  endpoints:
+    web:
+      base-path: /management
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when-authorized
+  health:
+    # Readiness reflects dependencies rather than the process being alive. A
+    # service that answers "ready" while its database is gone is a service that
+    # takes traffic it cannot serve.
+    db:
+      enabled: true
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  writer-with-order-by-keys: true
+  writer-with-default-pretty-printer: true
+
+logging:
+  level:
+    com.xenopsoftware.learn: DEBUG

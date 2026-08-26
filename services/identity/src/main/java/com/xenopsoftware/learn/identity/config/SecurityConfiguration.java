@@ -1,0 +1,38 @@
+package com.xenopsoftware.learn.identity.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
+
+/**
+ * Everything under {@code /api/**} is authenticated, and that is the default rather than a
+ * per-endpoint decision.
+ *
+ * <p>The inverse — permit by default, secure the ones that need it — fails silently: a controller
+ * added without an annotation is public, and nothing reports it. Here the same mistake produces a
+ * 401 during the first test, which is the loud version of the same information.
+ */
+@Configuration
+@EnableMethodSecurity
+public class SecurityConfiguration {
+
+    @Bean
+    SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+            // Stateless: this service holds no session. The gateway is the only thing with a
+            // session, and it relays a bearer token inward (T-9.11).
+            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .csrf(csrf -> csrf.disable())
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers(HttpMethod.GET, "/management/health/**", "/management/info").permitAll()
+                .requestMatchers("/v3/api-docs/**").permitAll()
+                .requestMatchers("/api/**").authenticated()
+                .anyRequest().denyAll())
+            .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> {}));
+        return http.build();
+    }
+}
