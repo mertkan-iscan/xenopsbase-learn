@@ -9,8 +9,17 @@ Planning board: [XenOpsBase Learn (project #7)](https://github.com/users/mertkan
 **Locally, for now.** [xenopsbase-stemcell](https://github.com/mertkan-iscan/xenopsbase-stemcell)
 is the intended production infrastructure — cluster, GitOps, identity, backups, observability — and
 it is not finished. Rather than wait for it, this repository develops against a local stack:
-Postgres, Keycloak, object storage, a message bus and a cache, all started with one command
-([T-9.9](../../issues/87)).
+
+```bash
+cp .env.example .env
+make up
+```
+
+Postgres, Keycloak with the realm imported from this repository, MinIO for object storage, NATS,
+Valkey, and a separate content origin. See [docs/local-stack.md](docs/local-stack.md) — what is
+faithful to production and what is not. **Video is the one dependency with no local equivalent**,
+so `streaming` runs against a fake provider by default, and a green local build never proves edge
+delivery works.
 
 That is a deliberate ordering, not a workaround. The domain — tenancy, permissions, delivery,
 assessment, reporting — is where the value and the risk are, and none of it needs a cluster to be

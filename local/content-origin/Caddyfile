@@ -1,0 +1,35 @@
+# The content origin (T-4.3, T-9.5).
+#
+# A DIFFERENT ORIGIN from the application, and that is the whole reason it
+# exists. Uploaded SCORM packages are third-party JavaScript. Served from the
+# application's origin they would reach its DOM, its cookies and its tokens --
+# for every tenant. Here they are on :8090 while the app is on :8080, which a
+# browser treats as a different origin, so the postMessage bridge is exercised
+# in development rather than first met in production.
+#
+# It proxies ONLY the packages bucket. Pointing a browser at MinIO directly
+# would put the entire S3 API on the content origin.
+
+:8090 {
+	handle /packages/* {
+		reverse_proxy minio:9000
+	}
+
+	handle {
+		respond "content origin -- only /packages/* is served here" 404
+	}
+
+	header {
+		# Package code must not be able to call anything outbound. This is the
+		# second half of the isolation: the first stops it reaching the app,
+		# this stops it reaching anywhere else.
+		Content-Security-Policy "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src 'self'; frame-ancestors http://localhost:8080 http://localhost:5173"
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}
