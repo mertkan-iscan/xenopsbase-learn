@@ -1,64 +1,72 @@
 # XenOpsBase Learn
 
-A multi-tenant video, slides and SCORM training platform. Grows on top of
-[xenopsbase-stemcell](https://github.com/mertkan-iscan/xenopsbase-stemcell), which supplies the
-plumbing — identity, persistence, object storage, observability, GitOps, disaster recovery — and no
-business logic. Everything in this repository is the business logic.
+A multi-tenant video, slides and SCORM training platform, built as microservices.
 
 Planning board: [XenOpsBase Learn (project #7)](https://github.com/users/mertkan-iscan/projects/7)
+
+## Where this runs
+
+**Locally, for now.** [xenopsbase-stemcell](https://github.com/mertkan-iscan/xenopsbase-stemcell)
+is the intended production infrastructure — cluster, GitOps, identity, backups, observability — and
+it is not finished. Rather than wait for it, this repository develops against a local stack:
+Postgres, Keycloak, object storage, a message bus and a cache, all started with one command
+([T-9.9](../../issues/87)).
+
+That is a deliberate ordering, not a workaround. The domain — tenancy, permissions, delivery,
+assessment, reporting — is where the value and the risk are, and none of it needs a cluster to be
+designed, built or tested. Deployment is a later concern with its own tasks, and the fork happens
+when the stemcell is ready to be forked into rather than on a schedule this project sets.
+
+What the stemcell *does* supply already is reasoning. Its ADRs on service topology, durable state,
+identity and evidence-before-scaling are referenced throughout this backlog, and several decisions
+here exist because that repository documented the failure first.
+
+## Services
+
+Eight deployables. The split is a decision in its own right — see
+[ADR-0109](../../issues/86), which also records the argument against it, because a decomposition
+chosen without its cost written down is the one that gets regretted.
+
+| Service | Owns | Data |
+|---|---|---|
+| `gateway` | Edge routing, sign-in, session, rate limiting, tenant status gate | none |
+| `frontend` | Learner app, admin console, authoring, embeddable player | none |
+| `identity` | Tenants, users, groups, roles, permissions | `identity_db` |
+| `catalog` | Content items, courses, modules, gates, assignments | `catalog_db` |
+| `streaming` | Video assets, upload targets, encode state, playback tokens | `streaming_db` |
+| `media-worker` | Package extraction, manifest parsing, rasterisation | object storage |
+| `assessment` | Banks, questions, tests, forms, attempts, grading | `assessment_db` |
+| `reporting` | Telemetry ingest, rollups, reports, exports | `reporting_db` |
+
+One rule holds the split together: **no service reads another service's database.** The first
+report that joins across two of them ends the decomposition, and nobody will notice it happening.
 
 ## Decisions
 
 | Decision | Choice |
 |---|---|
-| Video delivery | Cloudflare Stream. The cluster mints a short signed playback token and never carries a byte |
+| Video delivery | Cloudflare Stream. The backend mints a short signed playback token and never carries a byte |
 | Delivery seam | A `MediaProvider` port, so own-transcode-into-R2 stays an adapter swap |
 | Packaged content | SCORM 1.2 and 2004 run-time, cmi5, served from a separate content origin over `postMessage` |
-| Tenancy | One Keycloak realm; a company is a row; `tenant_id` is a mapped claim, never a header |
+| Tenancy | One Keycloak realm; a company is a row; the tenant is a verified claim, never a header |
 | Identity | `app_user.id` is ours; the Keycloak `sub` is a nullable link that can be repaired |
 | Authorization | Permission catalog in code, roles and assignments as runtime data, scoped and version-cached |
 | Progress | Derived server-side from watched intervals. The client never reports completion |
 | Assessments | Immutable question versions, materialised per-attempt forms, scaled scores |
 | Telemetry | Postgres, partitioned by day, rolled up. A column store needs a measurement first |
-| Topology | Four deployables: `gateway`, `core`, `media-worker`, `analytics` |
+| Events | Transactional outbox into a message bus. At-least-once, so every consumer is idempotent |
 
-## The constraint that drives the design
+## The constraint that shapes delivery
 
-ADR-0002 in the stemcell makes the cluster cattle: torn down and rebuilt on demand, near-zero cost
-while down. An LMS breaks that assumption in a way nothing in the stemcell does — **learners watch
-video at times nobody scheduled.**
+Learners watch video at times nobody scheduled. If video bytes are served by our backend, the
+backend can never be down — which forecloses every deployment choice this platform might later
+want, including the disposable-cluster model the stemcell is built around.
 
-If video bytes are served by the cluster, the cluster can never be down, and the property the whole
-platform was built around is gone on the first day of production. So every design here is checked
-against one question: *does this force the cluster to stay up?* Where the answer is yes, the
-component moves outside it or gets bought.
-
-| Outside the cluster — survives `make down` | Inside — disposable |
-|---|---|
-| Video masters and renditions (Cloudflare Stream) | Playback tokens, permission cache, rate limits (Valkey) |
-| SCORM packages and slide images (R2, separate origin) | Event transport — the outbox row is the record |
-| Learners, progress, attempts, grades (Postgres → WAL archive) | Every pod, every PVC |
-| Raw telemetry, partitioned, 90 days | Rollup jobs mid-run |
-
-That table is why `T-3.10` exists: playback continuing through a `make down` is the only thing that
-proves the delivery architecture, and it is the property most likely to decay quietly.
-
-## Topology
-
-Two deployables are inherited. Two are added, and each one is argued against ADR-0001's bar —
-a materially different scaling profile, a different availability requirement, a different owning
-team, or a conflicting technology.
-
-| Service | Why it exists separately |
-|---|---|
-| `gateway` | Inherited. OIDC, session, token relay, rate limiting, tenant status gate |
-| `core` | Inherited. Tenancy, users, authorization, catalog, structure, assignments, assessments, SCORM run-time |
-| `media-worker` | **Scaling profile.** Package extraction and PDF rasterisation are bursty CPU and disk against a request path that is otherwise cheap |
-| `analytics` | **Scaling profile and availability.** Write rate scales with concurrent learners, not users — and analytics being down must never stop a video playing |
-
-Everything else is a module inside `core`. ADR-0001 is explicit that boundaries drawn before the
-domain is understood are drawn along the wrong lines, and a service per domain concept is how that
-happens.
+So video and packaged content are delivered from the edge, and the backend only decides *who may
+watch* and signs a short-lived token for it. [T-3.10](../../issues/43) is the test that keeps it
+that way: playback continues with every one of our services stopped. It is a property that decays
+quietly — one convenience proxy endpoint and it is gone — so it is asserted on every build rather
+than believed.
 
 ## Epics
 
@@ -73,17 +81,15 @@ happens.
 | `E6-assessment` | Question banks, tests, attempts, grading |
 | `E7-analytics` | Telemetry, rollups, reports, exports |
 | `E8-api` | Public API, webhooks, SDKs |
-| `E9-platform` | Fork, deployables, edge, CI |
+| `E9-platform` | Service runtime, local stack, transport, tracing |
+| `E10-frontend` | Learner app, admin console, authoring, player |
 
 ## Phases
 
-Milestones, ordered so each is provable on its own, and so the two decisions that are expensive to
-reverse — tenancy and identity — land before there is data to migrate.
-
 | Phase | Done means |
 |---|---|
-| **P0** Fork and seams | A request authenticated as tenant B gets 404 on every tenant A resource, and suspending a tenant blocks the next request |
-| **P1** Video end to end | A learner resumes at the right second, completion is derived from coverage, and playback survives a `make down` mid-video |
+| **P0** Foundations and seams | A request authenticated as tenant B gets 404 on every tenant A resource, and suspending a tenant blocks the next request |
+| **P1** Video end to end | A learner resumes at the right second, completion is derived from coverage, and playback survives every service being stopped |
 | **P2** Structure and assignment | A group admin assigns a course, and a learner sees a locked module unlock when its prerequisite completes |
 | **P3** Assessments | Two learners sit different randomly-assembled papers, both graded correctly, and editing a question afterwards changes neither result |
 | **P4** Packaged content | A third-party SCORM package runs, reports completion, and provably cannot reach the app origin or its session |
@@ -93,22 +99,18 @@ reverse — tenancy and identity — land before there is data to migrate.
 ## Critical path
 
 ```
-T-9.1 -> T-9.2 -> T-9.3 -> T-1.1 -> T-1.2 -> T-2.1 -> T-2.4 -> T-3.1 -> T-3.4 -> T-3.7 -> T-3.10
+T-0.9 -> T-9.9 -> T-9.10 -> T-1.1 -> T-1.2 -> T-2.1 -> T-2.4 -> T-3.1 -> T-3.4 -> T-3.7 -> T-3.10
 ```
 
-The repository is its own, identity is ours rather than borrowed, the tenant boundary exists and is
-tested, permissions are evaluated, and then video is delivered, gated, measured — and proved to keep
-playing when the cluster does not.
+The service map is decided, the stack runs locally, services share one shape, the tenant boundary
+exists and is tested, identity is ours, permissions are evaluated — and then video is delivered,
+gated, measured, and proved to keep playing when nothing of ours is running.
 
-## Upstream
-
-The stemcell is under active development and this fork has no version pin on it, which is
-[T-9.4](../../issues/12). Issues in the stemcell that block work here carry `blocked-upstream` on
-the dependent issue and sit on the same board, so a cross-repository blocker is visible in one
-place rather than remembered.
+`T-10.1` runs alongside from the start: the frontend is a service like the others and its
+foundational decisions are as expensive to defer.
 
 ## Conventions
 
-Inherited from the stemcell and not re-litigated: task-numbered issue titles that state the problem
-rather than the solution, epic labels, ADRs for decisions that constrain future work, no manual
-configuration, and every claim in a document either measured or marked as unmeasured.
+Task-numbered issue titles that state the problem rather than the solution. Epic labels. ADRs for
+decisions that constrain future work. No manual configuration. Every claim in a document either
+measured or marked as unmeasured.
