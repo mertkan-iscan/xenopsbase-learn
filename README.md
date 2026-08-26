@@ -46,15 +46,16 @@ decided in [ADR-0109](../../issues/86) against measured capacity rather than by 
 | `catalog` | Content items, courses, modules, gates, assignments | proposed: starts inside `core` |
 | `assessment` | Banks, questions, tests, forms, attempts, grading | proposed: starts inside `core` |
 
-Why the split is not simply eight, measured on the dev cluster rather than estimated: a Spring Boot
-process idles at ~600Mi (`core` 605Mi, `gateway` 533Mi actual), and both workers are already at 70%
-and 75% memory with only `core` and two `gateway` replicas deployed. **Genuinely free: 3899Mi.** Six
-more JVMs would leave 299Mi, which is not a margin.
+Why the split is not simply eight, measured rather than estimated: a Spring Boot process idles at
+~600Mi (`core` 605Mi, `gateway` 533Mi actual), and on identical sizing the platform underneath
+leaves about 4.7GB for application services. Eight processes need 4696Mi of that. Six need 3486Mi.
 
-The trap in that number is worth stating, because the first version of this calculation fell into
-it: cluster-wide requests total 7766Mi while actual usage is 10407Mi. Kubernetes schedules on
-requests; the node dies on usage. Any headroom figure derived from manifests is comparing requests
-against requests and will be about 2.6GB too optimistic.
+Two traps are worth naming, because the first version of this calculation fell into both.
+**Kubernetes schedules on requests; the node dies on usage** — cluster-wide requests totalled
+7766Mi against 11217Mi actually used, so any headroom figure derived from manifests is ~2.6GB too
+optimistic. And **a capacity reading taken once is a snapshot**: free memory moved 810Mi across
+three readings in an hour on an idle cluster, all of it one Argo CD pod. The figure recorded is the
+worst of the three.
 
 Two rules keep the deferral honest rather than a retreat. **No module reads another module's
 schema** — separate schemas, separate migrations, enforced by credentials where the boundary is a
