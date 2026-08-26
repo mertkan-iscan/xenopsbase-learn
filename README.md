@@ -21,25 +21,36 @@ What the stemcell *does* supply already is reasoning. Its ADRs on service topolo
 identity and evidence-before-scaling are referenced throughout this backlog, and several decisions
 here exist because that repository documented the failure first.
 
-## Services
+## Modules and processes
 
-Eight deployables. The split is a decision in its own right — see
-[ADR-0109](../../issues/86), which also records the argument against it, because a decomposition
-chosen without its cost written down is the one that gets regretted.
+Eight modules. **How many of them are separate processes is a different question**, and it is
+decided in [ADR-0109](../../issues/86) against measured capacity rather than by preference.
 
-| Service | Owns | Data |
+| Module | Owns | Separate process at dev sizing? |
 |---|---|---|
-| `gateway` | Edge routing, sign-in, session, rate limiting, tenant status gate | none |
-| `frontend` | Learner app, admin console, authoring, embeddable player | none |
-| `identity` | Tenants, users, groups, roles, permissions | `identity_db` |
-| `catalog` | Content items, courses, modules, gates, assignments | `catalog_db` |
-| `streaming` | Video assets, upload targets, encode state, playback tokens | `streaming_db` |
-| `media-worker` | Package extraction, manifest parsing, rasterisation | object storage |
-| `assessment` | Banks, questions, tests, forms, attempts, grading | `assessment_db` |
-| `reporting` | Telemetry ingest, rollups, reports, exports | `reporting_db` |
+| `gateway` | Edge routing, sign-in, session, rate limiting, tenant status gate | yes — exists |
+| `frontend` | Learner app, admin console, authoring, embeddable player | yes — a static build served from the edge costs the cluster nothing |
+| `streaming` | Video assets, upload targets, encode state, playback tokens | yes — the learner hot path |
+| `packaging` | SCORM and cmi5 archive extraction, manifest parsing, slide rasterisation. No video — that is Cloudflare Stream | yes — it runs untrusted uploaded code and must not share a heap with a session |
+| `reporting` | Telemetry ingest, rollups, reports, exports | yes — must fail without stopping playback |
+| `identity` | Tenants, users, groups, roles, permissions | proposed: starts inside `core` |
+| `catalog` | Content items, courses, modules, gates, assignments | proposed: starts inside `core` |
+| `assessment` | Banks, questions, tests, forms, attempts, grading | proposed: starts inside `core` |
 
-One rule holds the split together: **no service reads another service's database.** The first
-report that joins across two of them ends the decomposition, and nobody will notice it happening.
+Why the split is not simply eight: a Spring Boot process has a 600–850Mi floor before it serves a
+request, and the dev cluster has roughly 8.9 GB for applications after the platform takes its share.
+Eight processes fit at rest with ~2.4 GB spare — which is the band where `dev.tfvars` already
+records Argo's repo-server failing probes and committed changes silently not arriving. The
+constraint is JVM count, not service count.
+
+Two rules keep the deferral honest rather than a retreat. **No module reads another module's
+schema** — separate schemas, separate migrations, enforced by credentials where the boundary is a
+process and by an ArchUnit rule where it is not. And **every cross-module call goes through a
+published interface**, so extracting one later is a deployment change and a client swap rather than
+a rewrite.
+
+The estimates above are arithmetic over declared configuration. [T-9.15](../../issues/101) replaces
+them with measurements.
 
 ## Decisions
 
