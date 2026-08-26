@@ -1,0 +1,17 @@
+# LF everywhere in the repository. Not a style preference: `local/minio/init.sh`
+# runs inside an Alpine container, and a CRLF line ending there produces
+# "no such file or directory" naming an interpreter that plainly exists --
+# which costs an afternoon the first time somebody meets it.
+* text=auto eol=lf
+
+*.sh      text eol=lf
+Makefile  text eol=lf
+Caddyfile text eol=lf
+*.sql     text eol=lf
+*.yml     text eol=lf
+*.yaml    text eol=lf
+*.json    text eol=lf
+
+*.png binary
+*.jpg binary
+*.pdf binary
