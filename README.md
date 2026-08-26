@@ -46,11 +46,15 @@ decided in [ADR-0109](../../issues/86) against measured capacity rather than by 
 | `catalog` | Content items, courses, modules, gates, assignments | proposed: starts inside `core` |
 | `assessment` | Banks, questions, tests, forms, attempts, grading | proposed: starts inside `core` |
 
-Why the split is not simply eight: a Spring Boot process has a 600–850Mi floor before it serves a
-request, and the dev cluster has roughly 8.9 GB for applications after the platform takes its share.
-Eight processes fit at rest with ~2.4 GB spare — which is the band where `dev.tfvars` already
-records Argo's repo-server failing probes and committed changes silently not arriving. The
-constraint is JVM count, not service count.
+Why the split is not simply eight, measured on the dev cluster rather than estimated: a Spring Boot
+process idles at ~600Mi (`core` 605Mi, `gateway` 533Mi actual), and both workers are already at 70%
+and 75% memory with only `core` and two `gateway` replicas deployed. **Genuinely free: 3899Mi.** Six
+more JVMs would leave 299Mi, which is not a margin.
+
+The trap in that number is worth stating, because the first version of this calculation fell into
+it: cluster-wide requests total 7766Mi while actual usage is 10407Mi. Kubernetes schedules on
+requests; the node dies on usage. Any headroom figure derived from manifests is comparing requests
+against requests and will be about 2.6GB too optimistic.
 
 Two rules keep the deferral honest rather than a retreat. **No module reads another module's
 schema** — separate schemas, separate migrations, enforced by credentials where the boundary is a
