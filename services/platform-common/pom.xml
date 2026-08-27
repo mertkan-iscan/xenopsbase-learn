@@ -46,6 +46,19 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!--
+            Optional, deliberately: TenantOwned and TenantIdentifierResolver
+            exist for the modules that persist tenant-scoped data, and a
+            service without JPA (the gateway) must not inherit Hibernate by
+            depending on this library. Optional means each JPA service brings
+            its own persistence starter and these two classes simply resolve.
+        -->
+        <dependency>
+            <groupId>org.hibernate.orm</groupId>
+            <artifactId>hibernate-core</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

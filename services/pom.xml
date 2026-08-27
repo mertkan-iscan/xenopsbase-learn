@@ -130,6 +130,25 @@
             <plugins>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <configuration>
+                        <systemPropertyVariables>
+                            <!--
+                                For Testcontainers' docker-java, whose default
+                                Docker API version (1.32) is older than what
+                                Docker Engine 29 still serves (minimum 1.40).
+                                Without this, every strategy fails with a 400
+                                whose body is an empty Info object: an error
+                                that names neither the version mismatch nor
+                                either version. Measured on this machine:
+                                /v1.32/info is 400, /v1.44/info is 200.
+                            -->
+                            <api.version>1.44</api.version>
+                        </systemPropertyVariables>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-enforcer-plugin</artifactId>
                     <executions>
                         <execution>

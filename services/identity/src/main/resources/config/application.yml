@@ -29,6 +29,13 @@ spring:
     open-in-view: false
     properties:
       hibernate.jdbc.time_zone: UTC
+      # The tenant discriminator is the persistence layer's job, not each
+      # query's (T-1.1). With this resolver plus @TenantId on TenantOwned,
+      # Hibernate stamps tenant_id on insert and filters every query by it --
+      # a forgotten WHERE clause is then a query that was already filtered,
+      # not a data leak. Declared here by class name, visibly, because
+      # Hibernate instantiates it reflectively rather than as a bean.
+      hibernate.tenant_identifier_resolver: com.xenopsoftware.learn.common.tenancy.TenantIdentifierResolver
 
   flyway:
     enabled: true

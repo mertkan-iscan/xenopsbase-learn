@@ -251,9 +251,6 @@
       "firstName": "Platform",
       "lastName": "Admin",
       "attributes": {
-        "tenant_id": [
-          "PLATFORM"
-        ],
         "side": [
           "PLATFORM"
         ]

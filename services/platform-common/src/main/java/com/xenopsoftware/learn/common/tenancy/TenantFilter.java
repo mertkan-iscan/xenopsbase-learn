@@ -68,10 +68,23 @@ public class TenantFilter extends OncePerRequestFilter {
         }
         Jwt jwt = token.getToken();
         String tenant = jwt.getClaimAsString(TENANT_CLAIM);
+        if (PLATFORM.equals(jwt.getClaimAsString(SIDE_CLAIM))) {
+            // Platform staff belong to no customer, and that is expressed by binding nothing --
+            // not by a sentinel pretending to be a tenant, which would flow into the persistence
+            // discriminator as a filter matching no rows. The realm's first draft did exactly
+            // that (tenant_id: "PLATFORM" on platform-admin), and the quiet empty result sets it
+            // produced are why this branch exists.
+            if (tenant != null && !tenant.isBlank()) {
+                LOG.warn("Platform-side subject {} carries a {} claim ({}); ignored, no tenant bound",
+                    jwt.getSubject(), TENANT_CLAIM, tenant);
+            }
+            return null;
+        }
         if (tenant == null || tenant.isBlank()) {
-            // Authenticated but carrying no tenant. Almost always a realm mapper that stopped
-            // applying rather than a legitimate request, so it is worth a line -- the alternative
-            // is a 500 from require() with nothing explaining where the claim went.
+            // Authenticated, tenant-side, but carrying no tenant. Almost always a realm mapper
+            // that stopped applying rather than a legitimate request, so it is worth a line --
+            // the alternative is a 500 from require() with nothing explaining where the claim
+            // went.
             LOG.warn("Authenticated subject {} has no {} claim; no tenant bound", jwt.getSubject(), TENANT_CLAIM);
             return null;
         }
