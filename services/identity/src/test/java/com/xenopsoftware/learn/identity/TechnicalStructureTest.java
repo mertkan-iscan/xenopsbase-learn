@@ -62,4 +62,21 @@ class TechnicalStructureTest {
         .should()
         .callMethod(com.xenopsoftware.learn.common.tenancy.TenantContext.class, "set", String.class)
         .because("the tenant is bound once, from the verified token, by TenantFilter");
+
+    /**
+     * A reference to a person is a reference to {@code app_user.id}, never a stored {@code sub}
+     * (ADR-0104). {@code AppUser.idpSub} is the one legitimate holder; a field shaped like a
+     * subject anywhere else is the convenience copy this rule exists to refuse — it looks stable
+     * on every request and stops being stable the day a customer changes identity provider.
+     * {@code SchemaConventionsTest} enforces the same rule at the column level.
+     */
+    @ArchTest
+    static final ArchRule aSubIsStoredOnlyByAppUser = com.tngtech.archunit.lang.syntax.ArchRuleDefinition
+        .noFields()
+        .that()
+        .areDeclaredInClassesThat()
+        .resideOutsideOfPackage("com.xenopsoftware.learn.identity.user..")
+        .should()
+        .haveNameMatching("(?i)^(sub|idp_?sub|keycloak_?sub|oidc_?sub|subject_?id)$")
+        .because("app_user.idp_sub is the only stored sub; everything else references app_user.id (ADR-0104)");
 }

@@ -6,7 +6,6 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -15,11 +14,8 @@ import java.util.concurrent.Executors;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.core.env.Environment;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
 
 /**
  * The tenant boundary, tested at the real entry point (T-1.1).
@@ -43,33 +39,8 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
         "server.tomcat.threads.max=2",
         "server.tomcat.threads.min-spare=2"
     })
+@Import(StubTokens.class)
 class TenantBoundaryWebTest extends PostgresTestHarness {
-
-    /**
-     * Decodes {@code username~tenant~side} as if it were a verified token. An empty tenant
-     * segment produces a token with no {@code tenant_id} claim, which is what a platform-side
-     * user's token looks like.
-     */
-    @TestConfiguration(proxyBeanMethods = false)
-    static class StubTokens {
-        @Bean
-        JwtDecoder jwtDecoder() {
-            return token -> {
-                String[] parts = token.split("~", -1);
-                Jwt.Builder jwt = Jwt.withTokenValue(token)
-                    .header("alg", "none")
-                    .subject("sub-" + parts[0])
-                    .claim("preferred_username", parts[0])
-                    .claim("side", parts[2])
-                    .issuedAt(Instant.now())
-                    .expiresAt(Instant.now().plusSeconds(60));
-                if (!parts[1].isEmpty()) {
-                    jwt.claim("tenant_id", parts[1]);
-                }
-                return jwt.build();
-            };
-        }
-    }
 
     @Autowired
     private Environment environment;

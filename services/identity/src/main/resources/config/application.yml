@@ -19,6 +19,18 @@ spring:
       maximum-pool-size: 10
       pool-name: identity
 
+  data:
+    jpa:
+      repositories:
+        # Repository initialization validates queries by opening a session, on
+        # the startup thread, which binds no tenant -- and the resolver below
+        # rightly refuses a session with no tenant. Lazy defers that first
+        # session to the first real use, which happens inside a request with
+        # its tenant bound. The trade: a broken derived query surfaces at
+        # first use instead of at boot; the tests reach every repository, so
+        # it still cannot reach a deploy.
+        bootstrap-mode: lazy
+
   jpa:
     hibernate:
       # validate, never update. An entity that disagrees with its migration

@@ -28,6 +28,12 @@ public class SecurityConfiguration {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
+                // The container's internal forward to /error after an exception. Without this,
+                // denyAll() swallows every error dispatch and a controller's 404 comes back as
+                // a bare 403 with WWW-Authenticate: insufficient_scope -- the wrong status AND
+                // a misleading hint. Not reachable from outside: dispatcher type is container
+                // state, not something a request can claim.
+                .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ERROR).permitAll()
                 .requestMatchers(HttpMethod.GET, "/management/health/**", "/management/info").permitAll()
                 .requestMatchers("/v3/api-docs/**").permitAll()
                 .requestMatchers("/api/**").authenticated()
