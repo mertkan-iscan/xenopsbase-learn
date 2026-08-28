@@ -17,7 +17,7 @@ class FakeMediaProviderTest {
 
     @Test
     void theFullLifecycleRoundTrips() {
-        UploadTarget target = provider.createUploadTarget(new UploadRequest(3600));
+        UploadTarget target = provider.createUploadTarget(new UploadRequest(3600, 1_000_000));
 
         assertThat(target.providerRef()).startsWith("fake-");
         assertThat(target.uploadUrl().getHost()).endsWith(".invalid");
@@ -42,7 +42,7 @@ class FakeMediaProviderTest {
 
     @Test
     void aFailedEncodeCarriesItsReason() {
-        UploadTarget target = provider.createUploadTarget(new UploadRequest(3600));
+        UploadTarget target = provider.createUploadTarget(new UploadRequest(3600, 1_000_000));
         provider.failUpload(target.providerRef(), "codec not supported");
 
         MediaAssetStatus status = provider.status(target.providerRef());
@@ -52,7 +52,7 @@ class FakeMediaProviderTest {
 
     @Test
     void aPlaybackTokenExpiresWithItsGrant() {
-        UploadTarget target = provider.createUploadTarget(new UploadRequest(3600));
+        UploadTarget target = provider.createUploadTarget(new UploadRequest(3600, 1_000_000));
         Instant before = Instant.now();
 
         PlaybackToken token = provider.mintPlaybackToken(target.providerRef(),

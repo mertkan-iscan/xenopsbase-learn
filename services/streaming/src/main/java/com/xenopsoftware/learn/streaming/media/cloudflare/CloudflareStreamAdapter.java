@@ -22,7 +22,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
-import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -66,19 +65,27 @@ public class CloudflareStreamAdapter implements MediaProvider {
 
     @Override
     public UploadTarget createUploadTarget(UploadRequest request) {
-        DirectUploadEnvelope envelope = api.post()
-            .uri("/stream/direct_upload")
-            .body(Map.of(
-                "maxDurationSeconds", request.maxDurationSeconds(),
-                // The unused-target window; an upload target nobody uses must expire rather
-                // than stay a forever-valid door into our library.
-                "expiry", Instant.now().plus(Duration.ofHours(1)).toString()))
+        // The tus flow, not the simpler direct_upload one: a two-hour master over a domestic
+        // connection WILL be interrupted (T-3.2), and tus resumes at the byte offset instead of
+        // starting over. The declared Upload-Length is binding at ingest, which is what lets
+        // quota be enforced before the target is issued rather than after the bytes arrive.
+        var response = api.post()
+            .uri("/stream?direct_user=true")
+            .header("Tus-Resumable", "1.0.0")
+            .header("Upload-Length", String.valueOf(request.sizeBytes()))
+            .header("Upload-Metadata", "maxDurationSeconds " + Base64.getEncoder()
+                .encodeToString(String.valueOf(request.maxDurationSeconds())
+                    .getBytes(StandardCharsets.US_ASCII)))
             .retrieve()
-            .body(DirectUploadEnvelope.class);
-        return new UploadTarget(
-            envelope.result().uid(),
-            URI.create(envelope.result().uploadURL()),
-            Instant.now().plus(Duration.ofHours(1)));
+            .toBodilessEntity();
+        String uid = response.getHeaders().getFirst("stream-media-id");
+        URI uploadUrl = response.getHeaders().getLocation();
+        if (uid == null || uploadUrl == null) {
+            throw new IllegalStateException(
+                "Stream's tus create answered without stream-media-id or Location; "
+                + "the API contract moved and this adapter must move with it");
+        }
+        return new UploadTarget(uid, uploadUrl, Instant.now().plus(Duration.ofHours(1)));
     }
 
     @Override
@@ -146,12 +153,6 @@ public class CloudflareStreamAdapter implements MediaProvider {
                 "streaming.cloudflare-stream.signing-key-jwk is not a usable RSA key", e);
         }
     }
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    record DirectUploadEnvelope(boolean success, DirectUploadResult result) {}
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    record DirectUploadResult(String uid, String uploadURL) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record VideoEnvelope(boolean success, VideoResult result) {}

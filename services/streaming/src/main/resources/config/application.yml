@@ -8,6 +8,14 @@ spring:
   application:
     name: streaming
 
+  servlet:
+    multipart:
+      # OFF, as a design statement (T-3.2): video bytes must not pass through
+      # a request thread. Uploads go directly to the provider's target; the
+      # day someone needs multipart here for anything, this line is the
+      # conversation they have to have first.
+      enabled: false
+
   datasource:
     url: ${STREAMING_DB_URL:jdbc:postgresql://localhost:5432/streaming}
     username: ${STREAMING_DB_USER:streaming}
@@ -47,6 +55,19 @@ server:
   port: ${SERVER_PORT:8083}
 
 streaming:
+  upload:
+    # Per-upload ceiling: Cloudflare Stream's own maximum per video is 30GB,
+    # so a larger declared size would fail at the vendor anyway -- better
+    # here, before a target is minted.
+    max-size-bytes: ${UPLOAD_MAX_SIZE_BYTES:32212254720}
+    # One number for every tenant until the tenant table (T-1.5) gives quota
+    # a per-tenant home. 500GB.
+    tenant-quota-bytes: ${UPLOAD_TENANT_QUOTA_BYTES:536870912000}
+    # How long a PENDING_UPLOAD may sit untouched before the reaper takes it.
+    # Re-issuing a target resets the clock.
+    abandon-after: ${UPLOAD_ABANDON_AFTER:PT24H}
+    reap-interval: ${UPLOAD_REAP_INTERVAL:PT15M}
+
   media:
     # `fake` is the local default because video is the one dependency with no
     # local equivalent (local-stack.md). `cloudflare-stream` needs the values

@@ -57,4 +57,18 @@ class TechnicalStructureTest {
         .should()
         .resideInAPackage("..media.cloudflare..")
         .because("the adapter package is the vendor's entire footprint (T-3.1)");
+
+    /**
+     * No upload path exists through this service, structurally (T-3.2). Bytes through a request
+     * thread means a thread held for hours, a heap spooling gigabytes, and large-object traffic
+     * on exactly the path ADR-0101 exists to keep empty — and it would arrive as a reasonable
+     * convenience ("just for small files"). Multipart is also disabled in configuration; this
+     * rule is the compile-time half of the same refusal.
+     */
+    @ArchTest
+    static final ArchRule noUploadPathThroughThisService = noClasses()
+        .should()
+        .dependOnClassesThat()
+        .resideInAPackage("org.springframework.web.multipart..")
+        .because("video bytes go directly to the provider's upload target, never through a request thread (T-3.2)");
 }

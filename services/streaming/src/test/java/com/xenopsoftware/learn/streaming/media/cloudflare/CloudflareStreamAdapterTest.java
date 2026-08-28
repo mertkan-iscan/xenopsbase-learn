@@ -58,22 +58,23 @@ class CloudflareStreamAdapterTest {
     }
 
     @Test
-    void createUploadTargetAsksForADirectUploadAndReturnsTheOpaqueRef() {
-        server.expect(requestTo(BASE + "/stream/direct_upload"))
+    void createUploadTargetSpeaksTusAndReturnsTheOpaqueRefFromTheHeaders() {
+        server.expect(requestTo(BASE + "/stream?direct_user=true"))
             .andExpect(method(HttpMethod.POST))
             .andExpect(header("Authorization", "Bearer api-token-1"))
-            .andRespond(withSuccess("""
-                {"success": true, "result": {
-                    "uid": "cf-uid-123",
-                    "uploadURL": "https://upload.cloudflarestream.com/cf-uid-123",
-                    "watermark": null}}
-                """, MediaType.APPLICATION_JSON));
+            .andExpect(header("Tus-Resumable", "1.0.0"))
+            // The declared length is binding at ingest -- what makes the pre-issuance quota
+            // check (T-3.2) an enforcement rather than a hope.
+            .andExpect(header("Upload-Length", "5000000000"))
+            .andRespond(withStatus(HttpStatus.CREATED)
+                .header("stream-media-id", "cf-uid-123")
+                .header("Location", "https://upload.cloudflarestream.com/tus/cf-uid-123"));
 
-        UploadTarget target = adapter.createUploadTarget(new UploadRequest(3600));
+        UploadTarget target = adapter.createUploadTarget(new UploadRequest(3600, 5_000_000_000L));
 
         assertThat(target.providerRef()).isEqualTo("cf-uid-123");
         assertThat(target.uploadUrl().toString())
-            .isEqualTo("https://upload.cloudflarestream.com/cf-uid-123");
+            .isEqualTo("https://upload.cloudflarestream.com/tus/cf-uid-123");
         server.verify();
     }
 
