@@ -69,6 +69,17 @@ class CatalogCoverageTest extends PostgresTestHarness {
         "T-2.3 -- role:read and role:manage are catalogued and the evaluator is live, but "
         + "nothing can hold a grant until assignments exist; annotating would deny everyone";
 
+    /**
+     * Assignments (T-2.3) are the last piece of the bootstrap, not a missing check: role:assign
+     * can finally be HELD now that grants exist, but the first grant has nobody to grant it
+     * (T-2.7 seeds the starting point) and the rule that must guard this path -- nobody grants
+     * what they do not hold -- is T-2.6. Annotating before both would lock the product out of
+     * its own authorization.
+     */
+    private static final String ASSIGN_GAP =
+        "T-2.6/T-2.7 -- grants exist now, but the seeded starting point and the no-escalation "
+        + "rule do not; annotating would leave nobody able to make the first assignment";
+
     /** Endpoint → why authentication alone is the whole check. */
     private static final Map<String, String> AUTH_ONLY = Map.ofEntries(
         Map.entry("AuthInfoResource#authInfo",
@@ -90,7 +101,14 @@ class CatalogCoverageTest extends PostgresTestHarness {
         Map.entry("RoleResource#create", ROLE_GAP),
         Map.entry("RoleResource#rename", ROLE_GAP),
         Map.entry("RoleResource#setPermissions", ROLE_GAP),
-        Map.entry("RoleResource#delete", ROLE_GAP));
+        Map.entry("RoleResource#delete", ROLE_GAP),
+        Map.entry("AssignmentResource#all", ASSIGN_GAP),
+        Map.entry("AssignmentResource#ofRole", ASSIGN_GAP),
+        Map.entry("AssignmentResource#grant", ASSIGN_GAP),
+        Map.entry("AssignmentResource#revoke", ASSIGN_GAP),
+        Map.entry("AssignmentResource#reach",
+            "shows the caller their OWN reach and nothing about anyone else; there is no wider "
+            + "answer to gate, and a caller with no grants sees an empty reach"));
 
     /** Catalog entry → the task that will make some code path check it. */
     private static final Map<Permission, String> NOT_YET_ENFORCED = Map.of(
@@ -100,7 +118,7 @@ class CatalogCoverageTest extends PostgresTestHarness {
         Permission.GROUP_MANAGE, "T-2.2/T-2.3 -- GroupResource exists; grants to check against do not",
         Permission.ROLE_READ, "T-2.3 -- RoleResource exists; grants to check against do not",
         Permission.ROLE_MANAGE, "T-2.3 -- RoleResource exists; grants to check against do not",
-        Permission.ROLE_ASSIGN, "T-2.3/T-2.6 -- scoped assignment behind the no-escalation rule",
+        Permission.ROLE_ASSIGN, "T-2.6/T-2.7 -- AssignmentResource exists; the no-escalation rule and the seeded first grant do not",
         Permission.TENANT_PROVISION, "T-1.5 -- provisioning a company is an API call",
         Permission.TENANT_SUSPEND, "T-1.4 -- suspension stops at the gateway",
         Permission.SUPPORT_IMPERSONATE, "T-2.8 -- impersonation that is always visible afterwards");

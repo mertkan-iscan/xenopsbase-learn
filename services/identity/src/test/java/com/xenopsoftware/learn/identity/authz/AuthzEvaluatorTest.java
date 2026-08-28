@@ -9,6 +9,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
@@ -40,6 +41,14 @@ import org.springframework.web.bind.annotation.RestController;
 @org.springframework.test.context.ActiveProfiles("authz-probe")
 class AuthzEvaluatorTest extends PostgresTestHarness {
 
+    /**
+     * Profile-gated for the same reason the probe controller is, and it is worth stating twice:
+     * a @TestConfiguration nested in a test class is still a class on the scan path, so this
+     * @Primary resolver was silently replacing the real one in every OTHER test context —
+     * which made T-2.3's assignments resolve to nothing and looked exactly like a bug in the
+     * resolver. If a test class contributes beans, gate them on its profile.
+     */
+    @org.springframework.context.annotation.Profile("authz-probe")
     @TestConfiguration(proxyBeanMethods = false)
     static class Grants {
         static final Map<String, GrantedPermissions> BY_SUBJECT = new ConcurrentHashMap<>();
@@ -169,8 +178,8 @@ class AuthzEvaluatorTest extends PostgresTestHarness {
     @Test
     void twoChecksInOneRequestResolveThePermissionSetOnce() throws Exception {
         Grants.BY_SUBJECT.put("sub-viewer", new GrantedPermissions(Map.of(
-            Permission.USER_READ, PermissionScope.TENANT,
-            Permission.GROUP_READ, PermissionScope.TENANT)));
+            Permission.USER_READ, Set.of(ScopeGrant.tenantWide()),
+            Permission.GROUP_READ, Set.of(ScopeGrant.tenantWide()))));
 
         int before = Grants.RESOLUTIONS.get();
         HttpResponse<String> response = get("/two-checks", "viewer~acme~TENANT");
@@ -184,7 +193,7 @@ class AuthzEvaluatorTest extends PostgresTestHarness {
 
     private static void grant(String username, Permission permission) {
         Grants.BY_SUBJECT.put("sub-" + username,
-            new GrantedPermissions(Map.of(permission, PermissionScope.TENANT)));
+            new GrantedPermissions(Map.of(permission, Set.of(ScopeGrant.tenantWide()))));
     }
 
     private HttpResponse<String> get(String path, String token) throws Exception {

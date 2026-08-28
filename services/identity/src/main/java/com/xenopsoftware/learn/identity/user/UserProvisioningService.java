@@ -52,6 +52,14 @@ public class UserProvisioningService {
         }
 
         Optional<AppUser> sameEmail = repository.findByEmailIgnoreCase(email);
+        if (sameEmail.isPresent() && sub.equals(sameEmail.get().getIdpSub())) {
+            // Lost the concurrent-first-login race in the window BETWEEN the two lookups above:
+            // the winner committed after our sub lookup missed and before our email lookup ran.
+            // An email match carrying our own sub is our own row, not somebody else's account,
+            // and treating it as a conflict would fail a legitimate first login roughly whenever
+            // a browser fires two requests at once.
+            return sameEmail.get();
+        }
         if (sameEmail.isPresent()) {
             LOG.warn("Provisioning refused: subject {} is unknown but email {} belongs to app_user {}. "
                 + "If the IdP identity changed, re-link deliberately (docs/runbooks/identity.md).",
