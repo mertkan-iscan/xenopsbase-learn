@@ -79,4 +79,33 @@ class TechnicalStructureTest {
         .should()
         .haveNameMatching("(?i)^(sub|idp_?sub|keycloak_?sub|oidc_?sub|subject_?id)$")
         .because("app_user.idp_sub is the only stored sub; everything else references app_user.id (ADR-0104)");
+
+    /**
+     * No check names a role (T-2.4). Roles are runtime data a customer builds and rebuilds; a
+     * method gated on {@code tenant-admin} is a method no customer can re-wire. Checks say
+     * {@code hasPermission('resource', 'action')} and the catalog evaluator answers.
+     */
+    @ArchTest
+    static final ArchRule noPreAuthorizeNamesARole = com.tngtech.archunit.lang.syntax.ArchRuleDefinition
+        .methods()
+        .that()
+        .areAnnotatedWith(org.springframework.security.access.prepost.PreAuthorize.class)
+        .should(new com.tngtech.archunit.lang.ArchCondition<com.tngtech.archunit.core.domain.JavaMethod>(
+            "check a permission, not a role") {
+            @Override
+            public void check(com.tngtech.archunit.core.domain.JavaMethod method,
+                    com.tngtech.archunit.lang.ConditionEvents events) {
+                String expression = method
+                    .getAnnotationOfType(org.springframework.security.access.prepost.PreAuthorize.class)
+                    .value();
+                if (expression.matches(".*(hasRole|hasAnyRole|hasAuthority|hasAnyAuthority|ROLE_).*")) {
+                    events.add(com.tngtech.archunit.lang.SimpleConditionEvent.violated(method,
+                        method.getFullName() + " names a role or authority: " + expression));
+                }
+            }
+        })
+        .because("roles are runtime data; checks name a catalog permission and the evaluator decides (T-2.4)")
+        // No production method carries @PreAuthorize until T-2.3 supplies grants; an empty
+        // match set is the current correct state, not a broken rule.
+        .allowEmptyShould(true);
 }

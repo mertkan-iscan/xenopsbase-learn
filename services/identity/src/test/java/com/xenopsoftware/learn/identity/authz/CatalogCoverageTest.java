@@ -1,6 +1,7 @@
 package com.xenopsoftware.learn.identity.authz;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 
 import com.xenopsoftware.learn.identity.PostgresTestHarness;
 import java.net.URI;
@@ -10,35 +11,41 @@ import java.net.http.HttpResponse;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 /**
- * Both directions of T-2.1's honesty rule, held by a test instead of a review.
+ * Both directions of T-2.1's honesty rule, held by a test instead of a review — and since
+ * T-2.4, read off the real enforcement mechanism rather than a hand-kept map: an endpoint's
+ * permissions are whatever its {@code @PreAuthorize} actually checks.
  *
- * <p>Forward: every endpoint under {@code /api/**} names the permission it checks, or is
- * consciously listed as authentication-only with the reason. A new endpoint in neither map
- * fails this test with instructions — which is the moment its author decides its authorization,
- * instead of the moment a pen test does.
+ * <p>Forward (T-2.4's closed-by-default criterion): every endpoint under {@code /api/**} either
+ * carries a {@code hasPermission} check or is consciously listed as authentication-only with
+ * the reason. A new endpoint with neither fails this test with instructions — its authorization
+ * is decided at write time, not discovered at pen-test time.
  *
- * <p>Reverse: every catalog entry is checked somewhere or carries the task that will enforce
- * it. When T-2.4 lands the evaluator, {@link #PERMISSIONED} stops being a hand-kept map and
- * starts being read off the enforcement mechanism itself; until then these maps are the
- * declared intent the build holds us to.
+ * <p>Reverse: every catalog entry is checked by some endpoint or carries the task that will
+ * enforce it, with a tripwire against being both.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class CatalogCoverageTest extends PostgresTestHarness {
 
-    /** Endpoint → the catalog permission its handler checks. Empty until T-2.4's evaluator. */
-    private static final Map<String, Permission> PERMISSIONED = Map.of();
+    private static final Pattern HAS_PERMISSION =
+        Pattern.compile("hasPermission\\(\\s*'([^']+)'\\s*,\\s*'([^']+)'\\s*\\)");
 
     /** Endpoint → why authentication alone is the whole check. */
     private static final Map<String, String> AUTH_ONLY = Map.of(
@@ -47,11 +54,11 @@ class CatalogCoverageTest extends PostgresTestHarness {
         "UserResource#me",
             "provisioning IS the first login -- there is no earlier moment at which a permission could be held",
         "UserResource#user",
-            "display resolution for any tenant member; T-2.4 wires user:read here when the evaluator exists");
+            "display resolution for any tenant member; T-2.3's grants let user:read be wired here");
 
     /** Catalog entry → the task that will make some code path check it. */
     private static final Map<Permission, String> NOT_YET_ENFORCED = Map.of(
-        Permission.USER_READ, "T-2.4 -- the evaluator, wired to /users/{id}",
+        Permission.USER_READ, "T-2.2/T-2.3 -- the evaluator is live but no grant source can hold this yet",
         Permission.USER_MANAGE, "T-1.9 -- invite and deactivate endpoints",
         Permission.GROUP_READ, "T-1.3 -- the group tree",
         Permission.GROUP_MANAGE, "T-1.3 -- the group tree",
@@ -63,7 +70,7 @@ class CatalogCoverageTest extends PostgresTestHarness {
         Permission.SUPPORT_IMPERSONATE, "T-2.8 -- impersonation that is always visible afterwards");
 
     @Autowired
-    @org.springframework.beans.factory.annotation.Qualifier("requestMappingHandlerMapping")
+    @Qualifier("requestMappingHandlerMapping")
     private RequestMappingHandlerMapping handlerMapping;
 
     @Autowired
@@ -75,42 +82,45 @@ class CatalogCoverageTest extends PostgresTestHarness {
     @Test
     void everyApiEndpointDeclaresItsAuthorizationDecision() {
         Set<String> unaccounted = new TreeSet<>();
-        handlerMapping.getHandlerMethods().forEach((mapping, handler) -> {
-            if (isApi(mapping)) {
-                String endpoint = endpointId(handler);
-                if (!PERMISSIONED.containsKey(endpoint) && !AUTH_ONLY.containsKey(endpoint)) {
-                    unaccounted.add(endpoint);
-                }
+        forEachApiEndpoint((endpoint, handler) -> {
+            if (!AUTH_ONLY.containsKey(endpoint) && checkedPermissions(endpoint, handler).isEmpty()) {
+                unaccounted.add(endpoint);
             }
         });
         assertThat(unaccounted)
-            .as("endpoints that decided their authorization by omission -- add each to "
-                + "PERMISSIONED with its catalog entry, or to AUTH_ONLY with the reason "
-                + "authentication alone is the whole check")
+            .as("endpoints that decided their authorization by omission -- add a "
+                + "@PreAuthorize(\"hasPermission('resource', 'action')\") check, or list the "
+                + "endpoint in AUTH_ONLY with the reason authentication alone is the whole check")
             .isEmpty();
     }
 
     @Test
     void everyCheckedPermissionExistsLiveInTheCatalogTable() {
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
-        for (Permission permission : PERMISSIONED.values()) {
-            Boolean orphaned = jdbc.queryForObject(
-                "SELECT orphaned FROM permission WHERE code = ?", Boolean.class, permission.code());
-            assertThat(orphaned).as("%s must be seeded and live", permission.code()).isFalse();
-        }
+        forEachApiEndpoint((endpoint, handler) -> {
+            for (Permission permission : checkedPermissions(endpoint, handler)) {
+                Boolean orphaned = jdbc.queryForObject(
+                    "SELECT orphaned FROM permission WHERE code = ?", Boolean.class, permission.code());
+                assertThat(orphaned)
+                    .as("%s (checked by %s) must be seeded and live", permission.code(), endpoint)
+                    .isFalse();
+            }
+        });
     }
 
     @Test
     void everyCatalogEntryIsCheckedSomewhereOrExplained() {
+        Set<Permission> checked = EnumSet.noneOf(Permission.class);
+        forEachApiEndpoint((endpoint, handler) -> checked.addAll(checkedPermissions(endpoint, handler)));
+
         for (Permission permission : EnumSet.allOf(Permission.class)) {
-            boolean checked = PERMISSIONED.containsValue(permission);
             String excuse = NOT_YET_ENFORCED.get(permission);
-            assertThat(checked || (excuse != null && !excuse.isBlank()))
+            assertThat(checked.contains(permission) || (excuse != null && !excuse.isBlank()))
                 .as("%s is granted-but-never-checked -- the exact failure T-2.1 forbids. "
                     + "Wire it to an endpoint or list it in NOT_YET_ENFORCED with the task "
                     + "that will.", permission.code())
                 .isTrue();
-            assertThat(checked && excuse != null)
+            assertThat(checked.contains(permission) && excuse != null)
                 .as("%s is both checked and excused; delete its NOT_YET_ENFORCED entry",
                     permission.code())
                 .isFalse();
@@ -128,6 +138,45 @@ class CatalogCoverageTest extends PostgresTestHarness {
         for (Permission permission : Permission.values()) {
             assertThat(docs.body()).contains(permission.code());
         }
+    }
+
+    /**
+     * The permissions an endpoint really checks, read from its merged {@code @PreAuthorize}.
+     * An expression that exists but names no {@code hasPermission} is its own failure: checks
+     * name permissions (the ArchUnit rule separately rejects role names).
+     */
+    private Set<Permission> checkedPermissions(String endpoint, HandlerMethod handler) {
+        PreAuthorize annotation = AnnotatedElementUtils.findMergedAnnotation(handler.getMethod(), PreAuthorize.class);
+        if (annotation == null) {
+            annotation = AnnotatedElementUtils.findMergedAnnotation(handler.getBeanType(), PreAuthorize.class);
+        }
+        Set<Permission> permissions = EnumSet.noneOf(Permission.class);
+        if (annotation == null) {
+            return permissions;
+        }
+        Matcher checks = HAS_PERMISSION.matcher(annotation.value());
+        while (checks.find()) {
+            String code = checks.group(1) + ":" + checks.group(2);
+            permissions.add(Permission.byCode(code).orElseGet(() -> {
+                fail("%s checks '%s', which is not in the Permission catalog", endpoint, code);
+                return null;
+            }));
+        }
+        if (permissions.isEmpty()) {
+            fail("%s has @PreAuthorize(\"%s\") with no hasPermission check -- checks name a "
+                + "catalog permission", endpoint, annotation.value());
+        }
+        return permissions;
+    }
+
+    private void forEachApiEndpoint(java.util.function.BiConsumer<String, HandlerMethod> visit) {
+        Map<String, HandlerMethod> endpoints = new TreeMap<>();
+        handlerMapping.getHandlerMethods().forEach((mapping, handler) -> {
+            if (isApi(mapping)) {
+                endpoints.put(endpointId(handler), handler);
+            }
+        });
+        endpoints.forEach(visit);
     }
 
     private static boolean isApi(RequestMappingInfo mapping) {

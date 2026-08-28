@@ -50,6 +50,21 @@ public enum Permission {
     /** Act as a tenant user, always visibly afterwards (T-2.8). */
     SUPPORT_IMPERSONATE("support:impersonate", PermissionSide.PLATFORM, PermissionScope.PLATFORM);
 
+    private static final java.util.Map<String, Permission> BY_CODE;
+
+    static {
+        java.util.Map<String, Permission> byCode = new java.util.HashMap<>();
+        for (Permission permission : values()) {
+            byCode.put(permission.code, permission);
+        }
+        BY_CODE = java.util.Map.copyOf(byCode);
+    }
+
+    /** The catalog entry for a code, or empty — the caller decides how loudly to fail. */
+    public static java.util.Optional<Permission> byCode(String code) {
+        return java.util.Optional.ofNullable(BY_CODE.get(code));
+    }
+
     private final String code;
     private final String resource;
     private final String action;
