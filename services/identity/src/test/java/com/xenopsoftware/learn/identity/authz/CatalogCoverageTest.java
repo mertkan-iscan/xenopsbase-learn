@@ -47,21 +47,41 @@ class CatalogCoverageTest extends PostgresTestHarness {
     private static final Pattern HAS_PERMISSION =
         Pattern.compile("hasPermission\\(\\s*'([^']+)'\\s*,\\s*'([^']+)'\\s*\\)");
 
+    /**
+     * The group endpoints (T-1.3) want group:read and group:manage, and BOTH the catalog entry
+     * and the evaluator already exist — what does not exist is anything that can HOLD a
+     * permission, because roles and scoped assignments are T-2.2 and T-2.3. Annotating now
+     * would deny every caller including the product own admins, so this is a real gap with a
+     * named owner rather than an oversight: until then any authenticated tenant member can
+     * restructure their tenant tree.
+     */
+    private static final String GROUP_GAP =
+        "T-2.2/T-2.3 -- group:read and group:manage are catalogued and the evaluator is live, "
+        + "but nothing can hold a grant yet; annotating would deny everyone";
+
     /** Endpoint → why authentication alone is the whole check. */
-    private static final Map<String, String> AUTH_ONLY = Map.of(
-        "AuthInfoResource#authInfo",
-            "reports what the token itself says; gating it would hide the evidence it exists to show",
-        "UserResource#me",
-            "provisioning IS the first login -- there is no earlier moment at which a permission could be held",
-        "UserResource#user",
-            "display resolution for any tenant member; T-2.3's grants let user:read be wired here");
+    private static final Map<String, String> AUTH_ONLY = Map.ofEntries(
+        Map.entry("AuthInfoResource#authInfo",
+            "reports what the token itself says; gating it would hide the evidence it exists to show"),
+        Map.entry("UserResource#me",
+            "provisioning IS the first login -- there is no earlier moment at which a permission could be held"),
+        Map.entry("UserResource#user",
+            "display resolution for any tenant member; T-2.3 grants let user:read be wired here"),
+        Map.entry("GroupResource#roots", GROUP_GAP),
+        Map.entry("GroupResource#children", GROUP_GAP),
+        Map.entry("GroupResource#reach", GROUP_GAP),
+        Map.entry("GroupResource#create", GROUP_GAP),
+        Map.entry("GroupResource#move", GROUP_GAP),
+        Map.entry("GroupResource#delete", GROUP_GAP),
+        Map.entry("GroupResource#addMember", GROUP_GAP),
+        Map.entry("GroupResource#removeMember", GROUP_GAP));
 
     /** Catalog entry → the task that will make some code path check it. */
     private static final Map<Permission, String> NOT_YET_ENFORCED = Map.of(
         Permission.USER_READ, "T-2.2/T-2.3 -- the evaluator is live but no grant source can hold this yet",
         Permission.USER_MANAGE, "T-1.9 -- invite and deactivate endpoints",
-        Permission.GROUP_READ, "T-1.3 -- the group tree",
-        Permission.GROUP_MANAGE, "T-1.3 -- the group tree",
+        Permission.GROUP_READ, "T-2.2/T-2.3 -- GroupResource exists; grants to check against do not",
+        Permission.GROUP_MANAGE, "T-2.2/T-2.3 -- GroupResource exists; grants to check against do not",
         Permission.ROLE_READ, "T-2.2 -- roles as rows",
         Permission.ROLE_MANAGE, "T-2.2 -- roles as rows",
         Permission.ROLE_ASSIGN, "T-2.3/T-2.6 -- scoped assignment behind the no-escalation rule",
