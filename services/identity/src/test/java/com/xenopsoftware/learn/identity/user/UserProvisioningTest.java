@@ -33,8 +33,15 @@ class UserProvisioningTest extends PostgresTestHarness {
     @Autowired
     private AppUserRepository repository;
 
+    @Autowired
+    private javax.sql.DataSource dataSource;
+
     @BeforeEach
     void emptyTheTenants() throws Exception {
+        // app_user has dependents now -- group_membership (T-1.3) and audit_log (T-2.2) --
+        // so they go first or the delete below hits a foreign key.
+        new org.springframework.jdbc.core.JdbcTemplate(dataSource).update("DELETE FROM audit_log");
+        new org.springframework.jdbc.core.JdbcTemplate(dataSource).update("DELETE FROM group_membership");
         TenantContext.callWith("acme", () -> {
             repository.deleteAll();
             return null;

@@ -39,6 +39,7 @@ class GroupTreeTest extends PostgresTestHarness {
     @BeforeEach
     void emptyTheTables() {
         jdbc = new JdbcTemplate(dataSource);
+        jdbc.update("DELETE FROM audit_log");
         jdbc.update("DELETE FROM group_membership");
         jdbc.update("DELETE FROM user_group");
         jdbc.update("DELETE FROM app_user");
@@ -51,6 +52,7 @@ class GroupTreeTest extends PostgresTestHarness {
      */
     @org.junit.jupiter.api.AfterEach
     void removeWhatThisClassCreated() {
+        jdbc.update("DELETE FROM audit_log");
         jdbc.update("DELETE FROM group_membership");
         jdbc.update("DELETE FROM user_group");
         jdbc.update("DELETE FROM app_user");

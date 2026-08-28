@@ -62,7 +62,12 @@ public class UserProvisioningService {
         }
 
         try {
-            return repository.save(new AppUser(email, displayNameFrom(jwt, email), sub));
+            // saveAndFlush, not save: the row has to be real in the database the moment this
+            // returns, because callers in the same transaction reach it with raw SQL that does
+            // not see Hibernate pending inserts -- the audit log FK to app_user is the first
+            // such caller (T-2.2). It also makes the concurrent-first-login race surface here,
+            // at the insert, rather than later at commit.
+            return repository.saveAndFlush(new AppUser(email, displayNameFrom(jwt, email), sub));
         } catch (DataIntegrityViolationException raceOrCollision) {
             // Lost the concurrent-first-login race: the winner's row is the answer.
             Optional<AppUser> winner = repository.findByIdpSub(sub);

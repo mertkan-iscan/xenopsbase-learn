@@ -59,6 +59,16 @@ class CatalogCoverageTest extends PostgresTestHarness {
         "T-2.2/T-2.3 -- group:read and group:manage are catalogued and the evaluator is live, "
         + "but nothing can hold a grant yet; annotating would deny everyone";
 
+    /**
+     * Role management (T-2.2) has the same shape of gap as the group endpoints, and it is the
+     * sharpest one: the endpoints that BUILD authorization are themselves unauthorized, so any
+     * authenticated tenant member can grant their tenant any tenant-side permission. T-2.3 is
+     * what closes it, for these endpoints and every other one on this list at once.
+     */
+    private static final String ROLE_GAP =
+        "T-2.3 -- role:read and role:manage are catalogued and the evaluator is live, but "
+        + "nothing can hold a grant until assignments exist; annotating would deny everyone";
+
     /** Endpoint → why authentication alone is the whole check. */
     private static final Map<String, String> AUTH_ONLY = Map.ofEntries(
         Map.entry("AuthInfoResource#authInfo",
@@ -74,7 +84,13 @@ class CatalogCoverageTest extends PostgresTestHarness {
         Map.entry("GroupResource#move", GROUP_GAP),
         Map.entry("GroupResource#delete", GROUP_GAP),
         Map.entry("GroupResource#addMember", GROUP_GAP),
-        Map.entry("GroupResource#removeMember", GROUP_GAP));
+        Map.entry("GroupResource#removeMember", GROUP_GAP),
+        Map.entry("RoleResource#all", ROLE_GAP),
+        Map.entry("RoleResource#get", ROLE_GAP),
+        Map.entry("RoleResource#create", ROLE_GAP),
+        Map.entry("RoleResource#rename", ROLE_GAP),
+        Map.entry("RoleResource#setPermissions", ROLE_GAP),
+        Map.entry("RoleResource#delete", ROLE_GAP));
 
     /** Catalog entry → the task that will make some code path check it. */
     private static final Map<Permission, String> NOT_YET_ENFORCED = Map.of(
@@ -82,8 +98,8 @@ class CatalogCoverageTest extends PostgresTestHarness {
         Permission.USER_MANAGE, "T-1.9 -- invite and deactivate endpoints",
         Permission.GROUP_READ, "T-2.2/T-2.3 -- GroupResource exists; grants to check against do not",
         Permission.GROUP_MANAGE, "T-2.2/T-2.3 -- GroupResource exists; grants to check against do not",
-        Permission.ROLE_READ, "T-2.2 -- roles as rows",
-        Permission.ROLE_MANAGE, "T-2.2 -- roles as rows",
+        Permission.ROLE_READ, "T-2.3 -- RoleResource exists; grants to check against do not",
+        Permission.ROLE_MANAGE, "T-2.3 -- RoleResource exists; grants to check against do not",
         Permission.ROLE_ASSIGN, "T-2.3/T-2.6 -- scoped assignment behind the no-escalation rule",
         Permission.TENANT_PROVISION, "T-1.5 -- provisioning a company is an API call",
         Permission.TENANT_SUSPEND, "T-1.4 -- suspension stops at the gateway",
