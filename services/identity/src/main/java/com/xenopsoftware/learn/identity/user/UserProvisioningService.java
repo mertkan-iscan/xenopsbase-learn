@@ -62,6 +62,22 @@ public class UserProvisioningService {
             // a browser fires two requests at once.
             return sameEmail.get();
         }
+        if (sameEmail.isPresent() && sameEmail.get().getIdpSub() == null
+            && sameEmail.get().getStatus() == UserStatus.INVITED) {
+            // An invitation being accepted (T-1.5): the row was created for this email and no
+            // identity has ever owned it, so linking is not a takeover -- there is nothing to
+            // take over. The email must be VERIFIED, because this is the one path where an
+            // unverified claim would hand over an account.
+            if (!Boolean.TRUE.equals(jwt.getClaim("email_verified"))) {
+                LOG.warn("Refusing to accept the invitation for {}: the token email is not verified", email);
+                throw new IdentityConflictException(
+                    "This email has an open invitation, but the sign-in did not prove ownership "
+                    + "of it. Verify the address with your identity provider and try again.");
+            }
+            AppUser invitee = sameEmail.get();
+            invitee.acceptInvitation(sub);
+            return repository.saveAndFlush(invitee);
+        }
         if (sameEmail.isPresent()) {
             LOG.warn("Provisioning refused: subject {} is unknown but email {} belongs to app_user {}. "
                 + "If the IdP identity changed, re-link deliberately (docs/runbooks/identity.md).",

@@ -42,6 +42,22 @@ public class TenantFilter extends OncePerRequestFilter {
     /** The value {@link #SIDE_CLAIM} carries for platform staff, who belong to no customer. */
     public static final String PLATFORM = "PLATFORM";
 
+    /**
+     * The tenant platform staff are bound to (T-1.5).
+     *
+     * <p>This reverses the narrower rule T-1.1 set, and the reason it is safe now is the reason
+     * it was unsafe then. T-1.1 bound nothing for platform tokens because a sentinel with no
+     * rows behind it is a filter matching nothing — a boundary that silently returns empty. The
+     * reserved tenant now exists and platform staff have {@code app_user} rows in it (ADR-0104
+     * applies to them too: "who provisioned this company" needs a durable answer), so binding it
+     * matches exactly the platform's own data.
+     *
+     * <p>It is not a skeleton key. A platform caller bound here sees platform rows and no
+     * customer's; reaching into a customer's data is a deliberate, audited act (tenant
+     * provisioning, and impersonation in T-2.8), never a side effect of being staff.
+     */
+    public static final String PLATFORM_TENANT = "__platform";
+
     private static final Logger LOG = LoggerFactory.getLogger(TenantFilter.class);
 
     @Override
@@ -69,16 +85,16 @@ public class TenantFilter extends OncePerRequestFilter {
         Jwt jwt = token.getToken();
         String tenant = jwt.getClaimAsString(TENANT_CLAIM);
         if (PLATFORM.equals(jwt.getClaimAsString(SIDE_CLAIM))) {
-            // Platform staff belong to no customer, and that is expressed by binding nothing --
-            // not by a sentinel pretending to be a tenant, which would flow into the persistence
-            // discriminator as a filter matching no rows. The realm's first draft did exactly
-            // that (tenant_id: "PLATFORM" on platform-admin), and the quiet empty result sets it
-            // produced are why this branch exists.
-            if (tenant != null && !tenant.isBlank()) {
-                LOG.warn("Platform-side subject {} carries a {} claim ({}); ignored, no tenant bound",
-                    jwt.getSubject(), TENANT_CLAIM, tenant);
+            // Platform staff belong to no customer, so they are bound to the platform's own
+            // reserved tenant (T-1.5) rather than to whatever a token claims. A tenant_id claim
+            // on a platform token is still ignored -- that is the same forgery this filter
+            // exists to refuse, and it is worth a line because the realm's first draft really
+            // did put tenant_id: "PLATFORM" on platform-admin.
+            if (tenant != null && !tenant.isBlank() && !PLATFORM_TENANT.equals(tenant)) {
+                LOG.warn("Platform-side subject {} carries a {} claim ({}); ignored, bound to {}",
+                    jwt.getSubject(), TENANT_CLAIM, tenant, PLATFORM_TENANT);
             }
-            return null;
+            return PLATFORM_TENANT;
         }
         if (tenant == null || tenant.isBlank()) {
             // Authenticated, tenant-side, but carrying no tenant. Almost always a realm mapper

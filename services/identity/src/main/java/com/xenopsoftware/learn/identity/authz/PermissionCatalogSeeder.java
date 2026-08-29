@@ -29,6 +29,10 @@ import org.springframework.stereotype.Component;
  * revived.
  */
 @Component
+// First of the startup runners, and it has to be: role_permission has a foreign key to this
+// table, so anything projecting a role -- the platform bootstrap, the system role seeder --
+// depends on the catalog already being there.
+@org.springframework.core.annotation.Order(0)
 public class PermissionCatalogSeeder implements ApplicationRunner {
 
     private static final Logger LOG = LoggerFactory.getLogger(PermissionCatalogSeeder.class);

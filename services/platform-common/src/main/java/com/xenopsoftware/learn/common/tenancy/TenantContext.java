@@ -63,6 +63,29 @@ public final class TenantContext {
         CURRENT.remove();
     }
 
+    /**
+     * Runs {@code body} bound to {@code tenant} without the checked exception — for callers
+     * inside a transaction, where an unchecked failure is what rolls it back.
+     *
+     * <p>Binding a tenant other than the request's own is deliberate and rare: platform-side
+     * provisioning creating a company (T-1.5) is the one place today. It is not a way around
+     * T-1.1's rule, because the tenant here is not something a caller sent — it is the one being
+     * created.
+     */
+    public static <T> T callWithUnchecked(String tenant, java.util.function.Supplier<T> body) {
+        String previous = CURRENT.get();
+        CURRENT.set(tenant);
+        try {
+            return body.get();
+        } finally {
+            if (previous == null) {
+                CURRENT.remove();
+            } else {
+                CURRENT.set(previous);
+            }
+        }
+    }
+
     /** Runs {@code body} bound to {@code tenant}, restoring whatever was bound before. */
     public static <T> T callWith(String tenant, java.util.concurrent.Callable<T> body) throws Exception {
         String previous = CURRENT.get();

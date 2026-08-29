@@ -63,6 +63,18 @@ spring:
         jwt:
           issuer-uri: ${OIDC_ISSUER_URI:http://localhost:8081/realms/xenopslearn}
 
+identity:
+  platform:
+    # The installation's root of trust (T-1.5). Every grant comes from a grant
+    # somebody already held, so the chain has to start outside itself: these
+    # people are invited into the platform tenant and given its sys-admin role
+    # at startup. They are INVITED, not created with a password -- this service
+    # never holds a credential, not even an operator's.
+    #
+    # The local default is the realm's seeded platform user, so `make up` plus
+    # this service is a working installation. Real environments set it.
+    administrators: ${PLATFORM_ADMINISTRATORS:platform-admin@xenopslearn.test}
+
 server:
   port: ${SERVER_PORT:8082}
 

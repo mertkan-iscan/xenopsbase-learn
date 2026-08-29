@@ -32,8 +32,11 @@ public class StubTokens {
                 .expiresAt(Instant.now().plusSeconds(60));
             if (!parts[1].isEmpty()) {
                 jwt.claim("tenant_id", parts[1]);
-                jwt.claim("email", parts[0] + "@" + parts[1] + ".test");
             }
+            // Every token carries an email, platform-side included: staff are provisioned as
+            // app_user rows in the platform tenant just like anybody else (T-1.5).
+            jwt.claim("email", parts[0] + "@" + (parts[1].isEmpty() ? "platform" : parts[1]) + ".test");
+            jwt.claim("email_verified", true);
             return jwt.build();
         };
     }

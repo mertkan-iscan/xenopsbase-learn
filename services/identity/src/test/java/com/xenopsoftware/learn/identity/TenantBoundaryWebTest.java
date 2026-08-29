@@ -63,21 +63,28 @@ class TenantBoundaryWebTest extends PostgresTestHarness {
     }
 
     @Test
-    void aTokenWithoutATenantBindsNoTenant() throws Exception {
+    void aPlatformTokenBindsThePlatformsOwnTenant() throws Exception {
         HttpResponse<String> response = get("platform-admin~~PLATFORM");
         assertThat(response.statusCode()).isEqualTo(200);
-        // String.valueOf(null) by design: the endpoint reports what is bound, and nothing is.
-        assertThat(response.body()).contains("\"tenant\":\"null\"");
+        // This assertion used to read "null", and the change is deliberate (T-1.5). Binding
+        // nothing was right while the platform had no rows: a sentinel with nothing behind it
+        // is a filter that matches nothing, silently. The platform now has its own tenant and
+        // its own people in it (ADR-0104 applies to staff too), so the sentinel matches
+        // exactly the platform's data -- which is what makes binding it correct rather than
+        // dangerous.
+        assertThat(response.body()).contains("\"tenant\":\"__platform\"");
     }
 
     @Test
-    void aPlatformTokenWronglyCarryingATenantClaimStillBindsNothing() throws Exception {
-        // The realm's first draft seeded exactly this token shape (tenant_id: "PLATFORM" as a
-        // sentinel). Whatever a platform token claims, platform side means no tenant bound --
-        // never a string flowing into the discriminator as a filter matching no rows.
+    void aPlatformTokenCarryingACustomersTenantClaimNeverReachesThatCustomer() throws Exception {
+        // The part that has NOT changed, and the part that matters: a platform token claiming
+        // to be acme is still not acme. Staff are bound to the platform's own tenant, never to
+        // a customer's -- reaching into a customer's data is a deliberate, audited act
+        // (provisioning, and impersonation in T-2.8), never a side effect of being staff.
         HttpResponse<String> response = get("confused-platform-admin~acme~PLATFORM");
         assertThat(response.statusCode()).isEqualTo(200);
-        assertThat(response.body()).contains("\"tenant\":\"null\"");
+        assertThat(response.body()).contains("\"tenant\":\"__platform\"");
+        assertThat(response.body()).doesNotContain("acme");
     }
 
     @Test

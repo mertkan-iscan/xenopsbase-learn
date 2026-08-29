@@ -64,11 +64,14 @@ class UserResourceWebTest extends PostgresTestHarness {
     }
 
     @Test
-    void platformStaffAreNotAppUsers() throws Exception {
+    void platformStaffAreAppUsersToo() throws Exception {
+        // This asserted a 403 until T-1.5. Platform staff had no app_user row, so /me had
+        // nothing to answer with; now they have one in the platform's own tenant, because
+        // "who provisioned this company" needs a durable actor and ADR-0104 says an actor is
+        // an app_user.id.
         HttpResponse<String> response = get("/api/v1/me", "web-ops~~PLATFORM");
-        assertThat(response.statusCode()).isEqualTo(403);
-        // The deliberate 403 from the controller, not the accidental one from the filter chain.
-        assertThat(response.headers().firstValue("WWW-Authenticate")).isEmpty();
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.body()).contains("__platform");
     }
 
     private HttpResponse<String> get(String path, String token) throws Exception {
