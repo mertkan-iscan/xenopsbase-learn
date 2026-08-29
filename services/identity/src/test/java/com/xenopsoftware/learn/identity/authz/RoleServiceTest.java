@@ -222,7 +222,9 @@ class RoleServiceTest extends PostgresTestHarness {
 
             roles.delete(roleId);
 
-            assertThat(roles.all()).isEmpty();
+            // Not "no roles at all": every tenant carries its four seeded templates now
+            // (T-2.7). What must be gone is this role.
+            assertThat(roles.all()).extracting(Role::getId).doesNotContain(roleId);
             assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM role_permission WHERE role_id = ?", Long.class, roleId)).isZero();
             return null;
@@ -235,7 +237,7 @@ class RoleServiceTest extends PostgresTestHarness {
             () -> roles.create("Acme only", null, PermissionSide.TENANT).getId());
 
         TenantContext.callWith("globex", () -> {
-            assertThat(roles.all()).isEmpty();
+            assertThat(roles.all()).extracting(Role::getId).doesNotContain(acmeRole);
             assertThatThrownBy(() -> roles.get(acmeRole))
                 .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
             return null;

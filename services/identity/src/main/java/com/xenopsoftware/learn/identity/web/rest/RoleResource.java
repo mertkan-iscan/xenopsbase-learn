@@ -61,6 +61,15 @@ public class RoleResource {
         return view(roleService.create(request.name(), request.description(), PermissionSide.TENANT));
     }
 
+    /**
+     * Clone a template into an editable role of your own (T-2.7). The copy is an ordinary
+     * tenant role from the moment it exists — same permissions, no link back, and editable.
+     */
+    @PostMapping("/{id}/clone")
+    public RoleView clone(@PathVariable UUID id, @RequestBody CreateRoleRequest request) {
+        return view(roleService.clone(id, request.name()));
+    }
+
     @PutMapping("/{id}")
     public RoleView rename(@PathVariable UUID id, @RequestBody RenameRoleRequest request) {
         return view(roleService.rename(id, request.name(), request.description()));

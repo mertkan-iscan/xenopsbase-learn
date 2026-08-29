@@ -102,6 +102,7 @@ class CatalogCoverageTest extends PostgresTestHarness {
         Map.entry("RoleResource#rename", ROLE_GAP),
         Map.entry("RoleResource#setPermissions", ROLE_GAP),
         Map.entry("RoleResource#delete", ROLE_GAP),
+        Map.entry("RoleResource#clone", ROLE_GAP),
         Map.entry("AssignmentResource#all", ASSIGN_GAP),
         Map.entry("AssignmentResource#ofRole", ASSIGN_GAP),
         Map.entry("AssignmentResource#grant", ASSIGN_GAP),

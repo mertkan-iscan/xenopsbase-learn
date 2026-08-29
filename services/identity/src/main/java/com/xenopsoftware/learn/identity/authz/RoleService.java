@@ -140,6 +140,32 @@ public class RoleService {
         authzVersion.bump();
     }
 
+    /**
+     * Clones a role — a system template, usually — into an ordinary tenant role (T-2.7).
+     *
+     * <p><b>No link back.</b> The copy records nothing about what it came from, which is the
+     * point: the template keeps being re-projected from code and the copy never moves again
+     * unless its owner moves it. A parent pointer would make "what does this customer's admin
+     * role contain" a question with two answers.
+     */
+    @Transactional
+    public Role clone(UUID templateId, String newName) {
+        Role template = require(templateId);
+        Role copy = roles.save(new Role(newName,
+            template.getDescription() == null ? null : "Copied from " + template.getName(),
+            template.getSide()));
+        for (RolePermission held : rolePermissions.findByRoleId(templateId)) {
+            held.permission().ifPresent(permission ->
+                rolePermissions.save(new RolePermission(copy.getId(), permission)));
+        }
+        audit.record("role.clone", "role", copy.getId(), Map.of(
+            "name", newName,
+            "clonedFromName", template.getName(),
+            "permissions", currentCodes(templateId)));
+        authzVersion.bump();
+        return copy;
+    }
+
     public List<Role> all() {
         return roles.findAll();
     }

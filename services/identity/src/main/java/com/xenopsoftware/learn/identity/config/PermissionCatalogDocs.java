@@ -1,6 +1,7 @@
 package com.xenopsoftware.learn.identity.config;
 
 import com.xenopsoftware.learn.identity.authz.Permission;
+import com.xenopsoftware.learn.identity.authz.SystemRole;
 import io.swagger.v3.oas.models.info.Info;
 import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springframework.context.annotation.Bean;
@@ -33,6 +34,22 @@ public class PermissionCatalogDocs {
                 catalog.append("| `").append(permission.code()).append("` | ")
                     .append(permission.side()).append(" | ")
                     .append(permission.minScope()).append(" |\n");
+            }
+            catalog.append("""
+
+                ## Role templates
+
+                Every customer starts with these. Clone one to edit it: the templates are
+                owned by the platform and re-projected from code, so a change here reaches
+                every customer and no clone.
+
+                | Role | Side | What it can do |
+                |---|---|---|
+                """);
+            for (SystemRole role : SystemRole.values()) {
+                catalog.append("| ").append(role.displayName()).append(" | ")
+                    .append(role.side()).append(" | ")
+                    .append(role.reach()).append(" |\n");
             }
             if (openApi.getInfo() == null) {
                 openApi.setInfo(new Info().title("identity"));

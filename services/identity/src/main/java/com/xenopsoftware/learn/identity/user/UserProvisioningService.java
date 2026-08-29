@@ -29,9 +29,12 @@ public class UserProvisioningService {
     private static final Logger LOG = LoggerFactory.getLogger(UserProvisioningService.class);
 
     private final AppUserRepository repository;
+    private final com.xenopsoftware.learn.identity.authz.SystemRoleSeeder systemRoles;
 
-    public UserProvisioningService(AppUserRepository repository) {
+    public UserProvisioningService(AppUserRepository repository,
+            com.xenopsoftware.learn.identity.authz.SystemRoleSeeder systemRoles) {
         this.repository = repository;
+        this.systemRoles = systemRoles;
     }
 
     public AppUser provision(Jwt jwt) {
@@ -75,7 +78,12 @@ public class UserProvisioningService {
             // not see Hibernate pending inserts -- the audit log FK to app_user is the first
             // such caller (T-2.2). It also makes the concurrent-first-login race surface here,
             // at the insert, rather than later at commit.
-            return repository.saveAndFlush(new AppUser(email, displayNameFrom(jwt, email), sub));
+            AppUser created = repository.saveAndFlush(new AppUser(email, displayNameFrom(jwt, email), sub));
+            // A new person in a tenant nobody has logged into yet: its role templates are
+            // projected now rather than at the next restart (T-2.7). Idempotent, so the second
+            // and every later user costs one indexed lookup per template.
+            systemRoles.ensureSeededFor(created.getTenantId());
+            return created;
         } catch (DataIntegrityViolationException raceOrCollision) {
             // Lost the concurrent-first-login race: the winner's row is the answer.
             Optional<AppUser> winner = repository.findByIdpSub(sub);
