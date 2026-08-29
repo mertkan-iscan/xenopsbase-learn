@@ -47,6 +47,7 @@ class SystemRoleTest extends PostgresTestHarness {
         jdbc.update("DELETE FROM app_role");
         jdbc.update("DELETE FROM group_membership");
         jdbc.update("DELETE FROM app_user");
+        AuthzFixtures.bootstrapAdmin(jdbc, "acme", "template-admin");
         SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(
             Jwt.withTokenValue("test").header("alg", "none").subject("sub-template-admin")
                 .claim("email", "template-admin@acme.test").claim("name", "Template Admin")
@@ -83,7 +84,8 @@ class SystemRoleTest extends PostgresTestHarness {
     @Test
     void theTenantSideTemplatesAreSeededAndThePlatformOnesAreNotYet() throws Exception {
         TenantContext.callWith("acme", () -> {
-            List<String> seeded = roles.all().stream().map(Role::getName).sorted().toList();
+            List<String> seeded = roles.all().stream().filter(Role::isSystem)
+                .map(Role::getName).sorted().toList();
 
             assertThat(seeded).containsExactly("Author", "Company administrator", "Group manager", "Learner");
             // The platform pair is defined in code and deliberately not materialised: a
@@ -206,15 +208,15 @@ class SystemRoleTest extends PostgresTestHarness {
         seeder.ensureSeededFor("globex");
 
         TenantContext.callWith("globex", () -> {
-            assertThat(roles.all()).extracting(Role::getName)
+            assertThat(roles.all().stream().filter(Role::isSystem).toList())
+                .extracting(Role::getName)
                 .containsExactlyInAnyOrder("Author", "Company administrator", "Group manager", "Learner");
-            assertThat(roles.all()).allMatch(Role::isSystem);
             return null;
         });
         TenantContext.callWith("acme", () -> {
             // Four templates each, and eight rows in the table: the tenant discriminator is
             // what keeps one customer's copy of a template out of another customer's list.
-            assertThat(roles.all()).hasSize(4);
+            assertThat(roles.all().stream().filter(Role::isSystem).toList()).hasSize(4);
             return null;
         });
         assertThat(jdbc.queryForObject("SELECT count(*) FROM app_role WHERE system", Long.class))

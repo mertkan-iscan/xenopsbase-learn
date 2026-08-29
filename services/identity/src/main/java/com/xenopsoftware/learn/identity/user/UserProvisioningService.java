@@ -29,12 +29,11 @@ public class UserProvisioningService {
     private static final Logger LOG = LoggerFactory.getLogger(UserProvisioningService.class);
 
     private final AppUserRepository repository;
-    private final com.xenopsoftware.learn.identity.authz.SystemRoleSeeder systemRoles;
+    private final AppUserCreator creator;
 
-    public UserProvisioningService(AppUserRepository repository,
-            com.xenopsoftware.learn.identity.authz.SystemRoleSeeder systemRoles) {
+    public UserProvisioningService(AppUserRepository repository, AppUserCreator creator) {
         this.repository = repository;
-        this.systemRoles = systemRoles;
+        this.creator = creator;
     }
 
     public AppUser provision(Jwt jwt) {
@@ -73,17 +72,10 @@ public class UserProvisioningService {
         }
 
         try {
-            // saveAndFlush, not save: the row has to be real in the database the moment this
-            // returns, because callers in the same transaction reach it with raw SQL that does
-            // not see Hibernate pending inserts -- the audit log FK to app_user is the first
-            // such caller (T-2.2). It also makes the concurrent-first-login race surface here,
-            // at the insert, rather than later at commit.
-            AppUser created = repository.saveAndFlush(new AppUser(email, displayNameFrom(jwt, email), sub));
-            // A new person in a tenant nobody has logged into yet: its role templates are
-            // projected now rather than at the next restart (T-2.7). Idempotent, so the second
-            // and every later user costs one indexed lookup per template.
-            systemRoles.ensureSeededFor(created.getTenantId());
-            return created;
+            // In its own transaction (AppUserCreator), so the person survives whatever the
+            // caller was doing failing -- and so an audit entry written in a second transaction
+            // cannot block on a foreign key to a row this one has not committed.
+            return creator.create(email, displayNameFrom(jwt, email), sub);
         } catch (DataIntegrityViolationException raceOrCollision) {
             // Lost the concurrent-first-login race: the winner's row is the answer.
             Optional<AppUser> winner = repository.findByIdpSub(sub);

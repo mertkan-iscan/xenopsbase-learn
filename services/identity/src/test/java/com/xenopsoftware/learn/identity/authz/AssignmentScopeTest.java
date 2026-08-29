@@ -62,6 +62,7 @@ class AssignmentScopeTest extends PostgresTestHarness {
         jdbc.update("DELETE FROM group_membership");
         jdbc.update("DELETE FROM user_group");
         jdbc.update("DELETE FROM app_user");
+        AuthzFixtures.bootstrapAdmin(jdbc, "acme", "admin");
         actAs("admin");
 
         TenantContext.callWith("acme", () -> {

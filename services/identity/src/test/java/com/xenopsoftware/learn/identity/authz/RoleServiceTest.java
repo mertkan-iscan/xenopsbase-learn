@@ -56,6 +56,9 @@ class RoleServiceTest extends PostgresTestHarness {
         jdbc.update("DELETE FROM authz_version");
         jdbc.update("DELETE FROM group_membership");
         jdbc.update("DELETE FROM app_user");
+        // The caller has to hold what it hands out now (T-2.6), so it starts with the grant
+        // provisioning will give a company's first administrator.
+        AuthzFixtures.bootstrapAdmin(jdbc, "acme", "role-admin");
         // Audited work runs inside a request; CurrentUser reads the SecurityContext and
         // provisions on first sight, the same path /me takes.
         SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(

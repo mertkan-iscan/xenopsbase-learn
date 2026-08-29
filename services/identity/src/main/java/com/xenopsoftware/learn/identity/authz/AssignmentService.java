@@ -5,6 +5,8 @@ import com.xenopsoftware.learn.identity.audit.CurrentUser;
 import com.xenopsoftware.learn.identity.group.UserGroupRepository;
 import com.xenopsoftware.learn.identity.user.AppUserRepository;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -37,11 +39,12 @@ public class AssignmentService {
     private final AuthzVersion authzVersion;
     private final AuditLogger audit;
     private final CurrentUser currentUser;
+    private final EscalationGuard escalation;
 
     public AssignmentService(RoleAssignmentRepository assignments, RoleRepository roles,
             RolePermissionRepository rolePermissions, AppUserRepository users,
             UserGroupRepository groups, AuthzVersion authzVersion, AuditLogger audit,
-            CurrentUser currentUser) {
+            CurrentUser currentUser, EscalationGuard escalation) {
         this.assignments = assignments;
         this.roles = roles;
         this.rolePermissions = rolePermissions;
@@ -50,6 +53,7 @@ public class AssignmentService {
         this.authzVersion = authzVersion;
         this.audit = audit;
         this.currentUser = currentUser;
+        this.escalation = escalation;
     }
 
     @Transactional
@@ -59,6 +63,7 @@ public class AssignmentService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such user in this tenant");
         }
         validateScope(role, scope);
+        requireCallerHoldsTheRole(role, scope);
         RoleAssignment saved = assignments.save(
             RoleAssignment.toUser(roleId, userId, scope, currentUser.requireId()));
         audited("assignment.grant", saved, Map.of("subjectType", "USER", "subjectId", userId.toString()));
@@ -72,6 +77,7 @@ public class AssignmentService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such group in this tenant");
         }
         validateScope(role, scope);
+        requireCallerHoldsTheRole(role, scope);
         RoleAssignment saved = assignments.save(
             RoleAssignment.toGroup(roleId, groupId, scope, currentUser.requireId()));
         audited("assignment.grant", saved, Map.of("subjectType", "GROUP", "subjectId", groupId.toString()));
@@ -121,6 +127,20 @@ public class AssignmentService {
                 }
             });
         }
+    }
+
+    /**
+     * T-2.6, the sharper half: handing someone a role means handing them everything in it, so
+     * the caller must hold all of it at this scope or wider. A group administrator cannot
+     * promote their group-scoped user:manage into a company-wide one by attaching it to a
+     * tenant-scoped assignment.
+     */
+    private void requireCallerHoldsTheRole(Role role, ScopeGrant scope) {
+        Set<Permission> carried = new LinkedHashSet<>();
+        for (RolePermission held : rolePermissions.findByRoleId(role.getId())) {
+            held.permission().ifPresent(carried::add);
+        }
+        escalation.requireHoldsAtLeast(carried, scope.type(), "assignment.grant", role.getId());
     }
 
     private Role requireRole(UUID roleId) {

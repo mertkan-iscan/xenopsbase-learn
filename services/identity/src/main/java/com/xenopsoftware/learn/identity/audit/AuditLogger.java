@@ -6,6 +6,8 @@ import com.xenopsoftware.learn.common.tenancy.TenantContext;
 import java.util.Map;
 import java.util.UUID;
 import javax.sql.DataSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -24,6 +26,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class AuditLogger {
 
+    private static final Logger LOG = LoggerFactory.getLogger(AuditLogger.class);
+
     private final JdbcTemplate jdbc;
     private final CurrentUser currentUser;
     private final ObjectMapper json;
@@ -35,6 +39,29 @@ public class AuditLogger {
         // record of what happened, and it should not change shape because somebody tuned the
         // API serialisation. Payloads here are plain maps of strings and collections.
         this.json = new ObjectMapper();
+    }
+
+    /**
+     * Records something that was REFUSED, in its own transaction (T-2.6).
+     *
+     * <p>A refusal rolls its caller's transaction back, and an audit entry written inside that
+     * transaction would roll back with it — so the one record of an attempted escalation would
+     * be destroyed by the very refusal that makes it worth keeping. REQUIRES_NEW is what keeps
+     * it.
+     *
+     * <p>And it is best-effort on purpose: if writing the entry fails, the refusal still
+     * happens. An audit problem must never turn a denied escalation into an allowed one, so the
+     * failure is logged loudly and the original exception is what the caller sees.
+     */
+    @org.springframework.transaction.annotation.Transactional(
+        propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public void recordRefusal(String action, String targetType, UUID targetId, Map<String, ?> payload) {
+        try {
+            record(action, targetType, targetId, payload);
+        } catch (RuntimeException e) {
+            LOG.error("Could not audit refused {} on {} {} -- the refusal still stands",
+                action, targetType, targetId, e);
+        }
     }
 
     public void record(String action, String targetType, UUID targetId, Map<String, ?> payload) {

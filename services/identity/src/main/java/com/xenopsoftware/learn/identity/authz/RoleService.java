@@ -28,14 +28,17 @@ public class RoleService {
     private final RoleUsageCounter usage;
     private final AuthzVersion authzVersion;
     private final AuditLogger audit;
+    private final EscalationGuard escalation;
 
     public RoleService(RoleRepository roles, RolePermissionRepository rolePermissions,
-            RoleUsageCounter usage, AuthzVersion authzVersion, AuditLogger audit) {
+            RoleUsageCounter usage, AuthzVersion authzVersion, AuditLogger audit,
+            EscalationGuard escalation) {
         this.roles = roles;
         this.rolePermissions = rolePermissions;
         this.usage = usage;
         this.authzVersion = authzVersion;
         this.audit = audit;
+        this.escalation = escalation;
     }
 
     @Transactional
@@ -46,6 +49,10 @@ public class RoleService {
             // than built at runtime. Refusing loudly beats writing a row nothing can fetch.
             throw new RoleException("Platform-side roles are seeded (T-2.7), not created at runtime");
         }
+        // Vacuous today and deliberately present: a role is created empty in this API, so the
+        // permissions arrive through setPermissions or clone, which are the guarded paths. If
+        // creation ever carries a permission set, the guard is already where it must be.
+        escalation.requireHolds(Set.of(), "role.create", null);
         Role role = roles.save(new Role(name, description, side));
         audit.record("role.create", "role", role.getId(),
             Map.of("name", name, "side", side.name(), "permissions", List.of()));
@@ -88,6 +95,10 @@ public class RoleService {
                     + " is a " + permission.side() + " permission");
             }
         }
+        // T-2.6: only what the caller holds themselves. Checked against the WHOLE new set
+        // rather than the additions, because a caller who lost a permission should not be able
+        // to keep re-saving a role that still carries it.
+        escalation.requireHolds(permissions, "role.permissions", roleId);
         Set<String> before = currentCodes(roleId);
         rolePermissions.deleteByRoleId(roleId);
         // Flush the deletes before the inserts, or the unique constraint on (role_id, code)
@@ -151,6 +162,14 @@ public class RoleService {
     @Transactional
     public Role clone(UUID templateId, String newName) {
         Role template = require(templateId);
+        // The escalation T-2.6 does not list and which is the shortest of all: without this,
+        // cloning the company-administrator template hands out its permissions to anyone who
+        // asks for a copy.
+        Set<Permission> carried = new java.util.LinkedHashSet<>();
+        for (RolePermission held : rolePermissions.findByRoleId(templateId)) {
+            held.permission().ifPresent(carried::add);
+        }
+        escalation.requireHolds(carried, "role.clone", templateId);
         Role copy = roles.save(new Role(newName,
             template.getDescription() == null ? null : "Copied from " + template.getName(),
             template.getSide()));

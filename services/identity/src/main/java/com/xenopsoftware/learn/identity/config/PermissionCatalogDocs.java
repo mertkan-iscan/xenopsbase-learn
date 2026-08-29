@@ -51,6 +51,28 @@ public class PermissionCatalogDocs {
                     .append(role.side()).append(" | ")
                     .append(role.reach()).append(" |\n");
             }
+            catalog.append("""
+
+                ## Granting rules
+
+                **Nobody grants what they do not hold.** Integrators hit this, so it is stated
+                rather than discovered:
+
+                - Putting a permission into a role — editing it, or cloning a template —
+                  requires holding that permission yourself, anywhere.
+                - Assigning a role requires holding everything it carries **at that scope or
+                  wider**. Granting at `TENANT` requires holding at `TENANT` or `PLATFORM`;
+                  holding at `GROUP` is never enough.
+                - A tenant role can never carry a platform-side permission. That is checked
+                  separately from the rule above, so it holds even for a caller who somehow
+                  holds one.
+                - Refusals answer `403` and are recorded in the audit log, including what was
+                  missing.
+
+                A tenant with no assignments yet cannot grant anything at all, including to its
+                own first administrator: the first grant arrives with provisioning, not from
+                inside the tenant.
+                """);
             if (openApi.getInfo() == null) {
                 openApi.setInfo(new Info().title("identity"));
             }
