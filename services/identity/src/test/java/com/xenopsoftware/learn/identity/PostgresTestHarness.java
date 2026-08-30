@@ -32,6 +32,22 @@ public abstract class PostgresTestHarness {
 
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
+        datasource(registry);
+        // The permission cache is OFF for everything that extends this harness (T-2.5), and the
+        // reason is these tests rather than the cache. They edit grants in raw SQL -- inserting
+        // assignments, truncating tables between classes -- and raw SQL does not bump
+        // authz_version, so a cached set would legitimately survive an edit the test expects it
+        // not to. Whether a developer happens to have `make up` running would then decide
+        // whether the suite passes. The cache's own tests configure their own Valkey and turn it
+        // on, which is why they do not extend this class.
+        registry.add("identity.authz.cache.enabled", () -> false);
+    }
+
+    /**
+     * The shared container's connection details, for the harnesses that need this Postgres plus
+     * something of their own and therefore cannot inherit from this class.
+     */
+    public static void datasource(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);

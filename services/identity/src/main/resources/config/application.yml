@@ -31,6 +31,18 @@ spring:
         # it still cannot reach a deploy.
         bootstrap-mode: lazy
 
+    redis:
+      # Valkey, for the permission cache (T-2.5). Timeouts are short and stated:
+      # a cache is a shortcut, and a shortcut that can block a request for
+      # seconds is a slower path than the one it replaced. On a failure the
+      # cache stops being consulted for `identity.authz.cache.cooldown`, so a
+      # dead Valkey costs one timeout per window rather than one per request.
+      host: ${VALKEY_HOST:localhost}
+      port: ${VALKEY_PORT:6379}
+      connect-timeout: 250ms
+      timeout: 250ms
+      client-name: identity
+
   jpa:
     hibernate:
       # validate, never update. An entity that disagrees with its migration
@@ -75,6 +87,21 @@ identity:
     # this service is a working installation. Real environments set it.
     administrators: ${PLATFORM_ADMINISTRATORS:platform-admin@xenopslearn.test}
 
+  authz:
+    cache:
+      # The resolved permission set, cached under a key carrying the tenant's
+      # authz_version (T-2.5). Off is a supported way to run this service --
+      # every resolution then reads the database, which is the same behaviour
+      # every cache failure falls back to.
+      enabled: ${AUTHZ_CACHE_ENABLED:true}
+      # A backstop, not the invalidation mechanism: a grant change bumps the
+      # version and orphans the entry immediately. This bounds how long an
+      # entry can outlive a change made WITHOUT a bump -- a restore from
+      # backup, a fix applied in SQL, a bug.
+      ttl: 10m
+      # How long an unreachable cache is left alone before it is tried again.
+      cooldown: 10s
+
 server:
   port: ${SERVER_PORT:8082}
 
@@ -95,6 +122,14 @@ management:
     # takes traffic it cannot serve.
     db:
       enabled: true
+    redis:
+      # Off, deliberately (T-2.5). The stock indicator reports DOWN when Valkey
+      # is unreachable, and DOWN here would stop a rollout for a dependency this
+      # service is built to run without -- during a Valkey upgrade, which is
+      # exactly when it is most likely to be moving. `permissionCache`
+      # contributes the same information as a detail, without claiming the
+      # service cannot serve traffic.
+      enabled: false
 
 springdoc:
   api-docs:

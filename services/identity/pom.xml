@@ -29,6 +29,16 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
+        <!--
+            The permission cache (T-2.5). Valkey speaks the Redis protocol, so
+            this is the Redis client and nothing about it is Redis-specific;
+            the local stack and every environment run Valkey.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-flyway</artifactId>

@@ -23,7 +23,7 @@ Keycloak fails in a way that reads as a configuration error.
 | MinIO console | http://localhost:9001 | |
 | NATS monitoring | http://localhost:8222 | |
 | Postgres | `localhost:5432` | |
-| Valkey | `localhost:6379` | |
+| Valkey | `localhost:6379` | the permission cache (T-2.5); stop it and the stack still works |
 
 ## Seeded users
 

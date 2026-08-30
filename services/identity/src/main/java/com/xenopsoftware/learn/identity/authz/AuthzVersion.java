@@ -10,8 +10,14 @@ import org.springframework.stereotype.Component;
  *
  * <p>Bumped <b>in the caller's transaction</b>, which is the whole point: a version written to a
  * cache alongside a database change can end up describing a change that rolled back, or miss one
- * that committed. Here it cannot — the row moves exactly when the grant does. T-2.5 mirrors this
- * to Valkey for the gateway's fast path and keeps the row as the source of truth.
+ * that committed. Here it cannot — the row moves exactly when the grant does.
+ *
+ * <p>T-2.5 built the cache this number exists for: {@link ValkeyPermissions} puts the version in
+ * the cache key, so a bump orphans every entry describing the old grants without anything having
+ * to delete one. The row stays the only source of truth and is read once per resolution — the
+ * mirror-to-Valkey this javadoc used to promise was not built, because a copy written after
+ * commit disagrees with the row for a window, and the gateway it was for does not exist yet
+ * (T-1.4).
  *
  * <p>Per tenant, where ADR-0103 says per (tenant, user). Until assignments exist (T-2.3) nothing
  * can say which users a role edit reaches, so the only correct answer is "everyone in the
