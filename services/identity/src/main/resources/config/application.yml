@@ -93,6 +93,15 @@ identity:
     # this service is a working installation. Real environments set it.
     administrators: ${PLATFORM_ADMINISTRATORS:platform-admin@xenopslearn.test}
 
+  invitations:
+    # How long a minted invitation token is acceptable (T-1.9). Long enough to
+    # survive a weekend and a forwarded message; short enough that one found in
+    # a mailbox two years later opens nothing.
+    ttl: 7d
+    # The ceiling on one CSV import. Stated, because the alternative is a
+    # request that runs until a proxy timeout or a heap decides for us.
+    max-import-rows: 5000
+
   authz:
     cache:
       # The resolved permission set, cached under a key carrying the tenant's

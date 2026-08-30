@@ -88,6 +88,10 @@ class CatalogCoverageTest extends PostgresTestHarness {
             "provisioning IS the first login -- there is no earlier moment at which a permission could be held"),
         Map.entry("UserResource#user",
             "display resolution for any tenant member; T-2.3 grants let user:read be wired here"),
+        Map.entry("UserLifecycleResource#accept",
+            "the caller is accepting an invitation, so they hold nothing yet -- requiring a "
+            + "permission would require a grant, and a grant requires the account this creates. "
+            + "The token is the whole credential (T-1.9)"),
         Map.entry("GroupResource#roots", GROUP_GAP),
         Map.entry("GroupResource#children", GROUP_GAP),
         Map.entry("GroupResource#reach", GROUP_GAP),
@@ -113,8 +117,10 @@ class CatalogCoverageTest extends PostgresTestHarness {
 
     /** Catalog entry → the task that will make some code path check it. */
     private static final Map<Permission, String> NOT_YET_ENFORCED = Map.of(
-        Permission.USER_READ, "T-2.2/T-2.3 -- the evaluator is live but no grant source can hold this yet",
-        Permission.USER_MANAGE, "T-1.9 -- invite and deactivate endpoints",
+        Permission.USER_READ, "grantable since T-2.3, and deliberately not wired yet: the only "
+            + "endpoint that would check it resolves a display name for any member, and gating "
+            + "that locks a learner who holds no grants out of every screen with a person on it. "
+            + "The decision belongs with the surface that needs it (T-5.8/T-10.3)",
         Permission.GROUP_READ, "T-2.2/T-2.3 -- GroupResource exists; grants to check against do not",
         Permission.GROUP_MANAGE, "T-2.2/T-2.3 -- GroupResource exists; grants to check against do not",
         Permission.ROLE_READ, "T-2.3 -- RoleResource exists; grants to check against do not",

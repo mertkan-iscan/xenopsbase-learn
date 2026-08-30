@@ -14,4 +14,11 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
     Optional<AppUser> findByIdpSub(String idpSub);
 
     Optional<AppUser> findByEmailIgnoreCase(String email);
+
+    /**
+     * The open invitation for a token's hash (T-1.9). Tenant-filtered like everything else, so a
+     * token minted for another company finds nothing here — which is why acceptance answers 404
+     * rather than distinguishing "wrong company" from "no such token".
+     */
+    Optional<AppUser> findByInvitationTokenHash(String invitationTokenHash);
 }

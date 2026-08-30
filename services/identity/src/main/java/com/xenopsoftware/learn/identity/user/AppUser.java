@@ -44,6 +44,19 @@ public class AppUser extends TenantOwned {
     @Column(name = "idp_sub", unique = true)
     private String idpSub;
 
+    @Column(name = "invited_at")
+    private Instant invitedAt;
+
+    @Column(name = "invitation_expires_at")
+    private Instant invitationExpiresAt;
+
+    /** The SHA-256 of the open invitation token, hex — never the token (T-1.9). */
+    @Column(name = "invitation_token_hash")
+    private String invitationTokenHash;
+
+    @Column(name = "deactivated_at")
+    private Instant deactivatedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -91,6 +104,67 @@ public class AppUser extends TenantOwned {
         }
         this.idpSub = idpSub;
         this.status = UserStatus.ACTIVE;
+        // Single-use, and this is where that is true (T-1.9): the verifier is gone the moment
+        // the invitation is spent, so a token read from a backup taken a minute ago opens
+        // nothing.
+        this.invitationTokenHash = null;
+        this.invitationExpiresAt = null;
+    }
+
+    /**
+     * Offers (or re-offers) an invitation: the verifier for a token the caller has just minted,
+     * and the moment it stops working (T-1.9).
+     *
+     * <p>Re-inviting rotates rather than adds. One open invitation per person is the whole model
+     * — two live tokens for one account is two ways in, and revoking the one somebody forwarded
+     * to the wrong address would leave the other working.
+     */
+    public void offerInvitation(String tokenHash, Instant expiresAt, Instant now) {
+        if (idpSub != null) {
+            throw new IllegalStateException(
+                "User " + id + " has already signed in; there is nothing to invite them to");
+        }
+        this.status = UserStatus.INVITED;
+        this.invitationTokenHash = tokenHash;
+        this.invitationExpiresAt = expiresAt;
+        this.invitedAt = now;
+    }
+
+    public boolean hasInvitationExpiredAt(Instant now) {
+        return invitationExpiresAt == null || !invitationExpiresAt.isAfter(now);
+    }
+
+    /**
+     * Out, without being deleted (T-1.9). Everything they did stays exactly where it is, still
+     * pointing at this id — including their group memberships and role assignments, because
+     * reactivation has to restore access rather than rebuild it.
+     */
+    public void deactivate(Instant now) {
+        this.status = UserStatus.DEACTIVATED;
+        this.deactivatedAt = now;
+    }
+
+    /**
+     * Back in, as the same person. Somebody who had signed in returns to ACTIVE; somebody
+     * deactivated before they ever accepted goes back to waiting, because reactivating them into
+     * ACTIVE would leave a row that is allowed to act and has no identity behind it.
+     */
+    public void reactivate() {
+        this.status = idpSub == null ? UserStatus.INVITED : UserStatus.ACTIVE;
+        this.deactivatedAt = null;
+    }
+
+    /**
+     * The same row, a new address (T-1.9). Every attempt, score, membership and audit entry
+     * references {@link #id}, so history follows without being touched — which is the entire
+     * reason ADR-0104 refuses to key people by email or by {@code sub}.
+     */
+    public void changeEmailTo(String email) {
+        this.email = email;
+    }
+
+    public void rename(String displayName) {
+        this.displayName = displayName;
     }
 
     /**
@@ -119,5 +193,17 @@ public class AppUser extends TenantOwned {
 
     public String getIdpSub() {
         return idpSub;
+    }
+
+    public Instant getInvitedAt() {
+        return invitedAt;
+    }
+
+    public Instant getInvitationExpiresAt() {
+        return invitationExpiresAt;
+    }
+
+    public Instant getDeactivatedAt() {
+        return deactivatedAt;
     }
 }
