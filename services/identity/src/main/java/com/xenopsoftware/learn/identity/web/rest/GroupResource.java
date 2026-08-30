@@ -1,10 +1,8 @@
 package com.xenopsoftware.learn.identity.web.rest;
 
-import com.xenopsoftware.learn.identity.group.GroupHierarchy;
 import com.xenopsoftware.learn.identity.group.GroupService;
 import com.xenopsoftware.learn.identity.group.UserGroup;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,11 +29,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class GroupResource {
 
     private final GroupService groupService;
-    private final GroupHierarchy hierarchy;
 
-    public GroupResource(GroupService groupService, GroupHierarchy hierarchy) {
+    public GroupResource(GroupService groupService) {
         this.groupService = groupService;
-        this.hierarchy = hierarchy;
     }
 
     public record CreateGroupRequest(String name, UUID parentId) {}
@@ -61,12 +57,9 @@ public class GroupResource {
 
     /** An admin's reach from this group: the subtree, and everyone in it. */
     @GetMapping("/{id}/reach")
-    public Reach reach(@PathVariable UUID id) {
-        Set<UUID> subtree = hierarchy.subtreeIds(id);
-        return new Reach(subtree, hierarchy.reachableUserIds(Set.of(id)));
+    public GroupService.GroupReach reach(@PathVariable UUID id) {
+        return groupService.reach(id);
     }
-
-    public record Reach(Set<UUID> groupIds, Set<UUID> userIds) {}
 
     @PostMapping
     public GroupView create(@RequestBody CreateGroupRequest request) {

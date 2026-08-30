@@ -7,16 +7,20 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * The first grant, made from outside the tenant's own rules — which is the only way it can be
  * made (T-2.6), and the way provisioning will make it (T-1.5).
  *
+ * <p>Public because the isolation walk (T-1.6) lives outside this package and needs the same
+ * bootstrap: a caller who holds everything is what makes a refusal mean "not in your company"
+ * rather than "not yours to do".
+ *
  * <p>Tests written before the escalation guard existed exercised role editing and assignment as
  * a caller who held nothing. That worked because nothing checked; now it correctly does not, so
  * those tests bootstrap their caller here rather than being weakened to avoid the guard.
  */
-final class AuthzFixtures {
+public final class AuthzFixtures {
 
     private AuthzFixtures() {}
 
     /** Ensures the caller exists and holds every tenant-side permission, company-wide. */
-    static UUID bootstrapAdmin(JdbcTemplate jdbc, String tenant, String username) {
+    public static UUID bootstrapAdmin(JdbcTemplate jdbc, String tenant, String username) {
         UUID userId = ensureUser(jdbc, tenant, username);
         UUID roleId = UUID.randomUUID();
         jdbc.update("""
@@ -38,7 +42,7 @@ final class AuthzFixtures {
         return userId;
     }
 
-    static UUID ensureUser(JdbcTemplate jdbc, String tenant, String username) {
+    public static UUID ensureUser(JdbcTemplate jdbc, String tenant, String username) {
         String sub = "sub-" + username;
         UUID existing = jdbc.query("SELECT id FROM app_user WHERE idp_sub = ?",
             rows -> rows.next() ? rows.getObject(1, UUID.class) : null, sub);

@@ -1,6 +1,7 @@
 package com.xenopsoftware.learn.identity.group;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -119,8 +120,32 @@ public class GroupService {
 
     @Transactional
     public void removeMember(UUID groupId, UUID userId) {
+        // The group must be one of ours (T-1.6). Without this the endpoint answered 200 to
+        // another company's group id -- nothing was removed and nothing was disclosed, but a
+        // success for a row that is not here is a boundary that reads as porous, and the next
+        // method written against it inherits the habit. Removing somebody who is not a member
+        // stays a no-op: DELETE is idempotent about the membership, never about the group.
+        require(groupId);
         memberships.findByGroupIdAndUserId(groupId, userId).ifPresent(memberships::delete);
     }
+
+    /**
+     * The subtree and everyone in it — for a group that exists <em>here</em>.
+     *
+     * <p>Routed through the service rather than straight to {@link GroupHierarchy} for exactly
+     * one reason (T-1.6): those queries are native SQL handed a tenant id, so another company's
+     * group produces an empty answer rather than a refusal, and the endpoint returned 200 to an
+     * id it should not be able to address. The check belongs here, where every other caller
+     * inherits it.
+     */
+    public GroupReach reach(UUID groupId) {
+        require(groupId);
+        return new GroupReach(hierarchy.subtreeIds(groupId),
+            hierarchy.reachableUserIds(Set.of(groupId)));
+    }
+
+    /** A group admin's view from one group: the subtree, and everyone in it. */
+    public record GroupReach(Set<UUID> groupIds, Set<UUID> userIds) {}
 
     public List<UserGroup> roots() {
         return groups.findByParentIdIsNull();

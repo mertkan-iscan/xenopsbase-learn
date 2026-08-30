@@ -42,6 +42,12 @@ spring:
       connect-timeout: 250ms
       timeout: 250ms
       client-name: identity
+      repositories:
+        # Off: Valkey is a cache here, never a store. Left on, Spring Data
+        # scans every JPA repository as a Redis repository candidate and logs
+        # a paragraph about each one at every boot -- seven warnings that
+        # describe a configuration nobody chose.
+        enabled: false
 
   jpa:
     hibernate:
