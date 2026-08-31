@@ -108,4 +108,64 @@ class TechnicalStructureTest {
         // No production method carries @PreAuthorize until T-2.3 supplies grants; an empty
         // match set is the current correct state, not a broken rule.
         .allowEmptyShould(true);
+
+    /**
+     * NOTHING ON THE APPLICATION ORIGIN SERVES AN UPLOADED PACKAGE (ADR-0105).
+     *
+     * <p>The decision that keeps a customer's uploaded JavaScript out of this application's
+     * origin is a URL, and a URL is exactly the kind of control a later convenience removes: a
+     * CORS complaint on a Friday, a proxy route added to make a demo work, and every uploaded
+     * package is running with the session it was kept away from. This is that mistake as a build
+     * failure rather than a review comment.
+     *
+     * <p>Packages are served by the content origin ({@code <tenant>.<content-domain>}), which is
+     * a different origin to a browser and holds no credential of ours. If a mapping here needs
+     * the word, the answer is a different route on the content origin, not a route here.
+     */
+    @ArchTest
+    static final ArchRule noAppOriginRouteServesUploadedPackages = classes()
+        .should(new com.tngtech.archunit.lang.ArchCondition<com.tngtech.archunit.core.domain.JavaClass>(
+            "not map a path under /packages (ADR-0105)") {
+            @Override
+            public void check(com.tngtech.archunit.core.domain.JavaClass type,
+                    com.tngtech.archunit.lang.ConditionEvents events) {
+                for (String path : mappedPaths(type)) {
+                    if (path.toLowerCase(java.util.Locale.ROOT).contains("packages")) {
+                        events.add(com.tngtech.archunit.lang.SimpleConditionEvent.violated(type,
+                            type.getName() + " maps " + path + " on the application origin; "
+                            + "uploaded packages are served by the content origin (ADR-0105)"));
+                    }
+                }
+            }
+        })
+        .because("an uploaded package on the app origin has the app's DOM, session and tokens");
+
+    /** Every path any Spring web mapping on this class declares, class level and method level. */
+    private static java.util.Set<String> mappedPaths(com.tngtech.archunit.core.domain.JavaClass type) {
+        // A set: @GetMapping("/x") sets both `value` and its alias `path`, and reporting one
+        // mistake twice makes a failure message read like two mistakes.
+        java.util.Set<String> paths = new java.util.LinkedHashSet<>();
+        type.getAnnotations().forEach(annotation -> collectPaths(annotation, paths));
+        type.getMethods().forEach(method ->
+            method.getAnnotations().forEach(annotation -> collectPaths(annotation, paths)));
+        return paths;
+    }
+
+    private static void collectPaths(com.tngtech.archunit.core.domain.JavaAnnotation<?> annotation,
+            java.util.Set<String> into) {
+        if (!annotation.getRawType().getName().startsWith("org.springframework.web.bind.annotation.")) {
+            return;
+        }
+        for (String attribute : java.util.List.of("value", "path")) {
+            annotation.get(attribute).ifPresent(value -> {
+                if (value instanceof Object[] many) {
+                    for (Object one : many) {
+                        into.add(String.valueOf(one));
+                    }
+                } else {
+                    into.add(String.valueOf(value));
+                }
+            });
+        }
+    }
 }

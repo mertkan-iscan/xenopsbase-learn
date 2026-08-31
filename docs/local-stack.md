@@ -109,6 +109,13 @@ blocks package code from calling outbound.
 Do not "simplify" this by serving packages from the app origin. That is not a simplification, it is
 the vulnerability (ADR-0105).
 
+**ADR-0105 fixes the production scheme as one origin per tenant** — `<tenant>.<content-domain>`,
+because packages from two customers sharing an origin share everything an origin is. The local
+stack serves a single origin on `:8090` today; `*.localhost` resolves to loopback with no DNS
+record and no hosts entry (measured 2026-08-31: `acme.localhost:8090` and `globex.localhost:8090`
+both reached it on `::1`), so making the local stack per-tenant is a Caddyfile change owed by
+T-4.3, not a new dependency.
+
 ## Resetting
 
 ```bash
