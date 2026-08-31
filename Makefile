@@ -12,7 +12,7 @@ SHELL := /bin/sh
 COMPOSE := docker compose
 
 .DEFAULT_GOAL := help
-.PHONY: help up down reset logs ps psql token realm-export
+.PHONY: help up down reset logs ps psql token realm-export realm-apply realm-reset realm-relink
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -66,6 +66,35 @@ token: ## Print an access token for a user (make token U=acme-learner)
 		-d username=$(or $(U),acme-learner) \
 		-d password=$(or $(U),acme-learner) \
 		| sed 's/.*"access_token":"\([^"]*\)".*/\1/'
+
+# ---------------------------------------------------------------------------
+# The realm (T-1.7)
+#
+# Three paths, and which one is safe depends entirely on whether the Keycloak in
+# question has real people in it:
+#
+#   realm-apply   settings, clients and roles, never a user. The path for any
+#                 environment with customers, and the one CI would run.
+#   realm-reset   deletes the realm and every account in it, then imports.
+#                 Development only, and guarded three ways so it stays that way.
+#   realm-relink  the recovery, when a realm came back with new subjects.
+#   realm-export  what the running realm actually contains, to diff against the
+#                 file before changing either.
+#
+# docs/runbooks/keycloak-realm.md is the procedure; these are its commands.
+# ---------------------------------------------------------------------------
+
+realm-apply: ## Apply the realm file without touching any user -- the safe path
+	@bash scripts/realm-apply.sh
+
+realm-reset: ## DESTROY the local realm and import it again -- development only
+	@CONFIRM=destroy-xenopslearn bash scripts/realm-reset.sh
+
+realm-relink: ## Report the idp_sub repairs a rebuilt realm needs (APPLY=1 to run them)
+	@bash scripts/realm-relink.sh
+
+realm-export: ## Print the running realm as JSON, for diffing against the file
+	@bash scripts/realm-export.sh
 
 # ---------------------------------------------------------------------------
 # Services

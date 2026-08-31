@@ -38,5 +38,10 @@ admin-facing re-link flow — with the same verification — not a relaxation in
 The realm file (`local/keycloak/realm-xenopslearn.json`) declares the five development accounts
 with pinned ids, so `make reset` restores the same subs (the stemcell's ADR-0010 mechanism).
 Every real user is runtime-created and has no line there: a realm delete in any environment with
-real users loses their subs, and recovery is the re-link procedure above, per user. T-1.7 (#23)
-owns proving that realm changes never need that recovery in the first place.
+real users loses their subs, and recovery is the re-link procedure above, per user.
+
+**T-1.7 landed the paths that keep that recovery unnecessary** — see
+[keycloak-realm.md](keycloak-realm.md). Short version: change a realm with `make realm-apply`,
+which never touches a user; `make realm-reset` is development-only and guarded three ways; and
+`make realm-relink` is the procedure above, in bulk, dry-run by default. Run the repair **before**
+the people sign in, or provisioning gives them a second account instead of an error.
