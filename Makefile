@@ -97,6 +97,19 @@ realm-export: ## Print the running realm as JSON, for diffing against the file
 	@bash scripts/realm-export.sh
 
 # ---------------------------------------------------------------------------
+# The frontend (T-10.1)
+#
+# Run on the host rather than in a container, deliberately: what deploys is a
+# static build, the dev server is a development tool, and node_modules in a
+# bind mount is slow enough on some machines to change how people work. It
+# still runs against the real stack -- its /api proxy points at the services
+# `make up` started, not at mocks. docs/frontend.md has the rest.
+# ---------------------------------------------------------------------------
+
+web: ## Run the frontend dev server on http://localhost:5173 (needs `make up`)
+	@cd web && npm install --no-audit --no-fund && npm run dev
+
+# ---------------------------------------------------------------------------
 # Services
 #
 # Every target here resolves the JDK itself rather than trusting JAVA_HOME.
@@ -109,7 +122,7 @@ realm-export: ## Print the running realm as JSON, for diffing against the file
 
 JAVA_HOME_RESOLVED = $(shell bash scripts/java-home.sh)
 
-.PHONY: java-home build test run
+.PHONY: java-home build test run web
 
 java-home: ## Report which JDK the build will use, and why
 	@echo "required:  Java $$(grep -oE '<java\.version>[0-9]+' services/pom.xml | head -1 | grep -oE '[0-9]+')  (services/pom.xml)"

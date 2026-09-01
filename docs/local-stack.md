@@ -17,7 +17,7 @@ Keycloak fails in a way that reads as a configuration error.
 | | | |
 |---|---|---|
 | app origin | http://localhost:8080 | services — nothing runs here yet |
-| web | http://localhost:5173 | frontend — nothing runs here yet |
+| web | http://localhost:5173 | the frontend — `make web` (T-10.1, docs/frontend.md) |
 | **content origin** | **http://localhost:8090** | **a different origin, deliberately** |
 | Keycloak | http://localhost:8081 | `admin` / `admin` |
 | MinIO console | http://localhost:9001 | |

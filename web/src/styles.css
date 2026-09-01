@@ -1,0 +1,72 @@
+/* Enough to be legible and operable, and no design system yet -- that arrives with the screens
+   it has to serve (T-10.4, T-10.3). What is here is the part that is not decoration: visible
+   focus, a skip link that appears when focused, and states that read as states. */
+
+:root {
+  color-scheme: light dark;
+  --gap: 1rem;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.5;
+}
+
+body {
+  margin: 0;
+  padding: var(--gap);
+}
+
+*:focus-visible {
+  outline: 3px solid currentColor;
+  outline-offset: 2px;
+}
+
+.skip {
+  position: absolute;
+  left: -9999px;
+}
+
+.skip:focus {
+  position: static;
+  display: inline-block;
+  margin-bottom: var(--gap);
+}
+
+nav ul {
+  display: flex;
+  gap: var(--gap);
+  list-style: none;
+  margin: 0 0 var(--gap);
+  padding: 0;
+}
+
+.state {
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  margin: var(--gap) 0;
+  padding: var(--gap);
+}
+
+.state__title {
+  font-weight: 600;
+  margin-top: 0;
+}
+
+label {
+  display: block;
+  font-weight: 600;
+}
+
+input {
+  font: inherit;
+  padding: 0.35rem;
+  min-width: 20rem;
+  max-width: 100%;
+}
+
+button {
+  font: inherit;
+  padding: 0.4rem 0.9rem;
+}
+
+code {
+  overflow-wrap: anywhere;
+}
