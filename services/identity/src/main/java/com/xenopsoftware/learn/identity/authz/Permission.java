@@ -62,8 +62,32 @@ public enum Permission {
     /** Suspend and reinstate a company (T-1.4). */
     TENANT_SUSPEND("tenant:suspend", PermissionSide.PLATFORM, PermissionScope.PLATFORM),
 
-    /** Act as a tenant user, always visibly afterwards (T-2.8). */
-    SUPPORT_IMPERSONATE("support:impersonate", PermissionSide.PLATFORM, PermissionScope.PLATFORM);
+    /** Act as a tenant user, always visibly afterwards, and read-only (T-2.8). */
+    SUPPORT_IMPERSONATE("support:impersonate", PermissionSide.PLATFORM, PermissionScope.PLATFORM),
+
+    /**
+     * Open an impersonation session that may WRITE (T-2.8).
+     *
+     * <p>A second permission rather than a flag on the first, because "read-only by default"
+     * only means something if turning it off is a decision somebody made about a person. Folded
+     * into {@code support:impersonate} it would be a checkbox on a request body — held by
+     * everyone who can impersonate at all, and the audit trail would show a choice where there
+     * had never been a grant.
+     *
+     * <p>It is not sufficient on its own: a writable session needs both, so revoking this one
+     * leaves the engineer able to look and not to touch, which is the state most support work
+     * should be in.
+     */
+    SUPPORT_IMPERSONATE_WRITE("support:impersonate_write", PermissionSide.PLATFORM, PermissionScope.PLATFORM),
+
+    /**
+     * See when our staff entered this company's account, who did, and why (T-2.8).
+     *
+     * <p>A TENANT permission, which is the point: the record of what we did belongs to the
+     * customer. Seeded into the company-administrator template so it is visible by default —
+     * a visibility a customer has to ask us to enable is not visibility.
+     */
+    IMPERSONATION_READ("impersonation:read", PermissionSide.TENANT, PermissionScope.TENANT);
 
     private static final java.util.Map<String, Permission> BY_CODE;
 

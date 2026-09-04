@@ -49,7 +49,14 @@ public class AssignmentPermissionsResolver implements PermissionsResolver {
 
     @Override
     public GrantedPermissions resolveFor(Jwt caller) {
-        UUID userId = provisioning.provision(caller).getId();
+        // Under an impersonation session the grants resolved are the IMPERSONATED person's
+        // (T-2.8): a session that could do more than the person it is imitating is not
+        // reproducing what they see, it is a back door with their name on it. It is also the
+        // only correct answer here -- provisioning the caller would create a support engineer's
+        // account inside the customer's tenant.
+        UUID userId = com.xenopsoftware.learn.identity.impersonation.ImpersonationContext
+            .impersonatedUserId()
+            .orElseGet(() -> provisioning.provision(caller).getId());
 
         Set<UUID> reachingGroups = new LinkedHashSet<>();
         for (GroupMembership membership : memberships.findAll()) {

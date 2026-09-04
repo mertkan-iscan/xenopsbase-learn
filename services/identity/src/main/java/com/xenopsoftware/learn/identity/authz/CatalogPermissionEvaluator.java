@@ -51,7 +51,7 @@ public class CatalogPermissionEvaluator implements PermissionEvaluator {
             return false;
         }
         Jwt jwt = token.getToken();
-        if (!permission.side().name().equals(jwt.getClaimAsString(TenantFilter.SIDE_CLAIM))) {
+        if (!permission.side().name().equals(callerSide(jwt))) {
             return deny(permission);
         }
         if (!requestPermissions.forCaller(jwt).holds(permission)) {
@@ -66,6 +66,19 @@ public class CatalogPermissionEvaluator implements PermissionEvaluator {
         throw new UnsupportedOperationException(
             "Checks are hasPermission('resource', 'action'); per-object decisions are scope "
             + "resolution (T-2.3), not a second check style.");
+    }
+
+    /**
+     * Which side the caller is acting on. Their token says PLATFORM; an impersonation session
+     * (T-2.8) says TENANT, and the swap is total rather than additive — while wearing a
+     * customer's face a support engineer holds the customer's permissions and NOT their own
+     * platform ones. A session that could still suspend companies would be a privilege
+     * escalation dressed as a support tool, and the pre-filter is the cheapest place to say so.
+     */
+    private static String callerSide(Jwt jwt) {
+        return com.xenopsoftware.learn.identity.impersonation.ImpersonationContext.current()
+            .map(session -> PermissionSide.TENANT.name())
+            .orElseGet(() -> jwt.getClaimAsString(TenantFilter.SIDE_CLAIM));
     }
 
     private static boolean deny(Permission permission) {

@@ -33,8 +33,23 @@ public class RequestPermissions {
 
     public GrantedPermissions forCaller(Jwt caller) {
         if (resolved == null) {
-            resolved = cache.resolve(caller, () -> resolver.resolveFor(caller));
+            resolved = impersonating()
+                ? resolver.resolveFor(caller)
+                : cache.resolve(caller, () -> resolver.resolveFor(caller));
         }
         return resolved;
+    }
+
+    /**
+     * An impersonated request skips the cache entirely (T-2.8), and the reason is the cache key.
+     * It is {@code tenant:sub:version}, and under a session the tenant is the customer's while
+     * the sub is still the engineer's — so one engineer impersonating two people in the same
+     * company inside one TTL would compute one key for two different answers, and serve the
+     * first person's permissions as the second's. Narrowing the key would work; not caching a
+     * rare, human-paced, minutes-long session costs one resolution per request and leaves
+     * nothing to reason about.
+     */
+    private static boolean impersonating() {
+        return com.xenopsoftware.learn.identity.impersonation.ImpersonationContext.current().isPresent();
     }
 }

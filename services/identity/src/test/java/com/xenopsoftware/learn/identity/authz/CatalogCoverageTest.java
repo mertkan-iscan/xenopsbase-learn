@@ -130,7 +130,6 @@ class CatalogCoverageTest extends PostgresTestHarness {
         Permission.ROLE_READ, "T-2.3 -- RoleResource exists; grants to check against do not",
         Permission.ROLE_MANAGE, "T-2.3 -- RoleResource exists; grants to check against do not",
         Permission.ROLE_ASSIGN, "T-2.6/T-2.7 -- AssignmentResource exists; the no-escalation rule and the seeded first grant do not",
-        Permission.SUPPORT_IMPERSONATE, "T-2.8 -- impersonation that is always visible afterwards",
         Permission.CONTENT_VIEW, "checked, but not HERE: streaming's playback token decision "
             + "(T-3.4) is what refuses a caller who does not hold it. This test walks identity's "
             + "own handler mappings, so a permission enforced by another service reads to it as "

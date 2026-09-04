@@ -38,17 +38,38 @@ public enum SystemRole {
 
     TENANT_ADMIN("tenant-admin", "Company administrator", PermissionSide.TENANT,
         "Runs the whole company account: people, departments, roles and who holds them.",
+        // impersonation:read is seeded here from the start (T-2.8). The record of our staff
+        // entering this account is the customer's to read, and a visibility that has to be
+        // switched on is a visibility nobody has when it matters.
         Set.of(Permission.USER_READ, Permission.USER_MANAGE, Permission.GROUP_READ,
             Permission.GROUP_MANAGE, Permission.ROLE_READ, Permission.ROLE_MANAGE,
-            Permission.ROLE_ASSIGN)),
+            Permission.ROLE_ASSIGN, Permission.IMPERSONATION_READ)),
 
     SUPPORT("support", "Support", PermissionSide.PLATFORM,
-        "Our support staff, who can act as a customer's user to reproduce a problem — always visibly, afterwards.",
+        "Our support staff, who can look at a customer account through one of its users — read-only, "
+            + "time-boxed, and visible to that customer afterwards.",
         Set.of(Permission.SUPPORT_IMPERSONATE)),
+
+    /**
+     * Impersonation that may change a customer's data. Its own template, deliberately: T-2.8
+     * asks for a separate permission AND a separate decision, and a second permission inside the
+     * same role would only be the first half. Somebody has to be given this instead of
+     * {@code support}, which is a moment where a name and a reason exist.
+     */
+    SUPPORT_WRITE("support-write", "Support (write)", PermissionSide.PLATFORM,
+        "Support staff who may also make changes inside a customer account while impersonating — "
+            + "rarer, and recorded the same way.",
+        Set.of(Permission.SUPPORT_IMPERSONATE, Permission.SUPPORT_IMPERSONATE_WRITE)),
 
     SYS_ADMIN("sys-admin", "System administrator", PermissionSide.PLATFORM,
         "Our own staff, who create customer accounts and can suspend one.",
-        Set.of(Permission.TENANT_PROVISION, Permission.TENANT_SUSPEND, Permission.SUPPORT_IMPERSONATE));
+        // NO impersonation here, and its removal is T-2.8's first acceptance criterion rather
+        // than a tidy-up. PlatformBootstrap grants this role to every configured administrator
+        // at startup (T-1.5), so carrying support:impersonate would mean every operator of this
+        // installation silently held a key into every customer account, granted by a
+        // configuration line about something else. Entering a customer account is a role
+        // somebody is deliberately given.
+        Set.of(Permission.TENANT_PROVISION, Permission.TENANT_SUSPEND));
 
     private final String code;
     private final String displayName;

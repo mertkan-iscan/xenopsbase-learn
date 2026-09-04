@@ -30,6 +30,16 @@ public class CurrentUser {
      * happens to be still records a real actor instead of failing.
      */
     public UUID requireId() {
+        java.util.Optional<UUID> actor = com.xenopsoftware.learn.identity.impersonation
+            .ImpersonationContext.current()
+            .map(com.xenopsoftware.learn.identity.impersonation.Impersonation::actorUserId);
+        if (actor.isPresent()) {
+            // Under a session the actor is the support engineer, resolved when the session
+            // opened, in the tenant they actually belong to. Resolving it from the token here
+            // would provision them into the CUSTOMER's tenant -- the request is bound there --
+            // creating an account the customer never invited, as a side effect of being audited.
+            return actor.get();
+        }
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (!(authentication instanceof JwtAuthenticationToken token)) {
             throw new IllegalStateException(

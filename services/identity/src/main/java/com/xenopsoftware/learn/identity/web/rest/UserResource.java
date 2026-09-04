@@ -43,7 +43,14 @@ public class UserResource {
     @GetMapping("/me")
     public Me me(@AuthenticationPrincipal Jwt jwt) {
         requireTenantSide();
-        AppUser user = provisioningService.provision(jwt);
+        // Under an impersonation session this answers with the person being impersonated, not
+        // the engineer (T-2.8). Reproducing what somebody sees starts here -- every screen asks
+        // /me first -- and provisioning the caller instead would both give the wrong answer and
+        // create their account inside the customer's company.
+        AppUser user = com.xenopsoftware.learn.identity.impersonation.ImpersonationContext
+            .impersonatedUserId()
+            .flatMap(repository::findById)
+            .orElseGet(() -> provisioningService.provision(jwt));
         return new Me(user.getId(), TenantContext.require(), user.getEmail(),
             user.getDisplayName(), user.getStatus().name());
     }

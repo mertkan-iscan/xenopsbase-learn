@@ -67,8 +67,10 @@ class SystemRoleTest extends PostgresTestHarness {
     }
 
     @Test
-    void allSixTemplatesAreDefinedInCodeWithASentenceEach() {
-        assertThat(SystemRole.values()).hasSize(6);
+    void everyTemplateIsDefinedInCodeWithASentenceEach() {
+        // Seven since T-2.8 split writable impersonation into its own template: a separate
+        // permission that arrives inside the same role is not a separate decision.
+        assertThat(SystemRole.values()).hasSize(7);
         for (SystemRole template : SystemRole.values()) {
             assertThat(template.reach())
                 .as("%s needs one sentence a customer could read", template.code())
@@ -91,7 +93,7 @@ class SystemRoleTest extends PostgresTestHarness {
             // The platform pair is defined in code and deliberately not materialised: a
             // platform-side row has no tenant to be read back under until T-1.5's root-tenant
             // opt-in, and writing rows nothing can fetch is what T-2.2 refused.
-            assertThat(seeded).doesNotContain("Support", "System administrator");
+            assertThat(seeded).doesNotContain("Support", "Support (write)", "System administrator");
             return null;
         });
     }

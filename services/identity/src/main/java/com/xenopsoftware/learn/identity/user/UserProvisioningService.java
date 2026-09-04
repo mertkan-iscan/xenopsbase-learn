@@ -37,6 +37,19 @@ public class UserProvisioningService {
     }
 
     public AppUser provision(Jwt jwt) {
+        com.xenopsoftware.learn.identity.impersonation.ImpersonationContext.current()
+            .ifPresent(session -> {
+                // The one place this is unambiguously wrong, made loud (T-2.8). Under a session
+                // the bound tenant is the CUSTOMER's, so provisioning the caller would silently
+                // create a support engineer's account inside a company that never invited them --
+                // visible to that company, counted in its seats, and never explained. Every
+                // caller that legitimately needs an identity here already asks the session for
+                // it; a new one that does not gets this instead of the quiet version.
+                throw new IllegalStateException(
+                    "Refusing to provision " + jwt.getSubject() + " into " + session.tenantId()
+                    + " under impersonation session " + session.sessionId()
+                    + ". Ask ImpersonationContext who is being acted as.");
+            });
         String sub = jwt.getSubject();
         Optional<AppUser> linked = repository.findByIdpSub(sub);
         if (linked.isPresent()) {

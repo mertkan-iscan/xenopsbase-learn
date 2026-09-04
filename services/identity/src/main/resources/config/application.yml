@@ -102,6 +102,17 @@ identity:
     # request that runs until a proxy timeout or a heap decides for us.
     max-import-rows: 5000
 
+  impersonation:
+    # How long one support session may last (T-2.8). There is no renew endpoint:
+    # a longer investigation is a second session with its own reason, which is
+    # the record the customer is entitled to. Short enough that "we forgot to
+    # close it" cannot become a standing key into a customer's account.
+    max-duration: 30m
+    # The shortest reason accepted. A required field somebody satisfies with "x"
+    # records nothing, and this log is read months later by people who were not
+    # there -- including the customer.
+    min-reason: 12
+
   authz:
     cache:
       # The resolved permission set, cached under a key carrying the tenant's

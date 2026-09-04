@@ -203,7 +203,7 @@ class TenantProvisioningTest extends PostgresTestHarness {
         assertThat(jdbc.queryForList(
             "SELECT name FROM app_role WHERE tenant_id = ? AND system", String.class,
             TenantFilter.PLATFORM_TENANT))
-            .containsExactlyInAnyOrder("Support", "System administrator");
+            .containsExactlyInAnyOrder("Support", "Support (write)", "System administrator");
         assertThat(jdbc.queryForObject("""
             SELECT count(*) FROM role_assignment WHERE tenant_id = ? AND scope_type = 'PLATFORM'
             """, Long.class, TenantFilter.PLATFORM_TENANT)).isEqualTo(1);

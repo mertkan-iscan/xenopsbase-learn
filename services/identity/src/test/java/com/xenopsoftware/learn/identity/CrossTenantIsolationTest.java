@@ -83,11 +83,12 @@ class CrossTenantIsolationTest extends PostgresTestHarness {
      * responses.
      */
     private record Company(String tenant, String token, UUID group, UUID childGroup, UUID role,
-                           UUID user, UUID assignment, String chiefEmail) {
+                           UUID user, UUID assignment, UUID session, String chiefEmail) {
 
         Set<String> identifiers() {
             return new LinkedHashSet<>(List.of(group.toString(), childGroup.toString(),
-                role.toString(), user.toString(), assignment.toString(), chiefEmail));
+                role.toString(), user.toString(), assignment.toString(), session.toString(),
+                chiefEmail));
         }
     }
 
@@ -245,6 +246,11 @@ class CrossTenantIsolationTest extends PostgresTestHarness {
             case "role", "roles" -> victim.role();
             case "user", "users" -> victim.user();
             case "assignment", "assignments" -> victim.assignment();
+            // An impersonation session (T-2.8) is the customer's row about our staff, so one
+            // company reaching another's is the same failure as any other -- and the endpoints
+            // that address one are platform-side, which makes this the walk's only probe of
+            // whether a tenant token can reach that surface at all.
+            case "session", "sessions", "impersonation", "impersonations" -> victim.session();
             case "scope" -> victim.group();
             default -> fail("The isolation walk cannot address '" + variable + "' under '"
                 + collection + "'. Teach it which row that names, or the endpoint using it is "
@@ -380,7 +386,27 @@ class CrossTenantIsolationTest extends PostgresTestHarness {
             + "\",\"userId\":\"" + chief + "\",\"scopeType\":\"TENANT\"}"));
 
         return new Company(tenant, token, group, child, role, chief, assignment,
-            "chief@" + tenant + ".test");
+            impersonationSession(tenant, chief), "chief@" + tenant + ".test");
+    }
+
+    /**
+     * A closed impersonation session in this company, planted in SQL. Not over the API on
+     * purpose: starting one is a platform-side act (T-2.8), and this fixture needs the row, not
+     * the ceremony. The engineer is shared between the two companies, which is the sharper
+     * arrangement -- if a session leaked across the boundary it would look plausible.
+     */
+    private UUID impersonationSession(String tenant, UUID subject) {
+        UUID actor = AuthzFixtures.ensureUser(jdbc,
+            com.xenopsoftware.learn.common.tenancy.TenantFilter.PLATFORM_TENANT, "probe-support");
+        UUID session = UUID.randomUUID();
+        jdbc.update("""
+            INSERT INTO impersonation_session (id, tenant_id, actor_user_id, impersonated_user_id,
+                                               reason, writable, started_at, expires_at, ended_at,
+                                               ended_reason)
+            VALUES (?, ?, ?, ?, 'isolation walk fixture', false, now(), now() + interval '1 hour',
+                    now(), 'ENDED_BY_ACTOR')
+            """, session, tenant, actor, subject);
+        return session;
     }
 
     private UUID id(String body) throws Exception {
@@ -415,6 +441,7 @@ class CrossTenantIsolationTest extends PostgresTestHarness {
     private void removeEverything() {
         jdbc.update("DELETE FROM role_assignment");
         jdbc.update("DELETE FROM audit_log");
+        jdbc.update("DELETE FROM impersonation_session");
         jdbc.update("DELETE FROM role_permission");
         jdbc.update("DELETE FROM app_role");
         jdbc.update("DELETE FROM group_membership");

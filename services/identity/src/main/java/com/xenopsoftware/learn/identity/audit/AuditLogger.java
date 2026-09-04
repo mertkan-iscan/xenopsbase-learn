@@ -64,7 +64,40 @@ public class AuditLogger {
         }
     }
 
+    /**
+     * The same, for a caller that already knows who is acting (T-2.8).
+     *
+     * <p>Impersonation refuses <em>before</em> a session exists, while the tenant is already the
+     * customer's — and asking {@link CurrentUser} there would provision our support engineer into
+     * the customer's company as a side effect of refusing them. The actor is therefore passed in,
+     * resolved where the caller actually belongs.
+     */
+    @org.springframework.transaction.annotation.Transactional(
+        propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public void recordRefusalAs(UUID actorUserId, String action, String targetType, UUID targetId,
+            Map<String, ?> payload) {
+        try {
+            write(actorUserId, action, targetType, targetId, payload);
+        } catch (RuntimeException e) {
+            LOG.error("Could not audit refused {} on {} {} -- the refusal still stands",
+                action, targetType, targetId, e);
+        }
+    }
+
     public void record(String action, String targetType, UUID targetId, Map<String, ?> payload) {
+        write(currentUser.requireId(), action, targetType, targetId, payload);
+    }
+
+    /**
+     * One insert, and the two identities an impersonated action has (T-2.8).
+     *
+     * <p>{@code actor_user_id} keeps its meaning under a session: the support engineer, because
+     * they are who caused this. {@code impersonated_user_id} says whose face they were wearing,
+     * and the session id ties every entry back to the reason recorded when it opened. A customer
+     * asking "did I do that?" gets an answer, and so does the engineer.
+     */
+    private void write(UUID actorUserId, String action, String targetType, UUID targetId,
+            Map<String, ?> payload) {
         String body;
         try {
             body = json.writeValueAsString(payload);
@@ -73,10 +106,15 @@ public class AuditLogger {
             // and losing the audit record would hide both it and the action.
             throw new IllegalArgumentException("Audit payload for " + action + " is not serialisable", e);
         }
+        java.util.Optional<com.xenopsoftware.learn.identity.impersonation.Impersonation> session =
+            com.xenopsoftware.learn.identity.impersonation.ImpersonationContext.current();
         jdbc.update("""
-            INSERT INTO audit_log (id, tenant_id, actor_user_id, action, target_type, target_id, payload, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, now())
-            """, UUID.randomUUID(), TenantContext.require(), currentUser.requireId(),
-            action, targetType, targetId, body);
+            INSERT INTO audit_log (id, tenant_id, actor_user_id, action, target_type, target_id,
+                                   payload, created_at, impersonated_user_id, impersonation_session_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, now(), ?, ?)
+            """, UUID.randomUUID(), TenantContext.require(), actorUserId,
+            action, targetType, targetId, body,
+            session.map(s -> s.impersonatedUserId()).orElse(null),
+            session.map(s -> s.sessionId()).orElse(null));
     }
 }
