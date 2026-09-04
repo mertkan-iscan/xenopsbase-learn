@@ -17,6 +17,7 @@
 #   2. realm settings      -> PUT of the realm representation minus its
 #                             collections (token lifespans, login policy, ...)
 #   3. clients and roles   -> partialImport with ifResourceExists=OVERWRITE
+#   4. service accounts    -> a client PUT, because partialImport skips them
 #
 # Users are excluded from step 3 deliberately and always. The realm file's users
 # are development fixtures; a real installation's people arrive by signing in,
@@ -103,4 +104,49 @@ import json,sys
 r = json.load(sys.stdin)
 print(f\"{r.get('overwritten', 0)} overwritten, {r.get('added', 0)} added, {r.get('skipped', 0)} skipped\")
 ")"
+# ---------------------------------------------------------------------------
+# 4. service accounts, which partialImport does not create.
+#
+# A client with serviceAccountsEnabled needs a hidden user to BE when it
+# authenticates as itself. partialImport writes the client and stops there, and
+# the failure arrives later and reads as a credentials problem:
+#
+#   {"error":"invalid_request",
+#    "error_description":"The associated service account for the client does not exist"}
+#
+# A PUT of the client Keycloak already has is enough to make it create the
+# account. Doing it unconditionally is safe -- the body is what the server just
+# returned -- and it is idempotent, because the second run finds the account
+# already there.
+# ---------------------------------------------------------------------------
+for CLIENT_ID in $("$PY" - "$REALM_FILE" <<'SVC'
+import json, sys
+realm = json.load(open(sys.argv[1], encoding="utf-8"))
+for client in realm.get("clients", []):
+    if client.get("serviceAccountsEnabled"):
+        print(client["clientId"])
+SVC
+); do
+    # Not -f, and tolerant of an empty body: a client that is somehow absent is a thing to
+    # skip, not a reason to abort a run that has already applied everything else.
+    FOUND="$(curl -s -H "Authorization: Bearer $TOKEN"         "$KEYCLOAK_URL/admin/realms/$REALM/clients?clientId=$CLIENT_ID" || true)"
+    UUID="$(printf '%s' "$FOUND" | "$PY" -c "
+import json, sys
+raw = sys.stdin.read().strip()
+try:
+    clients = json.loads(raw) if raw else []
+except ValueError:
+    clients = []
+print(clients[0]['id'] if clients else '')
+")"
+    [ -n "$UUID" ] || continue
+    if curl -sf -o /dev/null -H "Authorization: Bearer $TOKEN"         "$KEYCLOAK_URL/admin/realms/$REALM/clients/$UUID/service-account-user"; then
+        continue
+    fi
+    curl -sf -H "Authorization: Bearer $TOKEN"         "$KEYCLOAK_URL/admin/realms/$REALM/clients/$UUID" > /tmp/realm-client.json
+    curl -sf -o /dev/null -X PUT -H "Authorization: Bearer $TOKEN"         -H "Content-Type: application/json" --data-binary @/tmp/realm-client.json         "$KEYCLOAK_URL/admin/realms/$REALM/clients/$UUID"
+    rm -f /tmp/realm-client.json
+    echo "  service account created for $CLIENT_ID"
+done
+
 echo "No user was created, changed or removed."

@@ -117,6 +117,20 @@ identity:
       # How long an unreachable cache is left alone before it is tried again.
       cooldown: 10s
 
+# Service-to-service (T-9.11). This service's own credential, per service and
+# rotatable on its own -- a shared secret would make rotating any of them an
+# outage for all of them, and would let any service claim to be another.
+platform:
+  service-auth:
+    client-id: ${SERVICE_CLIENT_ID:svc-identity}
+    client-secret: ${SERVICE_CLIENT_SECRET:local-development-only-identity-secret}
+  services:
+    # Named targets, so a relay can only reach somewhere an operator configured.
+    endpoints:
+      identity: ${IDENTITY_URL:http://localhost:8082}
+      streaming: ${STREAMING_URL:http://localhost:8083}
+      reporting: ${REPORTING_URL:http://localhost:8084}
+
 server:
   port: ${SERVER_PORT:8082}
 

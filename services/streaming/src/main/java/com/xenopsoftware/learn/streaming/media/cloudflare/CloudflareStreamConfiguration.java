@@ -19,7 +19,10 @@ import org.springframework.web.client.RestClient;
 public class CloudflareStreamConfiguration {
 
     @Bean
-    MediaProvider cloudflareStream(RestClient.Builder restClientBuilder, CloudflareStreamProperties properties) {
-        return new CloudflareStreamAdapter(restClientBuilder, properties);
+    MediaProvider cloudflareStream(CloudflareStreamProperties properties) {
+        // RestClient.builder() rather than an injected builder: Boot 4 does not auto-configure
+        // one here, and this bean is conditional -- so the failure would have waited for
+        // T-9.14 to switch the provider on.
+        return new CloudflareStreamAdapter(RestClient.builder(), properties);
     }
 }

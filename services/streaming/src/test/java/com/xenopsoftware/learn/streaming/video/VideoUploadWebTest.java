@@ -36,6 +36,9 @@ class VideoUploadWebTest extends PostgresTestHarness {
      * discipline as identity's CatalogCoverageTest, sized to this service.
      */
     private static final Map<String, String> AUTH_ONLY = Map.of(
+        "ServiceChainResource#whoami",
+            "shared by every service (T-9.11): reports what the caller's own token says and "
+            + "which service carried it here, and nothing about anybody else",
         "VideoResource#create",
             "authoring permission (video:upload) arrives with cross-service grants; until then any tenant member",
         "VideoResource#reissue",

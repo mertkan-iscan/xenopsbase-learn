@@ -239,6 +239,96 @@
           }
         }
       ]
+    },
+    {
+      "clientId": "svc-identity",
+      "name": "identity service",
+      "description": "Service credentials for identity (T-9.11). Client credentials only; per-service secret.",
+      "enabled": true,
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "secret": "local-development-only-identity-secret",
+      "attributes": {
+        "access.token.lifespan": "300"
+      },
+      "protocolMappers": [
+        {
+          "name": "service-id-claim",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "svc",
+            "claim.value": "identity",
+            "jsonType.label": "String",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ],
+      "protocol": "openid-connect"
+    },
+    {
+      "clientId": "svc-streaming",
+      "name": "streaming service",
+      "description": "Service credentials for streaming (T-9.11). Client credentials only; per-service secret.",
+      "enabled": true,
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "secret": "local-development-only-streaming-secret",
+      "attributes": {
+        "access.token.lifespan": "300"
+      },
+      "protocolMappers": [
+        {
+          "name": "service-id-claim",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "svc",
+            "claim.value": "streaming",
+            "jsonType.label": "String",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ],
+      "protocol": "openid-connect"
+    },
+    {
+      "clientId": "svc-reporting",
+      "name": "reporting service",
+      "description": "Service credentials for reporting (T-9.11). Client credentials only; per-service secret.",
+      "enabled": true,
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "secret": "local-development-only-reporting-secret",
+      "attributes": {
+        "access.token.lifespan": "300"
+      },
+      "protocolMappers": [
+        {
+          "name": "service-id-claim",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "svc",
+            "claim.value": "reporting",
+            "jsonType.label": "String",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ],
+      "protocol": "openid-connect"
     }
   ],
   "users": [

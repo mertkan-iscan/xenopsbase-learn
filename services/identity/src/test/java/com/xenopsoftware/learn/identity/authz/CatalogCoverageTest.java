@@ -82,6 +82,10 @@ class CatalogCoverageTest extends PostgresTestHarness {
 
     /** Endpoint → why authentication alone is the whole check. */
     private static final Map<String, String> AUTH_ONLY = Map.ofEntries(
+        Map.entry("ServiceChainResource#whoami",
+            "reports what the caller's own token says and which service carried it here -- the "
+            + "same reasoning as AuthInfoResource: gating it would hide the evidence it exists "
+            + "to show, and it reveals nothing about anybody else (T-9.11)"),
         Map.entry("AuthInfoResource#authInfo",
             "reports what the token itself says; gating it would hide the evidence it exists to show"),
         Map.entry("UserResource#me",

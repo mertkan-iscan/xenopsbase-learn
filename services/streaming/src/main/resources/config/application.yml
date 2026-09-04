@@ -55,6 +55,20 @@ spring:
         jwt:
           issuer-uri: ${OIDC_ISSUER_URI:http://localhost:8081/realms/xenopslearn}
 
+# Service-to-service (T-9.11). This service's own credential, per service and
+# rotatable on its own -- a shared secret would make rotating any of them an
+# outage for all of them, and would let any service claim to be another.
+platform:
+  service-auth:
+    client-id: ${SERVICE_CLIENT_ID:svc-streaming}
+    client-secret: ${SERVICE_CLIENT_SECRET:local-development-only-streaming-secret}
+  services:
+    # Named targets, so a relay can only reach somewhere an operator configured.
+    endpoints:
+      identity: ${IDENTITY_URL:http://localhost:8082}
+      streaming: ${STREAMING_URL:http://localhost:8083}
+      reporting: ${REPORTING_URL:http://localhost:8084}
+
 server:
   port: ${SERVER_PORT:8083}
 
