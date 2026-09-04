@@ -1,0 +1,63 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# The three application services. Everything they run ON — Postgres, Keycloak,
+# Valkey, the ingress — is the stemcell's, deliberately: this product does not
+# operate a second copy of the platform, it is a tenant of the one that exists.
+resources:
+  # The issuer all three read, and which all three wait for before starting.
+  # Listed first because nothing below starts without it.
+  - oidc.yaml
+  - identity.yaml
+  - streaming.yaml
+  - reporting.yaml
+
+# IMAGES ARE PINNED HERE, NOT IN THE DEPLOYMENTS.
+#
+# So a deploy is a one-line commit and `git log` on this file is the deployment
+# history. The `main` tag in each Deployment is a placeholder this overrides.
+#
+# BY DIGEST, NOT BY TAG, and the stemcell paid for that lesson twice over:
+#
+#  - `main` moves, and with imagePullPolicy: IfNotPresent a node keeps whatever
+#    it cached, so two replicas can run different code and nothing reports it.
+#  - on one occasion the tag did not even exist. Jib logged that it had pushed
+#    `...:<sha>, ...:main` and the package came out with only the SHA, while an
+#    identical command on the other service produced all three. The kubelet's
+#    "not found" was the first sign.
+#
+# A digest cannot be absent, cannot move, and cannot disagree with what was
+# tested. The commit is recorded beside each one so a reader does not have to
+# resolve a digest to know which build this is — per image, because they do not
+# move together.
+images:
+  - name: ghcr.io/mertkan-iscan/xenopsbase-learn/identity
+    # Commit 0747e6c — the first images this repository has ever published
+    # (T-9.3, #11). Carries everything through T-3.6: the tenant boundary and
+    # the discriminator (T-1.1), app_user owning identity with `sub` as a
+    # repairable link (T-1.2, ADR-0104), the group tree (T-1.3), account status
+    # (T-1.4), provisioning as an API call (T-1.5), the invite and deactivate
+    # lifecycle (T-1.9), the permission catalog and its evaluator (T-2.1, T-2.4),
+    # roles, scopes and the no-escalation rule (T-2.2, T-2.3, T-2.6), the Valkey
+    # permission cache (T-2.5), the seeded system roles (T-2.7) and
+    # service-to-service authentication (T-9.11).
+    #
+    # NOT YET DEPLOYED. See platform/README.md: the cluster's image policy has
+    # to learn to accept this repository's signing identity first.
+    digest: sha256:8c7e332fd94dbb306032555f6b586ea152c1c5d27b4af75111fad5171432a600
+  - name: ghcr.io/mertkan-iscan/xenopsbase-learn/streaming
+    # Commit 0747e6c — the MediaProvider port and its fake and Cloudflare
+    # adapters (T-3.1), tus upload targets with quota enforced before issuance
+    # (T-3.2), encode state arriving by webhook and poll idempotently (T-3.3),
+    # and the playback entitlement decision with its five-minute token (T-3.4).
+    #
+    # Runs the FAKE media provider here. Video is the one dependency with no
+    # local or in-cluster equivalent, so a green deployment proves the domain
+    # and nothing about edge delivery (T-9.14, #100).
+    digest: sha256:2218368a62b8cb67db6f74122eb134367565bc5e10cb6a274d16b5f5d7dcafcb
+  - name: ghcr.io/mertkan-iscan/xenopsbase-learn/reporting
+    # Commit 0747e6c — the service and its own database with nothing else
+    # reading it (T-9.7), and the playback heartbeat ingest path (T-3.6):
+    # validate, batch-insert, count, and never a synchronous call while a
+    # learner waits.
+    digest: sha256:520b2da7b2ef580dba5946dda14ea13b1a76637fd14d07b75c6257b39e7bea12

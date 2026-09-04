@@ -39,6 +39,13 @@ spring:
       # dead Valkey costs one timeout per window rather than one per request.
       host: ${VALKEY_HOST:localhost}
       port: ${VALKEY_PORT:6379}
+      # Empty by default, and that is the LOCAL default rather than the only
+      # one. The compose Valkey has no password; the cluster's requires one
+      # (`requirepass`), so a deployment that could not supply it would fail
+      # every cache read with NOAUTH and degrade silently into the "Valkey is
+      # down" path this service is built to survive -- which is the worst
+      # possible shape, because nothing would look broken (T-9.3).
+      password: ${VALKEY_PASSWORD:}
       connect-timeout: 250ms
       timeout: 250ms
       client-name: identity

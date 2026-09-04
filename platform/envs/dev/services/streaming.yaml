@@ -1,0 +1,161 @@
+# streaming: video assets, upload targets, encode state, playback tokens.
+#
+# The learner hot path, and a separate process on purpose (ADR-0109) — but never
+# load-bearing during playback: bytes are delivered by the edge and this
+# service's hot-path job ends at an entitlement decision and a signature
+# (ADR-0101).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: streaming
+  namespace: learn
+  labels: {app.kubernetes.io/name: streaming, app.kubernetes.io/part-of: xenopslearn}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: streaming}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: streaming, app.kubernetes.io/part-of: xenopslearn}
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+
+      # WAIT FOR THE OIDC ISSUER RATHER THAN DYING ON IT.
+      #
+      # Inherited from the stemcell's T-3.24 rather than rediscovered. Spring
+      # resolves the issuer's discovery document while building beans, with one
+      # HTTP GET and no retry, and that GET decides whether the context starts.
+      # On a cold cluster the order is postgres, then keycloak, then the apps —
+      # and the apps lose that race every time.
+      #
+      # Losing it is not a delay, it is a crash: the context fails, the
+      # container exits, and the kubelet backs off up to five minutes. The
+      # service then stays down long after Keycloak is healthy, and only a
+      # manual rollout restart recovers it.
+      #
+      # This waits indefinitely and the pod sits in Init, deliberately: exiting
+      # non-zero would rebuild the same CrashLoopBackOff one layer up.
+      initContainers:
+        - name: wait-for-oidc
+          # Pinned by digest like every other off-the-shelf image, and chosen
+          # over the service's own because eclipse-temurin — what jib builds on
+          # — ships neither curl nor wget.
+          image: curlimages/curl@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13  # 8.21.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 100
+            runAsGroup: 101
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          env:
+            - name: OIDC_ISSUER_URI
+              valueFrom: {configMapKeyRef: {name: learn-oidc, key: OIDC_ISSUER_URI}}
+          command: [sh, -c]
+          args:
+            - |
+              set -u
+              url="${OIDC_ISSUER_URI}/.well-known/openid-configuration"
+              echo "waiting for OIDC discovery before starting: $url"
+              start=$(date +%s)
+              while :; do
+                code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "$url" 2>/dev/null || true)
+                [ -n "$code" ] || code=000
+                elapsed=$(( $(date +%s) - start ))
+                if [ "$code" = "200" ]; then
+                  echo "OIDC discovery answered 200 after ${elapsed}s — starting"
+                  exit 0
+                fi
+                echo "  ${elapsed}s: ${code} — waiting (000 is DNS/edge/cert, 404 is the wrong realm path)"
+                sleep 5
+              done
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 32Mi}
+
+      containers:
+        - name: streaming
+          # Overridden by digest in kustomization.yaml. This tag is a
+          # placeholder and MUST NOT be what runs: `main` moves, and with
+          # imagePullPolicy IfNotPresent a node keeps whatever it cached, so two
+          # replicas can run different code and nothing reports the difference.
+          image: ghcr.io/mertkan-iscan/xenopsbase-learn/streaming:main
+          imagePullPolicy: IfNotPresent
+          ports:
+            - {name: http, containerPort: 8083}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          env:
+            - {name: SERVER_PORT, value: "8083"}
+            - name: OIDC_ISSUER_URI
+              valueFrom: {configMapKeyRef: {name: learn-oidc, key: OIDC_ISSUER_URI}}
+
+            # Its own database and its own role inside the SHARED cluster, like
+            # Keycloak's and core's. The isolation that matters — one module
+            # unable to read or rewrite another's tables — comes from separate
+            # roles and databases, not from separate Postgres clusters, and this
+            # way learn's data is covered by the same WAL archive as everything
+            # else rather than becoming a new exception to ADR-0002.
+            - name: STREAMING_DB_URL
+              value: jdbc:postgresql://postgres-rw.database.svc.cluster.local:5432/learn_streaming
+            - name: STREAMING_DB_USER
+              valueFrom: {secretKeyRef: {name: learn-streaming-db, key: username}}
+            - name: STREAMING_DB_PASSWORD
+              valueFrom: {secretKeyRef: {name: learn-streaming-db, key: password}}
+
+            # The permission cache (T-2.5). The cluster's Valkey requires a
+            # password; without it every read would fail NOAUTH and degrade into
+            # the "Valkey is down" path this service is built to survive, which
+            # is the worst shape available because nothing would look broken.
+            - {name: VALKEY_HOST, value: valkey-cache.cache.svc.cluster.local}
+            - {name: VALKEY_PORT, value: "6379"}
+            - name: VALKEY_PASSWORD
+              valueFrom: {secretKeyRef: {name: valkey-client, key: password}}
+
+            # Service-to-service (T-9.11). Per service and rotatable on its own:
+            # a shared secret would make rotating any of them an outage for all
+            # of them, and would let any service claim to be another.
+            - {name: SERVICE_CLIENT_ID, value: svc-streaming}
+            - name: SERVICE_CLIENT_SECRET
+              valueFrom: {secretKeyRef: {name: learn-service-clients, key: streaming}}
+            - {name: IDENTITY_URL, value: http://identity.learn.svc.cluster.local:8082}
+            - {name: STREAMING_URL, value: http://streaming.learn.svc.cluster.local:8083}
+            - {name: REPORTING_URL, value: http://reporting.learn.svc.cluster.local:8084}
+
+            # Video has no local or in-cluster equivalent (local-stack.md), so
+            # this runs the FAKE provider: uploads, encode state and playback
+            # tokens are simulated. It warns at startup, loudly, because a green
+            # deployment against it proves nothing about edge delivery. The real
+            # Cloudflare account is T-9.14 (#100); until then nothing here plays
+            # a video and that is a stated limit rather than a surprise.
+            - {name: MEDIA_PROVIDER, value: fake}
+          readinessProbe:
+            httpGet: {path: /management/health/readiness, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /management/health/liveness, port: http}
+            periodSeconds: 20
+          resources:
+            # ADR-0109 measured a Spring Boot process in this platform idling at
+            # ~600Mi. The request is what the scheduler books; the limit is the
+            # headroom for a migration or a burst. Kubernetes schedules on
+            # requests and the node dies on usage, so under-requesting is how a
+            # worker fills up without anything reporting that it has.
+            requests: {cpu: 100m, memory: 640Mi}
+            limits: {memory: 896Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: streaming
+  namespace: learn
+  labels: {app.kubernetes.io/name: streaming, app.kubernetes.io/part-of: xenopslearn}
+spec:
+  selector: {app.kubernetes.io/name: streaming}
+  ports:
+    - {name: http, port: 8083, targetPort: http}

@@ -1,0 +1,27 @@
+# The issuer every learn service resolves, and the platform bootstrap list.
+#
+# One ConfigMap rather than the value repeated in three Deployments: it is the
+# same realm for all of them, and three copies is three chances for one to be
+# changed and the others not.
+#
+# `learn-oidc` rather than `oidc`, because the stemcell's own services read a
+# ConfigMap called `oidc` in the `apps` namespace pointing at the `xenopsbase`
+# realm. Two realms on one Keycloak, two ConfigMaps, no chance of a name
+# collision teaching one product to authenticate against the other's realm.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: learn-oidc
+  namespace: learn
+  labels: {app.kubernetes.io/part-of: xenopslearn}
+data:
+  # The SAME Keycloak the stemcell runs, a different realm on it. A company is a
+  # row inside this realm, never a realm of its own (ADR-0102); what makes a
+  # second realm right HERE is that this is a different product, not a different
+  # customer.
+  OIDC_ISSUER_URI: https://auth-dev.xenopsoftware.com/realms/xenopslearn
+
+  # Invited into the platform tenant and granted sys-admin at startup (T-1.5).
+  # Invited, not created: identity never holds a credential, not even an
+  # operator's, so this list is addresses rather than accounts.
+  PLATFORM_ADMINISTRATORS: platform-admin@xenopslearn.test
