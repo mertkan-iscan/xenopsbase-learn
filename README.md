@@ -139,3 +139,37 @@ foundational decisions are as expensive to defer.
 Task-numbered issue titles that state the problem rather than the solution. Epic labels. ADRs for
 decisions that constrain future work. No manual configuration. Every claim in a document either
 measured or marked as unmeasured.
+
+**An issue closes when every acceptance box is genuinely met, and not before.** Work regularly
+lands with one box that belongs to a task further down the dependency graph — a check with nothing
+yet to check against, a metric nothing can yet scrape, a CI step with no CI. Those issues get a
+comment saying what landed and what is still owed, and they stay open.
+
+### The board columns, and the one that is not obvious
+
+| Column | Means |
+|---|---|
+| Backlog | Not started |
+| Ready | Next, and unblocked |
+| In progress | **Somebody is working on it right now** |
+| In review | **Landed and pushed, open only on a criterion another task owns** |
+| Done | Closed, every box met |
+
+The split between the last two exists because they were one column and it stopped meaning
+anything: fifteen issues sat in *In progress* and nobody was working on any of them. With more
+than one person — or agent — in the repository at once, "what is being touched right now" is the
+question that stops two people editing the same files, and a column that also holds finished work
+cannot answer it.
+
+**Closing an issue does not move the card.** The Status field is separate and drifts unless it is
+set, so setting it is part of finishing a task, not an afterthought.
+
+### When something lands, re-check what it unblocked
+
+An issue parked on *In review* is waiting for a named task, and nothing notices when that task
+arrives. T-1.4 (#20) sat open for a day after T-3.4 (#37) satisfied its last criterion, because
+the person who landed T-3.4 had no reason to look at T-1.4.
+
+So: after landing X, search the open issues for X and close or advance whatever X just satisfied.
+It is a one-command check and it is the only thing keeping *In review* from becoming the new place
+work goes to be forgotten.
