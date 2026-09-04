@@ -29,10 +29,13 @@ public class RoleService {
     private final AuthzVersion authzVersion;
     private final AuditLogger audit;
     private final EscalationGuard escalation;
+    private final com.xenopsoftware.learn.identity.tenant.StatusGuard statusGuard;
 
     public RoleService(RoleRepository roles, RolePermissionRepository rolePermissions,
             RoleUsageCounter usage, AuthzVersion authzVersion, AuditLogger audit,
-            EscalationGuard escalation) {
+            EscalationGuard escalation,
+            com.xenopsoftware.learn.identity.tenant.StatusGuard statusGuard) {
+        this.statusGuard = statusGuard;
         this.roles = roles;
         this.rolePermissions = rolePermissions;
         this.usage = usage;
@@ -52,6 +55,7 @@ public class RoleService {
         // Vacuous today and deliberately present: a role is created empty in this API, so the
         // permissions arrive through setPermissions or clone, which are the guarded paths. If
         // creation ever carries a permission set, the guard is already where it must be.
+        statusGuard.requireWritable();
         escalation.requireHolds(Set.of(), "role.create", null);
         Role role = roles.save(new Role(name, description, side));
         audit.record("role.create", "role", role.getId(),
@@ -67,6 +71,7 @@ public class RoleService {
      */
     @Transactional
     public Role rename(UUID roleId, String newName, String newDescription) {
+        statusGuard.requireWritable();
         Role role = editable(roleId);
         String previousName = role.getName();
         role.rename(newName, newDescription);
@@ -98,6 +103,7 @@ public class RoleService {
         // T-2.6: only what the caller holds themselves. Checked against the WHOLE new set
         // rather than the additions, because a caller who lost a permission should not be able
         // to keep re-saving a role that still carries it.
+        statusGuard.requireWritable();
         escalation.requireHolds(permissions, "role.permissions", roleId);
         Set<String> before = currentCodes(roleId);
         rolePermissions.deleteByRoleId(roleId);
@@ -121,6 +127,7 @@ public class RoleService {
      */
     @Transactional
     public void delete(UUID roleId) {
+        statusGuard.requireWritable();
         Role role = editable(roleId);
         long assignments = usage.assignmentsOf(roleId);
         if (assignments > 0) {
@@ -169,6 +176,7 @@ public class RoleService {
         for (RolePermission held : rolePermissions.findByRoleId(templateId)) {
             held.permission().ifPresent(carried::add);
         }
+        statusGuard.requireWritable();
         escalation.requireHolds(carried, "role.clone", templateId);
         Role copy = roles.save(new Role(newName,
             template.getDescription() == null ? null : "Copied from " + template.getName(),

@@ -253,6 +253,13 @@ class CrossTenantIsolationTest extends PostgresTestHarness {
     }
 
     private String identifierFor(String variable, String collection, Company victim) {
+        // A tenant is addressed by its slug, not by a UUID, so it cannot go through the row
+        // mapping above. Naming the victim's own slug is the sharper probe anyway: it asks
+        // whether one company can suspend another, which is the worst thing a platform-shaped
+        // endpoint could let a customer do (T-1.4).
+        if (variable.equalsIgnoreCase("tenantId") || variable.equalsIgnoreCase("tenant")) {
+            return victim.tenant();
+        }
         return identifier(variable, collection, victim).toString();
     }
 

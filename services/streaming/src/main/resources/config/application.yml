@@ -25,6 +25,10 @@ spring:
       pool-name: streaming
 
   data:
+    redis:
+      # The status fast path only (T-1.4); this service caches nothing else.
+      host: ${VALKEY_HOST:localhost}
+      port: ${VALKEY_PORT:6379}
     jpa:
       repositories:
         # Same reason as identity's: repository bootstrap opens a session on

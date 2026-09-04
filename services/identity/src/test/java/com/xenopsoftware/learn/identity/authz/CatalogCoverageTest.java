@@ -126,7 +126,6 @@ class CatalogCoverageTest extends PostgresTestHarness {
         Permission.ROLE_READ, "T-2.3 -- RoleResource exists; grants to check against do not",
         Permission.ROLE_MANAGE, "T-2.3 -- RoleResource exists; grants to check against do not",
         Permission.ROLE_ASSIGN, "T-2.6/T-2.7 -- AssignmentResource exists; the no-escalation rule and the seeded first grant do not",
-        Permission.TENANT_SUSPEND, "T-1.4 -- suspension stops at the gateway",
         Permission.SUPPORT_IMPERSONATE, "T-2.8 -- impersonation that is always visible afterwards");
 
     @Autowired

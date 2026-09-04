@@ -40,11 +40,14 @@ public class AssignmentService {
     private final AuditLogger audit;
     private final CurrentUser currentUser;
     private final EscalationGuard escalation;
+    private final com.xenopsoftware.learn.identity.tenant.StatusGuard statusGuard;
 
     public AssignmentService(RoleAssignmentRepository assignments, RoleRepository roles,
             RolePermissionRepository rolePermissions, AppUserRepository users,
             UserGroupRepository groups, AuthzVersion authzVersion, AuditLogger audit,
-            CurrentUser currentUser, EscalationGuard escalation) {
+            CurrentUser currentUser, EscalationGuard escalation,
+            com.xenopsoftware.learn.identity.tenant.StatusGuard statusGuard) {
+        this.statusGuard = statusGuard;
         this.assignments = assignments;
         this.roles = roles;
         this.rolePermissions = rolePermissions;
@@ -58,6 +61,7 @@ public class AssignmentService {
 
     @Transactional
     public RoleAssignment assignToUser(UUID roleId, UUID userId, ScopeGrant scope) {
+        statusGuard.requireWritable();
         Role role = requireRole(roleId);
         if (users.findById(userId).isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such user in this tenant");
@@ -72,6 +76,7 @@ public class AssignmentService {
 
     @Transactional
     public RoleAssignment assignToGroup(UUID roleId, UUID groupId, ScopeGrant scope) {
+        statusGuard.requireWritable();
         Role role = requireRole(roleId);
         if (groups.findById(groupId).isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such group in this tenant");
@@ -86,6 +91,7 @@ public class AssignmentService {
 
     @Transactional
     public void revoke(UUID assignmentId) {
+        statusGuard.requireWritable();
         RoleAssignment assignment = assignments.findById(assignmentId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         assignments.delete(assignment);

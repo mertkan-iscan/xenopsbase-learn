@@ -47,6 +47,18 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!--
+            Valkey, for the status fast path only (T-1.4). This service has no
+            tables of its own to ask about a tenant, so it reads the entry
+            identity publishes. It is a fast path and not the boundary: a
+            playback token is refused here on the edge, and refused again by
+            the entitlement decision itself (T-3.4).
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-api</artifactId>

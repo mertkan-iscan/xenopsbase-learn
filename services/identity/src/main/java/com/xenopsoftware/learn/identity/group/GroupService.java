@@ -18,9 +18,12 @@ public class GroupService {
     private final UserGroupRepository groups;
     private final GroupMembershipRepository memberships;
     private final GroupHierarchy hierarchy;
+    private final com.xenopsoftware.learn.identity.tenant.StatusGuard statusGuard;
 
     public GroupService(UserGroupRepository groups, GroupMembershipRepository memberships,
-            GroupHierarchy hierarchy) {
+            GroupHierarchy hierarchy,
+            com.xenopsoftware.learn.identity.tenant.StatusGuard statusGuard) {
+        this.statusGuard = statusGuard;
         this.groups = groups;
         this.memberships = memberships;
         this.hierarchy = hierarchy;
@@ -28,6 +31,7 @@ public class GroupService {
 
     @Transactional
     public UserGroup create(String name, UUID parentId) {
+        statusGuard.requireWritable();
         if (parentId != null) {
             UserGroup parent = require(parentId);
             int parentDepth = hierarchy.ancestorIds(parent.getId()).size();
@@ -49,6 +53,7 @@ public class GroupService {
      */
     @Transactional
     public UserGroup move(UUID groupId, UUID newParentId) {
+        statusGuard.requireWritable();
         UserGroup group = require(groupId);
         if (newParentId == null) {
             group.moveUnder(null);
@@ -79,6 +84,7 @@ public class GroupService {
      */
     @Transactional
     public void delete(UUID groupId) {
+        statusGuard.requireWritable();
         require(groupId);
         long members = memberships.countByGroupId(groupId);
         long children = groups.findByParentId(groupId).size();
@@ -96,6 +102,7 @@ public class GroupService {
      */
     @Transactional
     public void deleteAndRehome(UUID groupId) {
+        statusGuard.requireWritable();
         UserGroup group = require(groupId);
         UUID newParent = group.getParentId();
         for (UserGroup child : groups.findByParentId(groupId)) {
@@ -113,6 +120,7 @@ public class GroupService {
 
     @Transactional
     public GroupMembership addMember(UUID groupId, UUID userId) {
+        statusGuard.requireWritable();
         require(groupId);
         return memberships.findByGroupIdAndUserId(groupId, userId)
             .orElseGet(() -> memberships.save(new GroupMembership(groupId, userId)));
@@ -120,6 +128,7 @@ public class GroupService {
 
     @Transactional
     public void removeMember(UUID groupId, UUID userId) {
+        statusGuard.requireWritable();
         // The group must be one of ours (T-1.6). Without this the endpoint answered 200 to
         // another company's group id -- nothing was removed and nothing was disclosed, but a
         // success for a row that is not here is a boundary that reads as porous, and the next
