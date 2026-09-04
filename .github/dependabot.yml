@@ -1,0 +1,75 @@
+version: 2
+
+# Every ecosystem this repository actually has (T-9.3).
+#
+# Grouped rather than one pull request per dependency. Ungrouped, a Spring Boot
+# bump arrives as thirty separate pull requests that each need the full suite
+# run against them, and the reviewer's rational response is to stop reading
+# them — which is how a security update ends up sitting behind twenty-nine
+# patch bumps nobody opened.
+updates:
+  - package-ecosystem: maven
+    directory: /services
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      spring:
+        patterns:
+          - 'org.springframework*'
+          - 'io.micrometer*'
+      test:
+        patterns:
+          - 'org.testcontainers*'
+          - 'org.junit*'
+          - 'org.assertj*'
+          - 'com.tngtech.archunit*'
+      # Everything else, so a single unusual bump is still one pull request
+      # rather than an unreviewed straggler.
+      other:
+        patterns: ['*']
+        exclude-patterns:
+          - 'org.springframework*'
+          - 'io.micrometer*'
+          - 'org.testcontainers*'
+          - 'org.junit*'
+          - 'org.assertj*'
+          - 'com.tngtech.archunit*'
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      react:
+        patterns: ['react', 'react-dom', 'react-router', '@types/react*']
+      tooling:
+        patterns: ['vite', 'vitest', '@vitejs/*', 'eslint*', 'typescript*', '@eslint/*']
+      other:
+        patterns: ['*']
+        exclude-patterns:
+          - 'react'
+          - 'react-dom'
+          - 'react-router'
+          - '@types/react*'
+          - 'vite'
+          - 'vitest'
+          - '@vitejs/*'
+          - 'eslint*'
+          - 'typescript*'
+          - '@eslint/*'
+    ignore:
+      # PINNED DELIBERATELY, NOT NEGLECTED. typescript-eslint rejects TypeScript
+      # 6.x, so a major bump here breaks the lint gate rather than the types
+      # (T-10.1). Unpin when typescript-eslint supports it.
+      - dependency-name: typescript
+        versions: ['6.x']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']

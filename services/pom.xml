@@ -67,6 +67,27 @@
         <awssdk.version>2.46.7</awssdk.version>
         <springdoc-openapi.version>3.0.3</springdoc-openapi.version>
         <testcontainers.version>1.21.3</testcontainers.version>
+
+        <!--
+            Images are built by jib (T-9.3), the same way the stemcell builds
+            its two: no Dockerfile, no daemon on the runner, and a layered image
+            whose dependency layer only changes when a dependency does.
+
+            The base is pinned BY DIGEST, not by tag. The same commit has to
+            produce the same image digest, and a floating tag breaks that on the
+            day upstream republishes it, invisibly, because nothing in the
+            diff moved. Resolved from eclipse-temurin:25-jre-noble; update it
+            deliberately, the way a dependency version is updated.
+        -->
+        <jib-maven-plugin.version>3.5.1</jib-maven-plugin.version>
+        <jib-maven-plugin.image>eclipse-temurin@sha256:1a99f30a84d58729f1184c1c693f25fb6f91970ddf05395515540bc5773b8edd</jib-maven-plugin.image>
+        <jib-maven-plugin.architecture>amd64</jib-maven-plugin.architecture>
+        <!--
+            Where images go. Overridden per service by its own artifactId, so a
+            new module gets a correctly named image without editing this.
+        -->
+        <image.registry>ghcr.io</image.registry>
+        <image.namespace>mertkan-iscan/xenopsbase-learn</image.namespace>
         <!-- Overridden to run the load tests: -Dexcluded.test.groups= (see surefire below). -->
         <excluded.test.groups>load</excluded.test.groups>
         <spring-cloud-dependencies.version>2025.1.2</spring-cloud-dependencies.version>
@@ -197,6 +218,69 @@
                             </configuration>
                         </execution>
                     </executions>
+                </plugin>
+                <plugin>
+                    <groupId>com.google.cloud.tools</groupId>
+                    <artifactId>jib-maven-plugin</artifactId>
+                    <version>${jib-maven-plugin.version}</version>
+                    <configuration>
+                        <from>
+                            <image>${jib-maven-plugin.image}</image>
+                            <platforms>
+                                <platform>
+                                    <architecture>${jib-maven-plugin.architecture}</architecture>
+                                    <os>linux</os>
+                                </platform>
+                            </platforms>
+                        </from>
+                        <to>
+                            <!--
+                                Named from the module, so adding a service is
+                                adding a module rather than also remembering to
+                                name its image. The tags are supplied by the
+                                workflow, which is the only thing that knows the
+                                commit.
+                            -->
+                            <image>${image.registry}/${image.namespace}/${project.artifactId}</image>
+                        </to>
+                        <container>
+                            <!--
+                                No entrypoint of our own. JibSpringBootExtension
+                                writes the right one for a Spring Boot
+                                application, and a hand-written one that points
+                                at a script this repository does not contain
+                                builds happily and dies on start, so the first
+                                sign of it is a CrashLoopBackOff in a cluster
+                                rather than a failed build. The stemcell paid
+                                for that lesson; this inherits it.
+                            -->
+                            <creationTime>EPOCH</creationTime>
+                            <!--
+                                EPOCH rather than the build time: stamping "now"
+                                into the image config means two builds of the
+                                same commit produce different digests, and
+                                "reproducible" is then false by construction.
+                                The cost is that `docker images` reports 1970,
+                                which is the conventional trade.
+                            -->
+                            <user>1000</user>
+                            <environment>
+                                <SPRING_OUTPUT_ANSI_ENABLED>ALWAYS</SPRING_OUTPUT_ANSI_ENABLED>
+                            </environment>
+                        </container>
+                        <pluginExtensions>
+                            <pluginExtension>
+                                <implementation>com.google.cloud.tools.jib.maven.extension.springboot.JibSpringBootExtension</implementation>
+                            </pluginExtension>
+                        </pluginExtensions>
+                    </configuration>
+                    <dependencies>
+                        <dependency>
+                            <groupId>com.google.cloud.tools</groupId>
+                            <artifactId>jib-spring-boot-extension-maven</artifactId>
+                            <version>0.1.0</version>
+                        </dependency>
+                    </dependencies>
                 </plugin>
             </plugins>
         </pluginManagement>

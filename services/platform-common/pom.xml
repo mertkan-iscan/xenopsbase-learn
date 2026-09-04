@@ -89,6 +89,25 @@
                 in the jar.
             -->
             <plugin>
+                <groupId>com.google.cloud.tools</groupId>
+                <artifactId>jib-maven-plugin</artifactId>
+                <configuration>
+                    <!--
+                        NOT AN IMAGE. This module is a library every service
+                        depends on; it has no main class and nothing to run.
+
+                        Skipped explicitly rather than left unconfigured
+                        because `mvn jib:build` at the repository root runs the
+                        goal against every module in the reactor, and the
+                        failure it produces there names a missing mainClass,
+                        which reads as "the plugin is misconfigured" rather
+                        than "this module is a library". Saying so here makes
+                        a root level build do the right thing (T-9.3).
+                    -->
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+            <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
