@@ -67,6 +67,8 @@
         <awssdk.version>2.46.7</awssdk.version>
         <springdoc-openapi.version>3.0.3</springdoc-openapi.version>
         <testcontainers.version>1.21.3</testcontainers.version>
+        <!-- Overridden to run the load tests: -Dexcluded.test.groups= (see surefire below). -->
+        <excluded.test.groups>load</excluded.test.groups>
         <spring-cloud-dependencies.version>2025.1.2</spring-cloud-dependencies.version>
     </properties>
 
@@ -147,6 +149,17 @@
                             -->
                             <api.version>1.44</api.version>
                         </systemPropertyVariables>
+                        <!--
+                            Load tests are excluded from the ordinary build and run
+                            with -Dgroups=load. They take tens of seconds, they
+                            compete with whatever else the machine is doing, and
+                            what they produce is a number to read rather than an
+                            assertion to pass, so a threshold on them would be a
+                            test that fails when somebody opens a browser. The
+                            figures they produce live in docs/slos.md, alongside
+                            the conditions that produced them (T-3.6).
+                        -->
+                        <excludedGroups>${excluded.test.groups}</excludedGroups>
                     </configuration>
                 </plugin>
                 <plugin>

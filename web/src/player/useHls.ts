@@ -61,6 +61,14 @@ export type Quality = {
 export type AttachVideo = (element: HTMLVideoElement | null) => void;
 
 export type HlsState = {
+  /**
+   * The attached element, once there is one.
+   *
+   * Exposed as state rather than as the ref, so a caller can depend on it in an effect and be
+   * re-run when it arrives — a ref would hand them a value that is null on the render they
+   * subscribe on and never notifies them that it stopped being null.
+   */
+  element: HTMLVideoElement | null;
   qualities: Quality[];
   /** The level actually being played, whether chosen or picked automatically. */
   activeQualityId: number;
@@ -94,8 +102,10 @@ type Engine = { destroy: () => void; currentLevel: number };
 
 export function useHls(manifestUrl: string | undefined): [AttachVideo, HlsState] {
   const video = useRef<HTMLVideoElement | null>(null);
-  const attachVideo = useCallback((element: HTMLVideoElement | null) => {
-    video.current = element;
+  const [element, setElement] = useState<HTMLVideoElement | null>(null);
+  const attachVideo = useCallback((attached: HTMLVideoElement | null) => {
+    video.current = attached;
+    setElement(attached);
   }, []);
   const [qualities, setQualities] = useState<Quality[]>([AUTO]);
   const [activeQualityId, setActiveQualityId] = useState(-1);
@@ -224,6 +234,7 @@ export function useHls(manifestUrl: string | undefined): [AttachVideo, HlsState]
   }, [manifestUrl]);
 
   return [attachVideo, {
+    element,
     qualities,
     activeQualityId: selectedQualityId === -1 ? activeQualityId : selectedQualityId,
     selectedQualityId,

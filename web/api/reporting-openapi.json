@@ -1,0 +1,118 @@
+{
+  "components": {
+    "schemas": {
+      "AcceptedView": {
+        "properties": {
+          "samples": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "HeartbeatBatch": {
+        "properties": {
+          "nodeId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "playbackToken": {
+            "type": "string"
+          },
+          "samples": {
+            "items": {
+              "$ref": "#/components/schemas/PlaybackSample"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "PlaybackSample": {
+        "properties": {
+          "fromSecond": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "rate": {
+            "format": "double",
+            "type": "number"
+          },
+          "toSecond": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "OpenAPI definition",
+    "version": "v0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/internal/whoami": {
+      "get": {
+        "operationId": "whoami",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "service-chain-resource"
+        ]
+      }
+    },
+    "/api/v1/telemetry/playback": {
+      "post": {
+        "operationId": "playback",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HeartbeatBatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedView"
+                }
+              }
+            },
+            "description": "Accepted"
+          }
+        },
+        "tags": [
+          "telemetry-resource"
+        ]
+      }
+    }
+  },
+  "servers": [
+    {
+      "description": "Generated server url",
+      "url": "http://localhost:8084"
+    }
+  ]
+}

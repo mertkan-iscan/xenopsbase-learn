@@ -18,7 +18,14 @@ import tseslint from 'typescript-eslint';
  * now, when there is nothing to untangle.
  */
 export default tseslint.config(
-  { ignores: ['dist', 'src/shared/api/identity.d.ts', 'src/shared/api/streaming.d.ts'] },
+  {
+    ignores: [
+      'dist',
+      'src/shared/api/identity.d.ts',
+      'src/shared/api/streaming.d.ts',
+      'src/shared/api/reporting.d.ts',
+    ],
+  },
 
   js.configs.recommended,
   ...tseslint.configs.recommended,

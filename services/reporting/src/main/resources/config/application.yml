@@ -1,4 +1,4 @@
-# streaming — configuration.
+# reporting — configuration.
 #
 # Values here are the LOCAL STACK's. Anything that differs per environment is an
 # environment variable with this as the development default, so a developer runs
@@ -10,10 +10,8 @@ spring:
 
   servlet:
     multipart:
-      # OFF, as a design statement (T-3.2): video bytes must not pass through
-      # a request thread. Uploads go directly to the provider's target; the
-      # day someone needs multipart here for anything, this line is the
-      # conversation they have to have first.
+      # OFF. Nothing is uploaded to this service; telemetry arrives as JSON
+      # batches whose size is bounded below (T-3.6).
       enabled: false
 
   datasource:
@@ -21,7 +19,19 @@ spring:
     username: ${REPORTING_DB_USER:reporting}
     password: ${REPORTING_DB_PASSWORD:reporting}
     hikari:
-      maximum-pool-size: 10
+      # Still the template's 10, and that is a decision rather than an
+      # oversight (T-3.6). This service's shape argues for a bigger pool --
+      # every request is a short write and there are hundreds per second -- so
+      # the load test tried 32 against 10, three runs each.
+      #
+      # The machine could not tell them apart. Median request latency at a
+      # FIXED pool size ranged from 25ms to 1,039ms across runs, which is
+      # wider than the difference being looked for. Raising the number on
+      # evidence that weak would be a guess wearing a measurement's clothes.
+      #
+      # docs/slos.md records the runs. The figure is worth revisiting on
+      # hardware that is not also running the load generator and the database.
+      maximum-pool-size: ${REPORTING_DB_POOL_SIZE:10}
       pool-name: reporting
 
   data:
@@ -96,3 +106,23 @@ springdoc:
 logging:
   level:
     com.xenopsoftware.learn: DEBUG
+
+# Telemetry ingest (T-3.6). Every number here exists to make the work per
+# request finite: this is the one write path allowed to shed load, and a
+# request whose cost is set by its caller cannot be shed usefully -- it is
+# already holding a connection by the time anybody decides to.
+reporting:
+  telemetry:
+    # A player buffers one sample per ten seconds, so sixty is ten minutes of
+    # being offline. Past that the CLIENT drops its oldest samples rather than
+    # growing, so a batch this size means the learner was away, not that
+    # something is wrong.
+    max-samples-per-batch: ${TELEMETRY_MAX_SAMPLES:60}
+    # The longest slice one sample may claim. A ten-second heartbeat at 2x
+    # covers twenty seconds of video; this sits well above that and well below
+    # "the whole film in one sample", which is what a forged interval looks
+    # like.
+    max-interval-seconds: ${TELEMETRY_MAX_INTERVAL_SECONDS:120}
+    min-rate: ${TELEMETRY_MIN_RATE:0.25}
+    max-rate: ${TELEMETRY_MAX_RATE:4.0}
+    max-skew: ${TELEMETRY_MAX_SKEW:PT10M}

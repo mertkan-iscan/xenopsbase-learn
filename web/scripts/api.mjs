@@ -39,6 +39,15 @@ const services = [
     spec: join(root, 'api', 'streaming-openapi.json'),
     types: join(root, 'src', 'shared', 'api', 'streaming.d.ts'),
   },
+  {
+    // The player posts heartbeats here and nowhere else (T-3.6). It is a third service the
+    // browser talks to directly, and deliberately so: the write-heavy path must not pass through
+    // anything a learner's playback depends on.
+    name: 'reporting',
+    url: process.env.REPORTING_URL ?? 'http://localhost:8084',
+    spec: join(root, 'api', 'reporting-openapi.json'),
+    types: join(root, 'src', 'shared', 'api', 'reporting.d.ts'),
+  },
 ];
 
 const mode = process.argv[2];

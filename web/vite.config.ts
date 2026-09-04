@@ -32,6 +32,7 @@ export default defineConfig({
     // In production the gateway does this routing (T-10.2) and it will need the same care; this
     // block is where the collision is documented until then.
     proxy: {
+      '/api/v1/telemetry': { target: process.env.REPORTING_URL ?? 'http://localhost:8084', changeOrigin: true },
       '/api/v1/me/nodes': { target: process.env.STREAMING_URL ?? 'http://localhost:8083', changeOrigin: true },
       '/api/v1/videos': { target: process.env.STREAMING_URL ?? 'http://localhost:8083', changeOrigin: true },
       '/api': { target: process.env.IDENTITY_URL ?? 'http://localhost:8082', changeOrigin: true },

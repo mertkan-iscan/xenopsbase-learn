@@ -1,4 +1,5 @@
 import { ErrorState, Loading } from '../shared/state/States.tsx';
+import { useHeartbeats } from './useHeartbeats.ts';
 import { useHls, type HlsState } from './useHls.ts';
 import { usePlaybackToken } from './usePlaybackToken.ts';
 
@@ -32,6 +33,11 @@ export function VideoPlayer({ nodeId, title }: { nodeId: string; title: string }
   // One owner of the element: `useHls` creates the ref, writes the source, restores the position
   // and applies the rate. This component reads state and renders controls.
   const [attachVideo, hls] = useHls(playback?.manifestUrl);
+
+  // What was actually watched, batched to analytics (T-3.6). It posts to `reporting` directly and
+  // never through streaming: telemetry is the most write-heavy path in the product, and the whole
+  // point is that it cannot slow the one a learner is waiting on.
+  useHeartbeats(hls.element, nodeId, playback?.token);
 
   if (token.status === 'loading') {
     return <Loading what="the video" />;

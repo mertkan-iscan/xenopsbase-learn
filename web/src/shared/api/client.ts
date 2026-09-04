@@ -1,5 +1,6 @@
 import createClient from 'openapi-fetch';
 import type { paths as identityPaths } from './identity.d.ts';
+import type { paths as reportingPaths } from './reporting.d.ts';
 import type { paths as streamingPaths } from './streaming.d.ts';
 
 /**
@@ -67,6 +68,17 @@ identity.use(developmentAuth);
  * rules are order-sensitive; `vite.config.ts` says so where the rules are.
  */
 export const streaming = createClient<streamingPaths>({ baseUrl, fetch: currentFetch });
+
+/**
+ * `reporting`, which the player posts heartbeats to (T-3.6).
+ *
+ * A third client rather than a call through streaming, because that is the property the task
+ * exists for: telemetry is the most write-heavy path in the product and it must not touch
+ * anything a learner's playback depends on. A convenience endpoint on streaming that forwarded
+ * to here would undo that in one commit.
+ */
+export const reporting = createClient<reportingPaths>({ baseUrl, fetch: currentFetch });
+reporting.use(developmentAuth);
 streaming.use(developmentAuth);
 
 /**
