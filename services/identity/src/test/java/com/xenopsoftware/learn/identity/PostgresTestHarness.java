@@ -41,6 +41,22 @@ public abstract class PostgresTestHarness {
         // whether the suite passes. The cache's own tests configure their own Valkey and turn it
         // on, which is why they do not extend this class.
         registry.add("identity.authz.cache.enabled", () -> false);
+        // Two connections, not the production ten.
+        //
+        // Spring caches a context per distinct configuration and keeps them ALL alive for the
+        // module's run, so every context holds a live pool against this one Postgres. At ten
+        // apiece the tenth context is the one that cannot connect -- and it fails as
+        // "sorry, too many clients already" inside Flyway, in whichever test class happens to
+        // load last, which reads as that class being broken. A test class drives one request at
+        // a time; the production number buys nothing here and costs the headroom.
+        registry.add("spring.datasource.hikari.maximum-pool-size", () -> 2);
+        // Every context runs domain verification in trusting mode (T-1.8), for the reason the
+        // local stack does: acme.test can never publish a DNS record. Set HERE rather than as a
+        // @SpringBootTest property on the one class that needs it, because a class that declares
+        // its own properties gets its own context -- and a context is what this comment is about.
+        // DnsDomainOwnershipTest constructs the real implementation directly, so the check that
+        // matters is still covered.
+        registry.add("identity.sso.domain-verification", () -> "trusting");
     }
 
     /**

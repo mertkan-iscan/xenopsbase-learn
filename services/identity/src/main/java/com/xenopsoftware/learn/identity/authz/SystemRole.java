@@ -43,7 +43,7 @@ public enum SystemRole {
         // switched on is a visibility nobody has when it matters.
         Set.of(Permission.USER_READ, Permission.USER_MANAGE, Permission.GROUP_READ,
             Permission.GROUP_MANAGE, Permission.ROLE_READ, Permission.ROLE_MANAGE,
-            Permission.ROLE_ASSIGN, Permission.IMPERSONATION_READ)),
+            Permission.ROLE_ASSIGN, Permission.IMPERSONATION_READ, Permission.SSO_MANAGE)),
 
     SUPPORT("support", "Support", PermissionSide.PLATFORM,
         "Our support staff, who can look at a customer account through one of its users — read-only, "

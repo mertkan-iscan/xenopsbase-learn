@@ -83,12 +83,13 @@ class CrossTenantIsolationTest extends PostgresTestHarness {
      * responses.
      */
     private record Company(String tenant, String token, UUID group, UUID childGroup, UUID role,
-                           UUID user, UUID assignment, UUID session, String chiefEmail) {
+                           UUID user, UUID assignment, UUID session, UUID domain,
+                           String providerAlias, String chiefEmail) {
 
         Set<String> identifiers() {
             return new LinkedHashSet<>(List.of(group.toString(), childGroup.toString(),
                 role.toString(), user.toString(), assignment.toString(), session.toString(),
-                chiefEmail));
+                domain.toString(), providerAlias, chiefEmail));
         }
     }
 
@@ -251,6 +252,10 @@ class CrossTenantIsolationTest extends PostgresTestHarness {
             // that address one are platform-side, which makes this the walk's only probe of
             // whether a tenant token can reach that surface at all.
             case "session", "sessions", "impersonation", "impersonations" -> victim.session();
+            // A claimed email domain (T-1.8). The sharp probe is whether one company can call
+            // verify on another's claim, because succeeding would hand them a domain and every
+            // sign-in that discovery routes by it.
+            case "domain", "domains" -> victim.domain();
             case "scope" -> victim.group();
             default -> fail("The isolation walk cannot address '" + variable + "' under '"
                 + collection + "'. Teach it which row that names, or the endpoint using it is "
@@ -265,6 +270,12 @@ class CrossTenantIsolationTest extends PostgresTestHarness {
         // endpoint could let a customer do (T-1.4).
         if (variable.equalsIgnoreCase("tenantId") || variable.equalsIgnoreCase("tenant")) {
             return victim.tenant();
+        }
+        // An identity provider alias is a name, not a UUID, and it is addressed by that name
+        // (T-1.8). Planting the victim's real alias is what makes the probe mean something: an
+        // alias is globally unique, so "delete theirs" is a request that could otherwise work.
+        if (variable.equalsIgnoreCase("alias")) {
+            return victim.providerAlias();
         }
         return identifier(variable, collection, victim).toString();
     }
@@ -385,8 +396,14 @@ class CrossTenantIsolationTest extends PostgresTestHarness {
         UUID assignment = id(post(token, "/api/v1/assignments", "{\"roleId\":\"" + role
             + "\",\"userId\":\"" + chief + "\",\"scopeType\":\"TENANT\"}"));
 
+        String alias = tenant + "-idp";
+        expect(200, as(token, "POST", "/api/v1/sso/providers", "{\"alias\":\"" + alias
+            + "\",\"kind\":\"OIDC\",\"displayName\":\"" + tenant + " SSO\",\"issuer\":\"https://"
+            + tenant + ".test/oidc\",\"clientId\":\"x\",\"clientSecret\":\"y\"}"));
+        UUID domain = id(post(token, "/api/v1/sso/domains", "{\"domain\":\"" + tenant + ".test\"}"));
+
         return new Company(tenant, token, group, child, role, chief, assignment,
-            impersonationSession(tenant, chief), "chief@" + tenant + ".test");
+            impersonationSession(tenant, chief), domain, alias, "chief@" + tenant + ".test");
     }
 
     /**
@@ -439,6 +456,8 @@ class CrossTenantIsolationTest extends PostgresTestHarness {
     }
 
     private void removeEverything() {
+        jdbc.update("DELETE FROM tenant_email_domain");
+        jdbc.update("DELETE FROM tenant_identity_provider");
         jdbc.update("DELETE FROM role_assignment");
         jdbc.update("DELETE FROM audit_log");
         jdbc.update("DELETE FROM impersonation_session");

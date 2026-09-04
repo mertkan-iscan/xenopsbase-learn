@@ -87,7 +87,19 @@ public enum Permission {
      * customer. Seeded into the company-administrator template so it is visible by default —
      * a visibility a customer has to ask us to enable is not visibility.
      */
-    IMPERSONATION_READ("impersonation:read", PermissionSide.TENANT, PermissionScope.TENANT);
+    IMPERSONATION_READ("impersonation:read", PermissionSide.TENANT, PermissionScope.TENANT),
+
+    /**
+     * Configure this company's own identity provider and the email domains that route to it
+     * (T-1.8).
+     *
+     * <p>TENANT floor, and not GROUP: a provider decides how everyone in the company signs in,
+     * so there is no narrower scope that could own the decision. It is also the sharpest
+     * permission a customer can hold — whoever has it decides which credential opens every
+     * account in the company — which is why it is its own entry rather than part of
+     * {@code user:manage}.
+     */
+    SSO_MANAGE("sso:manage", PermissionSide.TENANT, PermissionScope.TENANT);
 
     private static final java.util.Map<String, Permission> BY_CODE;
 

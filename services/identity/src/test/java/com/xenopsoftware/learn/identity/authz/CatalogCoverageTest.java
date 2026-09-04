@@ -86,6 +86,13 @@ class CatalogCoverageTest extends PostgresTestHarness {
             "reports what the caller's own token says and which service carried it here -- the "
             + "same reasoning as AuthInfoResource: gating it would hide the evidence it exists "
             + "to show, and it reveals nothing about anybody else (T-9.11)"),
+        Map.entry("DiscoveryResource#discover",
+            "not merely authentication-only -- UNAUTHENTICATED, and it has to be: it answers "
+            + "\"which provider should sign you in\" for somebody who has not signed in, so any "
+            + "gate on it would require the sign-in it exists to route (T-1.8). The permit is "
+            + "narrow and lives in SecurityConfiguration; what makes it cheap to attack is in "
+            + "TenantSso.discover -- exact verified domains only, no listing, no prefixes, and "
+            + "one response shape whether or not there is an answer"),
         Map.entry("AuthInfoResource#authInfo",
             "reports what the token itself says; gating it would hide the evidence it exists to show"),
         Map.entry("UserResource#me",

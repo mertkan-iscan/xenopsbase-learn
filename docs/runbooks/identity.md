@@ -87,3 +87,73 @@ an answer, and so does "your staff did this".
 
 **A suspended company cannot be entered at all**, and the refused attempt is audited into *that
 company's* log rather than only ours.
+
+## Setting up a customer's own SSO (T-1.8)
+
+A company brings their OIDC or SAML provider; their people sign in with it and land in their
+company and no other.
+
+**The security property, first, because everything else is arrangement.** One realm holds every
+company (ADR-0102), so the realm cannot answer "which company is this person in" the way a
+realm-per-customer would. What answers it is *which provider authenticated them* — a fact about
+our configuration. Every provider we write carries two hardcoded Keycloak attribute mappers,
+`tenant_id` and `side`, whose values come from our own row, with `syncMode: FORCE` so they
+re-apply on every login. A customer's provider can assert `tenant_id: someone-else` and it is
+overwritten. **An alias belongs to one company for the life of the installation** — the primary
+key on `tenant_identity_provider.alias` is what makes that true, not a check.
+
+**Registering one.**
+
+```
+POST /api/v1/sso/providers
+{"alias": "acme-okta", "kind": "OIDC", "displayName": "Acme Okta",
+ "issuer": "https://acme.okta.com", "clientId": "...", "clientSecret": "..."}
+```
+
+Held by `sso:manage`, which the company-administrator template carries. The body has endpoints and
+credentials and deliberately no mapper configuration: what a login *means* is not the customer's
+to configure. The secret goes to the realm and is never stored here or read back.
+
+If `identity.sso.realm-admin.*` is unset, the provider is recorded and **not** applied — the
+response says `"applied": false` and the service WARNs at startup. That is the local default, so
+`make up` still works without a Keycloak admin account. The service account those properties name
+needs `manage-identity-providers` and **not** `realm-admin`: this service has no business editing
+users in the realm.
+
+**Home-provider discovery.** A learner types an address, the sign-in page asks:
+
+```
+POST /api/v1/auth/discovery      (no token — this is pre-login)
+{"email": "someone@acme.com"}  →  {"provider": "acme-okta", "displayName": "Acme Okta"}
+```
+
+The only unauthenticated endpoint in this service. It answers on **exact verified domains** only:
+no listing, no prefixes, and the same two fields whether or not there is an answer, so it is not
+a yes/no oracle with a status code. It can still be asked one domain at a time — that is inherent
+to home-realm discovery, and it is a rate-limiting problem (T-8.7) rather than something this
+lookup can solve.
+
+**Proving a domain.** Claim it, publish the record, ask again:
+
+```
+POST /api/v1/sso/domains            {"domain": "acme.com"}
+  → {"dnsName": "_xenopslearn-verify.acme.com", "txtValue": "xenopslearn-verify=..."}
+POST /api/v1/sso/domains/{id}/verify
+```
+
+Claiming blocks nothing — any number of companies may claim `acme.com`, which is what stops a
+squatter reserving a competitor's domain before they sign up. **Only one can prove it**, and a
+partial unique index over verified rows is the arbiter. The token is generated here, never
+supplied by the claimant: a token the claimant picks proves they can publish a string they
+already knew.
+
+Locally, `identity.sso.domain-verification` is `trusting` because `acme.test` can never publish a
+record. Everywhere else the default is `dns`, **including when the key is absent** — a
+verification that trusts the claimant hands one customer another customer's sign-ins, so the safe
+implementation is the one that runs when nobody chose. This is the opposite of how `streaming`
+picks its fake media provider, on purpose.
+
+**Returning users are not duplicated.** A federated sign-in is an ordinary first sight of a `sub`
+(T-1.2): the `app_user` row is created on first login and found on every one after. Removing a
+provider does not remove anybody's account — the account is ours and the credential was theirs
+(ADR-0104).

@@ -109,6 +109,28 @@ identity:
     # request that runs until a proxy timeout or a heap decides for us.
     max-import-rows: 5000
 
+  sso:
+    # Per-company identity providers (T-1.8).
+    #
+    # `dns` is the default EVERYWHERE, including when this key is absent: a
+    # verification that trusts the claimant is not a verification, and the
+    # failure direction of getting this wrong is one customer receiving another
+    # customer's sign-ins. `trusting` is set here because the local companies
+    # live at acme.test and globex.test, which can never publish a DNS record --
+    # and the bean that implements it WARNs at every startup so a green local
+    # run is never mistaken for a working check.
+    domain-verification: ${SSO_DOMAIN_VERIFICATION:trusting}
+    realm-admin:
+      # Absent locally, deliberately: `make up` gives a developer a working
+      # stack, and a provider registered without these is recorded and reported
+      # as unapplied rather than silently pretending. The service account needs
+      # manage-identity-providers and NOT realm-admin -- this service has no
+      # business editing users in the realm (ADR-0104).
+      url: ${REALM_ADMIN_URL:}
+      realm: ${REALM_ADMIN_REALM:}
+      client-id: ${REALM_ADMIN_CLIENT_ID:}
+      client-secret: ${REALM_ADMIN_CLIENT_SECRET:}
+
   impersonation:
     # How long one support session may last (T-2.8). There is no renew endpoint:
     # a longer investigation is a second session with its own reason, which is

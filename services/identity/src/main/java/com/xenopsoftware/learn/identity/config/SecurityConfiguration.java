@@ -39,6 +39,13 @@ public class SecurityConfiguration {
                 .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ERROR).permitAll()
                 .requestMatchers(HttpMethod.GET, "/management/health/**", "/management/info").permitAll()
                 .requestMatchers("/v3/api-docs/**").permitAll()
+                // Home-provider discovery (T-1.8). The single exception to the rule above, and
+                // it cannot be otherwise: this answers "which provider should sign you in" for
+                // somebody who has not signed in. Listed here rather than left to an annotation
+                // so the exception is visible in the one place that describes the service's
+                // exposure -- and narrow, so it can never widen by someone adding a method to
+                // that controller. What keeps it cheap to attack is in TenantSso.discover.
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/discovery").permitAll()
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().denyAll())
             .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> {}));
