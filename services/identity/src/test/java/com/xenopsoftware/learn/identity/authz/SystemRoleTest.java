@@ -103,9 +103,15 @@ class SystemRoleTest extends PostgresTestHarness {
             assertThat(roles.currentCodes(admin)).containsExactlyInAnyOrderElementsOf(
                 SystemRole.TENANT_ADMIN.permissions().stream().map(Permission::code).toList());
 
-            // Empty today, and that is the statement the enum makes: a learner's abilities are
-            // content-side and arrive with E3/E5/E6.
-            assertThat(roles.currentCodes(roleNamed("Learner"))).isEmpty();
+            // No longer empty: E3 arrived, and content:view is the first content-side ability a
+            // learner holds (T-3.4). Derived from the enum rather than spelled out, so the next
+            // E5 or E6 permission lands in the projection without editing this line -- what is
+            // being asserted is that the projection MATCHES the template, not what is in it.
+            assertThat(roles.currentCodes(roleNamed("Learner"))).containsExactlyInAnyOrderElementsOf(
+                SystemRole.LEARNER.permissions().stream().map(Permission::code).toList());
+            assertThat(SystemRole.LEARNER.permissions())
+                .as("and the template is not empty, so the assertion above has something to check")
+                .isNotEmpty();
             return null;
         });
     }

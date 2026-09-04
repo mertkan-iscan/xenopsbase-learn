@@ -41,6 +41,21 @@ public enum Permission {
     /** Assign and revoke roles within scope (T-2.3), gated by the no-escalation rule (T-2.6). */
     ROLE_ASSIGN("role:assign", PermissionSide.TENANT, PermissionScope.GROUP),
 
+    /**
+     * Watch, read or open a piece of content the learner has been assigned (T-3.4).
+     *
+     * <p>The first catalog-side entry, and the shape of every one that follows. Holding it
+     * means "this is a person who consumes content"; it does NOT mean any particular course,
+     * because which content reaches whom is an assignment (T-5.5) and whether it reaches them
+     * yet is a gate (T-5.3). Those are separate checks in the one place that decides playback,
+     * and collapsing them into a permission is how a permission ends up meaning nothing.
+     *
+     * <p>GROUP floor rather than COURSE, for the same reason: the useful grant is "everyone in
+     * this department may watch what they are given", and per-course entitlement is not a role
+     * scope. It is checked by streaming, not by any endpoint here.
+     */
+    CONTENT_VIEW("content:view", PermissionSide.TENANT, PermissionScope.GROUP),
+
     /** Create a company (T-1.5). */
     TENANT_PROVISION("tenant:provision", PermissionSide.PLATFORM, PermissionScope.PLATFORM),
 

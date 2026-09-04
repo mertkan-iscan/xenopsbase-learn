@@ -380,6 +380,17 @@
         },
         "type": "object"
       },
+      "StatusRequest": {
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "TenantView": {
         "properties": {
           "archived": {
@@ -423,7 +434,7 @@
     }
   },
   "info": {
-    "description": "\n## Permission catalog\n\nEvery grantable permission, `resource:action`. Side says who can hold it (tenant members or platform staff); minimum scope is the narrowest assignment that makes sense for it.\n\n| Permission | Side | Minimum scope |\n|---|---|---|\n| `user:read` | TENANT | GROUP |\n| `user:manage` | TENANT | GROUP |\n| `group:read` | TENANT | GROUP |\n| `group:manage` | TENANT | GROUP |\n| `role:read` | TENANT | TENANT |\n| `role:manage` | TENANT | TENANT |\n| `role:assign` | TENANT | GROUP |\n| `tenant:provision` | PLATFORM | PLATFORM |\n| `tenant:suspend` | PLATFORM | PLATFORM |\n| `support:impersonate` | PLATFORM | PLATFORM |\n\n## Role templates\n\nEvery customer starts with these. Clone one to edit it: the templates are\nowned by the platform and re-projected from code, so a change here reaches\nevery customer and no clone.\n\n| Role | Side | What it can do |\n|---|---|---|\n| Learner | TENANT | Can take the courses assigned to them and see their own progress, and nothing about anyone else. |\n| Author | TENANT | Builds courses, uploads video and writes questions, without administering people. |\n| Group manager | TENANT | Runs one department: sees and manages the people inside it, and nobody outside it. |\n| Company administrator | TENANT | Runs the whole company account: people, departments, roles and who holds them. |\n| Support | PLATFORM | Our support staff, who can act as a customer's user to reproduce a problem — always visibly, afterwards. |\n| System administrator | PLATFORM | Our own staff, who create customer accounts and can suspend one. |\n\n## Granting rules\n\n**Nobody grants what they do not hold.** Integrators hit this, so it is stated\nrather than discovered:\n\n- Putting a permission into a role — editing it, or cloning a template —\n  requires holding that permission yourself, anywhere.\n- Assigning a role requires holding everything it carries **at that scope or\n  wider**. Granting at `TENANT` requires holding at `TENANT` or `PLATFORM`;\n  holding at `GROUP` is never enough.\n- A tenant role can never carry a platform-side permission. That is checked\n  separately from the rule above, so it holds even for a caller who somehow\n  holds one.\n- Refusals answer `403` and are recorded in the audit log, including what was\n  missing.\n\nA tenant with no assignments yet cannot grant anything at all, including to its\nown first administrator: the first grant arrives with provisioning, not from\ninside the tenant.\n",
+    "description": "\n## Permission catalog\n\nEvery grantable permission, `resource:action`. Side says who can hold it (tenant members or platform staff); minimum scope is the narrowest assignment that makes sense for it.\n\n| Permission | Side | Minimum scope |\n|---|---|---|\n| `user:read` | TENANT | GROUP |\n| `user:manage` | TENANT | GROUP |\n| `group:read` | TENANT | GROUP |\n| `group:manage` | TENANT | GROUP |\n| `role:read` | TENANT | TENANT |\n| `role:manage` | TENANT | TENANT |\n| `role:assign` | TENANT | GROUP |\n| `content:view` | TENANT | GROUP |\n| `tenant:provision` | PLATFORM | PLATFORM |\n| `tenant:suspend` | PLATFORM | PLATFORM |\n| `support:impersonate` | PLATFORM | PLATFORM |\n\n## Role templates\n\nEvery customer starts with these. Clone one to edit it: the templates are\nowned by the platform and re-projected from code, so a change here reaches\nevery customer and no clone.\n\n| Role | Side | What it can do |\n|---|---|---|\n| Learner | TENANT | Can take the courses assigned to them and see their own progress, and nothing about anyone else. |\n| Author | TENANT | Builds courses, uploads video and writes questions, without administering people. |\n| Group manager | TENANT | Runs one department: sees and manages the people inside it, and nobody outside it. |\n| Company administrator | TENANT | Runs the whole company account: people, departments, roles and who holds them. |\n| Support | PLATFORM | Our support staff, who can act as a customer's user to reproduce a problem — always visibly, afterwards. |\n| System administrator | PLATFORM | Our own staff, who create customer accounts and can suspend one. |\n\n## Granting rules\n\n**Nobody grants what they do not hold.** Integrators hit this, so it is stated\nrather than discovered:\n\n- Putting a permission into a role — editing it, or cloning a template —\n  requires holding that permission yourself, anywhere.\n- Assigning a role requires holding everything it carries **at that scope or\n  wider**. Granting at `TENANT` requires holding at `TENANT` or `PLATFORM`;\n  holding at `GROUP` is never enough.\n- A tenant role can never carry a platform-side permission. That is checked\n  separately from the rule above, so it holds even for a caller who somehow\n  holds one.\n- Refusals answer `403` and are recorded in the audit log, including what was\n  missing.\n\nA tenant with no assignments yet cannot grant anything at all, including to its\nown first administrator: the first grant arrives with provisioning, not from\ninside the tenant.\n",
     "title": "OpenAPI definition",
     "version": "v0"
   },
@@ -779,6 +790,27 @@
         ]
       }
     },
+    "/api/v1/internal/whoami": {
+      "get": {
+        "operationId": "whoami",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "service-chain-resource"
+        ]
+      }
+    },
     "/api/v1/me": {
       "get": {
         "operationId": "me",
@@ -877,6 +909,46 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/ProvisionedView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "tenant-resource"
+        ]
+      }
+    },
+    "/api/v1/platform/tenants/{tenantId}/status": {
+      "put": {
+        "operationId": "setStatus",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenantId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantView"
                 }
               }
             },

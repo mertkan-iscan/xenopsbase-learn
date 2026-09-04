@@ -135,6 +135,10 @@ public class CloudflareStreamAdapter implements MediaProvider {
             .subject(providerRef)
             .claim("kid", signingKeyId)
             .expirationTime(Date.from(expiresAt))
+            // Signed but not enforced: Stream has no per-viewer rule, so this makes a token
+            // attributable rather than unshareable. PlaybackGrant says so at length, because
+            // the difference is one somebody will otherwise assume the wrong way round.
+            .claim("viewer", grant.viewerSubject())
             .build();
         SignedJWT jwt = new SignedJWT(
             new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(signingKeyId).build(), claims);

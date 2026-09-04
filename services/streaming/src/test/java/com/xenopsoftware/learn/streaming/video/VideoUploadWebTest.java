@@ -44,7 +44,12 @@ class VideoUploadWebTest extends PostgresTestHarness {
         "VideoResource#reissue",
             "same authorization story as create, on the same asset",
         "VideoResource#video",
-            "read gating arrives with the playback entitlement work (T-3.4)");
+            "read gating arrives with the playback entitlement work (T-3.4)",
+        "PlaybackResource#playbackToken",
+            "authorization is not decided by an annotation here on purpose (T-3.4): the "
+            + "permission check is one link of an ordered chain inside PlaybackTokenService, "
+            + "where it runs after the rate limiter and audits its own refusal. "
+            + "PlaybackEntitlementTest is what holds it honest");
 
     @Autowired
     @Qualifier("requestMappingHandlerMapping")

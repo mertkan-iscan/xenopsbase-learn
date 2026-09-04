@@ -20,16 +20,17 @@ public enum SystemRole {
 
     LEARNER("learner", "Learner", PermissionSide.TENANT,
         "Can take the courses assigned to them and see their own progress, and nothing about anyone else.",
-        // Empty against today's catalog, and that is a statement rather than an oversight: a
-        // learner's abilities are content-side, and those permissions arrive with E3/E5/E6.
-        // The re-projection is how this role acquires them, which is exactly the mechanism
-        // this task exists to make predictable.
-        Set.of()),
+        // The first content-side permission arrives here, exactly as T-2.7 said it would: a
+        // learner's abilities come from E3/E5/E6 and the re-projection is how the role acquires
+        // them. content:view is what makes them a person who watches things; WHICH things is an
+        // assignment (T-5.5), not a wider grant.
+        Set.of(Permission.CONTENT_VIEW)),
 
     AUTHOR("author", "Author", PermissionSide.TENANT,
         "Builds courses, uploads video and writes questions, without administering people.",
-        // Also content-side, for the same reason.
-        Set.of()),
+        // An author who cannot watch content cannot check their own course, so this one is
+        // shared with the learner. The rest of authoring is still E4/E5/E6.
+        Set.of(Permission.CONTENT_VIEW)),
 
     GROUP_MANAGER("group-manager", "Group manager", PermissionSide.TENANT,
         "Runs one department: sees and manages the people inside it, and nobody outside it.",

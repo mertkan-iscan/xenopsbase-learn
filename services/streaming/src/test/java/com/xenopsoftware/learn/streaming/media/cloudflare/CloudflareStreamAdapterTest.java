@@ -142,13 +142,16 @@ class CloudflareStreamAdapterTest {
         // No server.expect(): any HTTP request here fails the test, which is the point --
         // ADR-0101's hot path is an entitlement decision and a signature, nothing else.
         PlaybackToken token = adapter.mintPlaybackToken("cf-uid-123",
-            new PlaybackGrant(Duration.ofMinutes(10)));
+            new PlaybackGrant("sub-viewer", Duration.ofMinutes(10)));
 
         SignedJWT jwt = SignedJWT.parse(token.token());
         assertThat(jwt.verify(new RSASSAVerifier(signingKey.toRSAPublicKey()))).isTrue();
         assertThat(jwt.getHeader().getKeyID()).isEqualTo("key-1");
         assertThat(jwt.getJWTClaimsSet().getSubject()).isEqualTo("cf-uid-123");
         assertThat(jwt.getJWTClaimsSet().getStringClaim("kid")).isEqualTo("key-1");
+        // Signed, and deliberately not enforced by the vendor -- PlaybackGrant says why at
+        // length. It makes a token attributable, not unshareable.
+        assertThat(jwt.getJWTClaimsSet().getStringClaim("viewer")).isEqualTo("sub-viewer");
         assertThat(jwt.getJWTClaimsSet().getExpirationTime())
             .isCloseTo(Date.from(token.expiresAt()), 1000);
         server.verify();

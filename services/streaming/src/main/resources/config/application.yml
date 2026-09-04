@@ -86,6 +86,30 @@ streaming:
     abandon-after: ${UPLOAD_ABANDON_AFTER:PT24H}
     reap-interval: ${UPLOAD_REAP_INTERVAL:PT15M}
 
+  playback:
+    # THE REVOCATION WINDOW. An issued playback token cannot be recalled from
+    # the edge (ADR-0101), so this number is the exact bound on how long a
+    # suspended company, a revoked assignment or a deactivated user keeps
+    # watching -- T-1.4's "within one token lifetime" is this line.
+    #
+    # Five minutes. Shorter tightens the bound but puts renewal on the critical
+    # path often enough that a slow identity call becomes a stall the learner
+    # sees; longer is cheaper per viewer and worse at the only job the number
+    # has. PlaybackGrant.MAX_VALIDITY is the 30-minute ceiling nobody may pass
+    # without an ADR-0101 conversation; startup fails rather than clamps.
+    token-ttl: ${PLAYBACK_TOKEN_TTL:PT5M}
+    # When the player asks for the next one. Well before expiry, deliberately:
+    # a player that renews at expiry has already stalled. At three minutes there
+    # are two more of valid playback to retry in.
+    renew-after: ${PLAYBACK_RENEW_AFTER:PT3M}
+    # Minting hands out signed URLs that work without us, so a caller in a loop
+    # can farm a stock of them and the TTL stops mattering. A watching learner
+    # needs about one mint per three minutes per stream; twenty per five minutes
+    # leaves an order of magnitude for reloads, seeks and a few tabs, and stops
+    # a loop within a second.
+    mints-per-window: ${PLAYBACK_MINTS_PER_WINDOW:20}
+    mint-window: ${PLAYBACK_MINT_WINDOW:PT5M}
+
   media:
     # `fake` is the local default because video is the one dependency with no
     # local equivalent (local-stack.md). `cloudflare-stream` needs the values

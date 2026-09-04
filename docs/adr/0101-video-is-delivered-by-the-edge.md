@@ -76,6 +76,20 @@ authorized viewer from keeping a copy, at real cost in players, licensing and su
 platform ships signed tokens. Nobody may sell it as DRM, and a customer contract that requires
 DRM is a new feature with its own ADR, not a configuration.
 
+The same paragraph settles a second thing people assume the other way round. A token is bound to
+the asset and to an expiry, both of which the edge enforces, and to the **viewer**, which it does
+not: Cloudflare Stream's access rules are about addresses and countries, not people. So a token
+handed to somebody else plays until it expires. The viewer binding makes a token *attributable*,
+not unshareable, and the TTL is what keeps the window small.
+
+**The number, since "expires in minutes" is not one: five minutes** (T-3.4,
+`streaming.playback.token-ttl`, ceiling 30). It is chosen where two pressures meet — it is the
+platform's entire revocation window, because a suspended company, a revoked assignment or a
+deactivated user keeps watching until the current token dies and no call of ours can recall it;
+and it is also the renewal cadence, so making it much shorter puts a network round trip on the
+critical path often enough for a learner to see it stall. Five minutes costs twelve mints per
+viewer per hour and bounds every revocation in the product at the same figure.
+
 ## Consequences
 
 ### What this makes easy

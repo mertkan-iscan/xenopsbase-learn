@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
  */
 class FakeMediaProviderTest {
 
-    private final FakeMediaProvider provider = new FakeMediaProvider();
+    private final FakeMediaProvider provider = new FakeMediaProvider(java.time.Clock.systemUTC());
 
     @Test
     void theFullLifecycleRoundTrips() {
@@ -56,9 +56,12 @@ class FakeMediaProviderTest {
         Instant before = Instant.now();
 
         PlaybackToken token = provider.mintPlaybackToken(target.providerRef(),
-            new PlaybackGrant(Duration.ofMinutes(10)));
+            new PlaybackGrant("sub-viewer", Duration.ofMinutes(10)));
 
-        assertThat(token.token()).contains(target.providerRef());
+        assertThat(token.token())
+            .contains(target.providerRef())
+            .as("bound to the viewer it was decided for (T-3.4)")
+            .contains("sub-viewer");
         assertThat(token.expiresAt()).isBetween(
             before.plus(Duration.ofMinutes(10)).minusSeconds(5),
             Instant.now().plus(Duration.ofMinutes(10)).plusSeconds(5));
@@ -66,8 +69,14 @@ class FakeMediaProviderTest {
 
     @Test
     void theGrantCeilingIsARuleNotASuggestion() {
-        assertThatThrownBy(() -> new PlaybackGrant(Duration.ofHours(2)))
+        assertThatThrownBy(() -> new PlaybackGrant("sub-viewer", Duration.ofHours(2)))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("cannot be revoked");
+
+        // And the other half of the binding: a grant that names nobody is one no log can
+        // attribute afterwards, so it is not constructible either.
+        assertThatThrownBy(() -> new PlaybackGrant(null, Duration.ofMinutes(1)))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("names the viewer");
     }
 }

@@ -6,6 +6,7 @@ import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.util.Optional;
 import java.net.URI;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
@@ -43,6 +44,17 @@ public class FakeMediaProvider implements MediaProvider {
 
     private final Map<String, Asset> assets = new ConcurrentHashMap<>();
 
+    /**
+     * The application clock, so token expiry moves when a test moves time (T-3.4). A two-hour
+     * playback session outliving several tokens is a property worth asserting, and asserting it
+     * against the wall clock would mean a test that takes two hours.
+     */
+    private final Clock clock;
+
+    public FakeMediaProvider(Clock clock) {
+        this.clock = clock;
+    }
+
     @PostConstruct
     void warnLoudly() {
         // WARN, not INFO: a green run against this provider must never be read as evidence
@@ -77,11 +89,13 @@ public class FakeMediaProvider implements MediaProvider {
 
     @Override
     public PlaybackToken mintPlaybackToken(String providerRef, PlaybackGrant grant) {
-        Instant expiresAt = Instant.now().plus(grant.validity());
+        Instant expiresAt = clock.instant().plus(grant.validity());
         // Readable on purpose, so a test can pick it apart; nothing verifies it, which is
         // faithful to the real shape -- only the edge verifies tokens, never our services.
-        return new PlaybackToken("fake-token." + providerRef + "." + expiresAt.getEpochSecond(),
-            expiresAt);
+        // The viewer is in it for the same reason the real adapter signs it in: a token in a
+        // log should say whose it was (T-3.4).
+        return new PlaybackToken("fake-token." + providerRef + "." + grant.viewerSubject() + "."
+            + expiresAt.getEpochSecond(), expiresAt);
     }
 
     /**

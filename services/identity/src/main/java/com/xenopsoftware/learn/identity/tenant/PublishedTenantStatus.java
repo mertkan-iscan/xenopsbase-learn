@@ -5,6 +5,7 @@ import com.xenopsoftware.learn.common.tenancy.TenantStatusLookup;
 import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -23,8 +24,14 @@ import org.springframework.stereotype.Component;
  * direction, for the length of one request, and the module owning the rows re-checks inside every
  * write transaction ({@code StatusGuard}). A cache that could suspend a customer nobody suspended
  * would be worse than one that briefly lets a suspended one read.
+ *
+ * <p>{@code @Primary} because this module owns the rows. {@code PublishedStatusLookup} — the
+ * fast path every other service uses — is now registered everywhere, identity included, and
+ * something has to say which of the two answers here. Declaring it beats relying on bean
+ * registration order, which is what the conditions this replaces were quietly relying on.
  */
 @Component
+@Primary
 public class PublishedTenantStatus implements TenantStatusLookup {
 
     /** Long enough to be a cache, short enough that a missed publish repairs itself. */
