@@ -216,14 +216,22 @@ jobs:
       # The commit SHA is the tag that matters; `main` is a convenience for
       # humans reading the package list and MUST NOT appear in a manifest. The
       # deploy pins a digest — see platform/README.md.
+      #
+      # ONE reactor invocation, not two. The first attempt packaged
+      # `platform-common,<service>` and then ran jib in a second `mvn` scoped to
+      # the service alone -- which could not resolve platform-common, because
+      # `package` leaves it in the reactor rather than in the local repository.
+      # Every publish failed with "Could not find artifact platform-common"
+      # AFTER all three gates had passed.
+      #
+      # `--also-make` keeps both modules in one reactor so the dependency
+      # resolves from it. jib then runs against platform-common too, which is
+      # harmless: that module skips the plugin deliberately and its pom says why.
       - name: Build and push
         run: |
           mvn --batch-mode --file services/pom.xml \
-            --projects platform-common,${{ matrix.service }} --also-make \
-            --define skipTests package
-          mvn --batch-mode --file services/pom.xml \
-            --projects ${{ matrix.service }} \
-            --define skipTests jib:build \
+            --projects ${{ matrix.service }} --also-make \
+            --define skipTests package jib:build \
             --define jib.to.tags=${{ github.sha }},main \
             --define jib.to.auth.username=${{ github.actor }} \
             --define jib.to.auth.password=${{ secrets.GITHUB_TOKEN }}
