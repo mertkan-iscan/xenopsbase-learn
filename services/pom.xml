@@ -42,6 +42,7 @@
         <module>platform-common</module>
         <module>identity</module>
         <module>streaming</module>
+        <module>reporting</module>
     </modules>
 
     <properties>

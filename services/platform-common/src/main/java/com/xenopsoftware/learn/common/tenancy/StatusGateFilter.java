@@ -42,8 +42,17 @@ public class StatusGateFilter extends OncePerRequestFilter {
 
     private final TenantStatusLookup lookup;
 
-    public StatusGateFilter(TenantStatusLookup lookup) {
-        this.lookup = lookup;
+    public StatusGateFilter(org.springframework.beans.factory.ObjectProvider<TenantStatusLookup> lookup) {
+        this.lookup = lookup.getIfAvailable();
+        if (this.lookup == null) {
+            // A service with no way to ask is a service with no gate. That is survivable -- the
+            // module owning the rows still refuses the writes -- but it must never be quiet:
+            // "the suspension did not apply" is not a thing anybody should have to discover
+            // from a customer.
+            LOG.warn("No TenantStatusLookup is configured, so suspended and read-only accounts "
+                + "are NOT refused at this service edge. Add one, or accept that only the "
+                + "owning module enforces status here (T-1.4).");
+        }
     }
 
     @Override
@@ -57,9 +66,9 @@ public class StatusGateFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
             FilterChain chain) throws ServletException, IOException {
         String tenant = TenantContext.get();
-        if (tenant == null) {
-            // Unauthenticated, or a token with no tenant: the security chain answers that, and
-            // it is not this filter's question.
+        if (lookup == null || tenant == null) {
+            // No lookup, or unauthenticated, or a token with no tenant: the security chain
+            // answers the last of those, and none of them are this filter's to refuse.
             chain.doFilter(request, response);
             return;
         }

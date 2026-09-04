@@ -1,0 +1,84 @@
+# streaming — configuration.
+#
+# Values here are the LOCAL STACK's. Anything that differs per environment is an
+# environment variable with this as the development default, so a developer runs
+# `make up` and then the service, with no setup step in between.
+
+spring:
+  application:
+    name: reporting
+
+  servlet:
+    multipart:
+      # OFF, as a design statement (T-3.2): video bytes must not pass through
+      # a request thread. Uploads go directly to the provider's target; the
+      # day someone needs multipart here for anything, this line is the
+      # conversation they have to have first.
+      enabled: false
+
+  datasource:
+    url: ${REPORTING_DB_URL:jdbc:postgresql://localhost:5432/reporting}
+    username: ${REPORTING_DB_USER:reporting}
+    password: ${REPORTING_DB_PASSWORD:reporting}
+    hikari:
+      maximum-pool-size: 10
+      pool-name: reporting
+
+  data:
+    redis:
+      # The tenant status fast path only (T-1.4); this service caches nothing else.
+      host: ${VALKEY_HOST:localhost}
+      port: ${VALKEY_PORT:6379}
+    jpa:
+      repositories:
+        # Same reason as identity's: repository bootstrap opens a session on
+        # the tenant-less startup thread, and the resolver rightly refuses it.
+        bootstrap-mode: lazy
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate.jdbc.time_zone: UTC
+      # The tenant discriminator is the persistence layer's job (T-1.1).
+      hibernate.tenant_identifier_resolver: com.xenopsoftware.learn.common.tenancy.TenantIdentifierResolver
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OIDC_ISSUER_URI:http://localhost:8081/realms/xenopslearn}
+
+server:
+  port: ${SERVER_PORT:8084}
+
+management:
+  endpoints:
+    web:
+      base-path: /management
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when-authorized
+  health:
+    db:
+      enabled: true
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  writer-with-order-by-keys: true
+  writer-with-default-pretty-printer: true
+
+logging:
+  level:
+    com.xenopsoftware.learn: DEBUG
