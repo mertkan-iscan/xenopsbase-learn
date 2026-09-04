@@ -70,3 +70,49 @@ button {
 code {
   overflow-wrap: anywhere;
 }
+
+/*
+ * The player (T-3.5). Layout only: the controls that matter are the browser's own, which are
+ * already keyboard operable and labelled in the viewer's language, and restyling them is how a
+ * player loses the accessibility it got for free.
+ */
+.player {
+  margin: 0;
+  max-width: 100%;
+}
+
+.player__video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  display: block;
+}
+
+.player__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.5rem 0;
+}
+
+.player__control {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.player__quality,
+.player__notice {
+  font-size: 0.875rem;
+  opacity: 0.8;
+}
+
+/*
+ * Inside the iframe there is no page around the player, and the host's box is the whole viewport.
+ * No background colour is set: a host may embed us into any design, and a white rectangle we did
+ * not have to draw is one we should not.
+ */
+.player-document {
+  margin: 0;
+}

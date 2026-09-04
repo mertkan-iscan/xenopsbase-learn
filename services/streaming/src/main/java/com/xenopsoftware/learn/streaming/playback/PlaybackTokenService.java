@@ -70,7 +70,7 @@ public class PlaybackTokenService {
      *                   so a failed renewal has room to be retried without the learner seeing it
      */
     public record IssuedPlayback(UUID nodeId, UUID videoAssetId, String token,
-                                 Instant expiresAt, Instant renewAfter) {}
+                                 java.net.URI manifestUrl, Instant expiresAt, Instant renewAfter) {}
 
     private final MintRateLimiter rateLimiter;
     private final TenantStatusLookup statusLookup;
@@ -172,8 +172,8 @@ public class PlaybackTokenService {
 
         PlaybackToken token = mediaProvider.mintPlaybackToken(asset.getProviderRef(),
             new PlaybackGrant(viewer.subject(), properties.tokenTtl()));
-        return new IssuedPlayback(nodeId, asset.getId(), token.token(), token.expiresAt(),
-            clock.instant().plus(properties.renewAfter()));
+        return new IssuedPlayback(nodeId, asset.getId(), token.token(), token.manifestUrl(),
+            token.expiresAt(), clock.instant().plus(properties.renewAfter()));
     }
 
     private static Viewer currentViewer() {

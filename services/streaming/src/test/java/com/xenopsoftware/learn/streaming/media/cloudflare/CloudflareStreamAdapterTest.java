@@ -55,7 +55,7 @@ class CloudflareStreamAdapterTest {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
         adapter = new CloudflareStreamAdapter(builder, new CloudflareStreamProperties(
-            "acct-1", "api-token-1", "key-1",
+            "acct-1", "api-token-1", "abc123", "key-1",
             Base64.getEncoder().encodeToString(
                 signingKey.toJSONString().getBytes(StandardCharsets.UTF_8)),
             WEBHOOK_SECRET));
@@ -143,6 +143,15 @@ class CloudflareStreamAdapterTest {
         // ADR-0101's hot path is an entitlement decision and a signature, nothing else.
         PlaybackToken token = adapter.mintPlaybackToken("cf-uid-123",
             new PlaybackGrant("sub-viewer", Duration.ofMinutes(10)));
+
+        // The delivery host is the account's own subdomain and the signed token IS the path
+        // segment -- Stream's shape, and knowledge that lives only in this package (T-3.1).
+        assertThat(token.manifestUrl().toString())
+            .isEqualTo("https://customer-abc123.cloudflarestream.com/" + token.token()
+                + "/manifest/video.m3u8");
+        assertThat(token.manifestUrl().getHost())
+            .as("never our API, and never this service")
+            .doesNotContain("api.cloudflare.com");
 
         SignedJWT jwt = SignedJWT.parse(token.token());
         assertThat(jwt.verify(new RSASSAVerifier(signingKey.toRSAPublicKey()))).isTrue();

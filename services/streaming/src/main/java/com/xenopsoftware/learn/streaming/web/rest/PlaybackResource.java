@@ -1,6 +1,7 @@
 package com.xenopsoftware.learn.streaming.web.rest;
 
 import com.xenopsoftware.learn.streaming.playback.PlaybackTokenService;
+import java.net.URI;
 import java.time.Instant;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -40,18 +41,22 @@ public class PlaybackResource {
     }
 
     /**
+     * @param manifestUrl where to play it from — an edge URL that is not this service and does
+     *                    not become this service on a bad day (ADR-0101). The player is handed
+     *                    it rather than composing it, so the delivery vendor stays swappable
+     *                    without a browser release.
      * @param renewAfter when to come back for the next one. The player follows this rather than
      *                   computing its own schedule from {@code expiresAt}, so the renewal
      *                   cadence stays a server decision that can be changed without shipping a
      *                   player (T-3.5).
      */
     public record PlaybackTokenView(UUID nodeId, UUID videoAssetId, String token,
-                                    Instant expiresAt, Instant renewAfter) {}
+                                    URI manifestUrl, Instant expiresAt, Instant renewAfter) {}
 
     @PostMapping("/me/nodes/{id}/playback-token")
     public PlaybackTokenView playbackToken(@PathVariable UUID id) {
         PlaybackTokenService.IssuedPlayback issued = playbackTokens.mint(id);
         return new PlaybackTokenView(issued.nodeId(), issued.videoAssetId(), issued.token(),
-            issued.expiresAt(), issued.renewAfter());
+            issued.manifestUrl(), issued.expiresAt(), issued.renewAfter());
     }
 }

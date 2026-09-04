@@ -30,6 +30,15 @@ const services = [
     spec: join(root, 'api', 'identity-openapi.json'),
     types: join(root, 'src', 'shared', 'api', 'identity.d.ts'),
   },
+  {
+    // The player mints its own playback tokens (T-3.4), so `streaming` is a second service the
+    // browser talks to and a second contract that can drift. One list, so adding a service is
+    // adding an entry rather than remembering there is a check to extend (T-3.5).
+    name: 'streaming',
+    url: process.env.STREAMING_URL ?? 'http://localhost:8083',
+    spec: join(root, 'api', 'streaming-openapi.json'),
+    types: join(root, 'src', 'shared', 'api', 'streaming.d.ts'),
+  },
 ];
 
 const mode = process.argv[2];

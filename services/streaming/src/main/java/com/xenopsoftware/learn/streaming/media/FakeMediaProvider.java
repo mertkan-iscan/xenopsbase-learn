@@ -94,8 +94,15 @@ public class FakeMediaProvider implements MediaProvider {
         // faithful to the real shape -- only the edge verifies tokens, never our services.
         // The viewer is in it for the same reason the real adapter signs it in: a token in a
         // log should say whose it was (T-3.4).
-        return new PlaybackToken("fake-token." + providerRef + "." + grant.viewerSubject() + "."
-            + expiresAt.getEpochSecond(), expiresAt);
+        String token = "fake-token." + providerRef + "." + grant.viewerSubject() + "."
+            + expiresAt.getEpochSecond();
+        // A URL shaped like the real one and resolving to nothing, on the .invalid TLD that is
+        // reserved never to resolve (RFC 2606). A player wired against this exercises every
+        // path except the one only a real account can prove (T-9.14): it requests, it fails, and
+        // it shows the error it would show if the edge were down.
+        return new PlaybackToken(token,
+            URI.create("https://fake-media.invalid/" + providerRef + "/manifest/video.m3u8?token="
+                + token), expiresAt);
     }
 
     /**

@@ -10,6 +10,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * @param accountId     the Cloudflare account the assets live under
  * @param apiToken      API token scoped to Stream; a secret, injected, never defaulted
+ * @param customerSubdomain the account's delivery subdomain, as in
+ *        {@code customer-<subdomain>.cloudflarestream.com} — the host every manifest URL is
+ *        served from. Account-scoped and returned by the API; it arrives with T-9.14 like the
+ *        rest of this record
  * @param signingKeyId  id of the Stream signing key pair, minted once via the API
  * @param webhookSecret the notification secret, used to verify inbound webhooks (T-3.3). A
  *        blank one means no webhook is trusted at all, which is the right default: an
@@ -22,6 +26,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record CloudflareStreamProperties(
     String accountId,
     String apiToken,
+    String customerSubdomain,
     String signingKeyId,
     String signingKeyJwk,
     String webhookSecret) {}

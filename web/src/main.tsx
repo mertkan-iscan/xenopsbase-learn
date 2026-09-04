@@ -11,12 +11,24 @@ import './styles.css';
 // whatever device a person has, and the console's weight is not theirs to carry.
 const People = lazy(async () => ({ default: (await import('./admin/People.tsx')).People }));
 
+// The player is lazy for the same reason and a stronger one: it pulls hls.js, which is larger
+// than everything else in this application put together.
+const Watch = lazy(async () => ({ default: (await import('./learner/Watch.tsx')).Watch }));
+
 const router = createBrowserRouter([
   {
     path: '/',
     Component: Shell,
     children: [
       { index: true, Component: MyLearning },
+      {
+        path: 'watch/:nodeId',
+        element: (
+          <Suspense fallback={<Loading what="the video" />}>
+            <Watch />
+          </Suspense>
+        ),
+      },
       {
         path: 'admin/people',
         element: (

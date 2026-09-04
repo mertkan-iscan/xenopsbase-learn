@@ -60,6 +60,7 @@ public class CloudflareStreamAdapter implements MediaProvider {
     private final RestClient api;
     private final String webhookSecret;
     private final String signingKeyId;
+    private final String customerSubdomain;
     private final RSASSASigner signer;
 
     public CloudflareStreamAdapter(RestClient.Builder restClientBuilder, CloudflareStreamProperties properties) {
@@ -69,6 +70,7 @@ public class CloudflareStreamAdapter implements MediaProvider {
             .build();
         this.webhookSecret = properties.webhookSecret();
         this.signingKeyId = properties.signingKeyId();
+        this.customerSubdomain = properties.customerSubdomain();
         this.signer = signerFor(properties.signingKeyJwk());
     }
 
@@ -147,7 +149,14 @@ public class CloudflareStreamAdapter implements MediaProvider {
         } catch (JOSEException e) {
             throw new IllegalStateException("Could not sign a playback token", e);
         }
-        return new PlaybackToken(jwt.serialize(), expiresAt);
+        String signed = jwt.serialize();
+        // The delivery host is the account's own subdomain, never api.cloudflare.com: the API is
+        // where we manage assets and the delivery domain is where a learner's browser goes, and
+        // the whole point of ADR-0101 is that the second one is not us and not our API either.
+        // Built here because this is the only package allowed to know the shape (T-3.1).
+        return new PlaybackToken(signed,
+            URI.create("https://customer-" + customerSubdomain + ".cloudflarestream.com/"
+                + signed + "/manifest/video.m3u8"), expiresAt);
     }
 
     /**

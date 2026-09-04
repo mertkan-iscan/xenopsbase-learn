@@ -80,6 +80,19 @@ failure.
 failure interrupts rather than updates, and it carries its retry. `Empty` says what to do next, or
 it is just a smaller failure.
 
+### The player is a third area, not a corner of `shared/`.
+
+`src/player/**` is published on its own (T-10.7) as the package a customer embeds, so an import
+reaching from it back into a screen is not untidiness — it is the extraction failing. The lint
+rule refusing that is the same mechanism as the learner/admin boundary, held for a sharper reason,
+and it costs nothing now while there is nothing to untangle. See [player.md](player.md) and
+[ADR-0110](adr/0110-the-embeddable-player-is-an-iframe.md).
+
+There are two build entries for the same reason: `index.html` is the application and
+`player.html` is the document the iframe loads. Our own screens embed that document rather than
+rendering the player component directly — a private in-process path is one nobody would notice
+breaking.
+
 ### The build fails on a type error, a lint error, and an accessibility violation.
 
 ```bash
@@ -95,6 +108,12 @@ belongs to a browser-based check when there are screens worth running one agains
 
 ## What is deliberately not here yet
 
+- **A second service to talk to.** `streaming` joined `identity` with T-3.5: both are generated
+  into typed clients by `npm run api:generate` and both are drift-checked. They share one origin,
+  which makes the dev proxy's rule ORDER load-bearing — `identity` owns `/api/v1/me` and
+  `streaming` owns `/api/v1/me/nodes/{id}/playback-token`, so the specific rules come first.
+  `vite.config.ts` says so where the rules are; in production the gateway will need the same care
+  (T-10.2).
 - **Sign-in.** T-10.2 owns it: the gateway holds the session, and this application never sees a
   password or a refresh token. Until then a token from `make token U=acme-admin` goes in
   `.env.local` as `VITE_DEV_TOKEN`, which is named so that the day it appears in a production

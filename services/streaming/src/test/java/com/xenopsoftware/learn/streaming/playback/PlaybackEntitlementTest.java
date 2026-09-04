@@ -131,6 +131,10 @@ class PlaybackEntitlementTest extends PostgresTestHarness {
         assertThat(renewAfter(response.body()))
             .as("the player is told to renew before expiry, not at it")
             .isBefore(expiresAt(response.body()));
+        assertThat(field(response.body(), "manifestUrl"))
+            .as("and somewhere to play it that is not this service (ADR-0101)")
+            .doesNotContain("localhost")
+            .contains("/manifest/video.m3u8");
         assertThat(refusals()).isEmpty();
     }
 

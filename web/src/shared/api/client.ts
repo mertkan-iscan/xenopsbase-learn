@@ -1,5 +1,6 @@
 import createClient from 'openapi-fetch';
-import type { paths } from './identity.d.ts';
+import type { paths as identityPaths } from './identity.d.ts';
+import type { paths as streamingPaths } from './streaming.d.ts';
 
 /**
  * The typed client for `identity` (T-10.1).
@@ -12,7 +13,14 @@ import type { paths } from './identity.d.ts';
 // Same origin by default -- the gateway in production, the dev server's proxy locally. An
 // override exists for pointing a build at a service directly, and using it means accepting the
 // CORS conversation that comes with it.
-const baseUrl = import.meta.env.VITE_IDENTITY_URL ?? '';
+//
+// Spelled out as the origin rather than left empty, which would produce a relative `/api/...`.
+// In a browser the two are identical, because a relative path resolves against exactly this
+// origin. Under jsdom they are not: its fetch is WHATWG-strict and refuses a URL with no base,
+// so an empty string turns every test of every screen into "Failed to parse URL" -- an error
+// about the test environment wearing the costume of an error about the API.
+const sameOrigin = typeof window === 'undefined' ? '' : window.location.origin;
+const baseUrl = import.meta.env.VITE_IDENTITY_URL ?? sameOrigin;
 
 /**
  * DEVELOPMENT ONLY, AND DELIBERATELY UGLY.
@@ -26,16 +34,40 @@ const baseUrl = import.meta.env.VITE_IDENTITY_URL ?? '';
  */
 const developmentToken = import.meta.env.VITE_DEV_TOKEN;
 
-export const identity = createClient<paths>({ baseUrl });
-
-identity.use({
-  onRequest({ request }) {
+const developmentAuth = {
+  onRequest({ request }: { request: Request }) {
     if (developmentToken) {
       request.headers.set('Authorization', `Bearer ${developmentToken}`);
     }
     return request;
   },
-});
+};
+
+/**
+ * Resolved per call rather than captured when the client is built.
+ *
+ * `openapi-fetch` reads `globalThis.fetch` once, at `createClient`, which means anything that
+ * replaces `fetch` afterwards is ignored — a test's stub, and equally the request instrumentation
+ * T-9.13 will want to install. Deferring the lookup costs one property read per request and makes
+ * the client honest about which `fetch` it is using: the current one.
+ */
+const currentFetch: typeof fetch = (input, init) => globalThis.fetch(input, init);
+
+export const identity = createClient<identityPaths>({ baseUrl, fetch: currentFetch });
+identity.use(developmentAuth);
+
+/**
+ * `streaming`, which the player talks to for playback tokens (T-3.4, T-3.5).
+ *
+ * Same origin as identity, deliberately: the browser talks to ONE origin and something behind it
+ * routes by path — the gateway in production (T-10.2), the dev server's proxy locally. Two
+ * clients here means two generated contracts, not two hosts the browser knows about.
+ *
+ * That routing is sharper than it looks. Both services answer under `/api/v1/me`, so the proxy
+ * rules are order-sensitive; `vite.config.ts` says so where the rules are.
+ */
+export const streaming = createClient<streamingPaths>({ baseUrl, fetch: currentFetch });
+streaming.use(developmentAuth);
 
 /**
  * What a screen shows when a call fails. The shape is deliberately small: a sentence a person can

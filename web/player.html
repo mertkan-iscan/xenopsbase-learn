@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Player</title>
+    <!--
+      The player's own document (ADR-0110). A second entry in the same build rather than a second
+      application: one codebase, one set of tests, and our own learner app embeds this exact page
+      rather than a privileged in-process copy — a private variant is one nobody would notice
+      breaking.
+
+      No `#root` div is needed by anything else here, and nothing in this page assumes a host: it
+      is a working page on its own, which is what makes it debuggable by opening it.
+    -->
+  </head>
+  <body class="player-document">
+    <div id="root"></div>
+    <script type="module" src="/src/player/playerEntry.tsx"></script>
+  </body>
+</html>

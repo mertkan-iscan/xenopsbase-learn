@@ -62,6 +62,10 @@ class FakeMediaProviderTest {
             .contains(target.providerRef())
             .as("bound to the viewer it was decided for (T-3.4)")
             .contains("sub-viewer");
+        assertThat(token.manifestUrl().toString())
+            .as("somewhere to play it from, which is not this service (T-3.5, ADR-0101)")
+            .startsWith("https://fake-media.invalid/")
+            .endsWith("/manifest/video.m3u8?token=" + token.token());
         assertThat(token.expiresAt()).isBetween(
             before.plus(Duration.ofMinutes(10)).minusSeconds(5),
             Instant.now().plus(Duration.ofMinutes(10)).plusSeconds(5));
