@@ -64,6 +64,58 @@
         },
         "type": "object"
       },
+      "DiscoveryRequest": {
+        "properties": {
+          "email": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "DiscoveryView": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "DomainRequest": {
+        "properties": {
+          "domain": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "DomainView": {
+        "properties": {
+          "dnsName": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "txtValue": {
+            "type": "string"
+          },
+          "verified": {
+            "type": "boolean"
+          },
+          "verifiedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "GrantRequest": {
         "properties": {
           "groupId": {
@@ -274,6 +326,53 @@
             "type": "string"
           },
           "status": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ProviderRequest": {
+        "properties": {
+          "alias": {
+            "type": "string"
+          },
+          "clientId": {
+            "type": "string"
+          },
+          "clientSecret": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "issuer": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "metadataUrl": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ProviderView": {
+        "properties": {
+          "alias": {
+            "type": "string"
+          },
+          "applied": {
+            "type": "boolean"
+          },
+          "appliedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "kind": {
             "type": "string"
           }
         },
@@ -528,7 +627,7 @@
     }
   },
   "info": {
-    "description": "\n## Permission catalog\n\nEvery grantable permission, `resource:action`. Side says who can hold it (tenant members or platform staff); minimum scope is the narrowest assignment that makes sense for it.\n\n| Permission | Side | Minimum scope |\n|---|---|---|\n| `user:read` | TENANT | GROUP |\n| `user:manage` | TENANT | GROUP |\n| `group:read` | TENANT | GROUP |\n| `group:manage` | TENANT | GROUP |\n| `role:read` | TENANT | TENANT |\n| `role:manage` | TENANT | TENANT |\n| `role:assign` | TENANT | GROUP |\n| `content:view` | TENANT | GROUP |\n| `tenant:provision` | PLATFORM | PLATFORM |\n| `tenant:suspend` | PLATFORM | PLATFORM |\n| `support:impersonate` | PLATFORM | PLATFORM |\n| `support:impersonate_write` | PLATFORM | PLATFORM |\n| `impersonation:read` | TENANT | TENANT |\n\n## Role templates\n\nEvery customer starts with these. Clone one to edit it: the templates are\nowned by the platform and re-projected from code, so a change here reaches\nevery customer and no clone.\n\n| Role | Side | What it can do |\n|---|---|---|\n| Learner | TENANT | Can take the courses assigned to them and see their own progress, and nothing about anyone else. |\n| Author | TENANT | Builds courses, uploads video and writes questions, without administering people. |\n| Group manager | TENANT | Runs one department: sees and manages the people inside it, and nobody outside it. |\n| Company administrator | TENANT | Runs the whole company account: people, departments, roles and who holds them. |\n| Support | PLATFORM | Our support staff, who can look at a customer account through one of its users — read-only, time-boxed, and visible to that customer afterwards. |\n| Support (write) | PLATFORM | Support staff who may also make changes inside a customer account while impersonating — rarer, and recorded the same way. |\n| System administrator | PLATFORM | Our own staff, who create customer accounts and can suspend one. |\n\n## Granting rules\n\n**Nobody grants what they do not hold.** Integrators hit this, so it is stated\nrather than discovered:\n\n- Putting a permission into a role — editing it, or cloning a template —\n  requires holding that permission yourself, anywhere.\n- Assigning a role requires holding everything it carries **at that scope or\n  wider**. Granting at `TENANT` requires holding at `TENANT` or `PLATFORM`;\n  holding at `GROUP` is never enough.\n- A tenant role can never carry a platform-side permission. That is checked\n  separately from the rule above, so it holds even for a caller who somehow\n  holds one.\n- Refusals answer `403` and are recorded in the audit log, including what was\n  missing.\n\nA tenant with no assignments yet cannot grant anything at all, including to its\nown first administrator: the first grant arrives with provisioning, not from\ninside the tenant.\n",
+    "description": "\n## Permission catalog\n\nEvery grantable permission, `resource:action`. Side says who can hold it (tenant members or platform staff); minimum scope is the narrowest assignment that makes sense for it.\n\n| Permission | Side | Minimum scope |\n|---|---|---|\n| `user:read` | TENANT | GROUP |\n| `user:manage` | TENANT | GROUP |\n| `group:read` | TENANT | GROUP |\n| `group:manage` | TENANT | GROUP |\n| `role:read` | TENANT | TENANT |\n| `role:manage` | TENANT | TENANT |\n| `role:assign` | TENANT | GROUP |\n| `content:view` | TENANT | GROUP |\n| `tenant:provision` | PLATFORM | PLATFORM |\n| `tenant:suspend` | PLATFORM | PLATFORM |\n| `support:impersonate` | PLATFORM | PLATFORM |\n| `support:impersonate_write` | PLATFORM | PLATFORM |\n| `impersonation:read` | TENANT | TENANT |\n| `sso:manage` | TENANT | TENANT |\n\n## Role templates\n\nEvery customer starts with these. Clone one to edit it: the templates are\nowned by the platform and re-projected from code, so a change here reaches\nevery customer and no clone.\n\n| Role | Side | What it can do |\n|---|---|---|\n| Learner | TENANT | Can take the courses assigned to them and see their own progress, and nothing about anyone else. |\n| Author | TENANT | Builds courses, uploads video and writes questions, without administering people. |\n| Group manager | TENANT | Runs one department: sees and manages the people inside it, and nobody outside it. |\n| Company administrator | TENANT | Runs the whole company account: people, departments, roles and who holds them. |\n| Support | PLATFORM | Our support staff, who can look at a customer account through one of its users — read-only, time-boxed, and visible to that customer afterwards. |\n| Support (write) | PLATFORM | Support staff who may also make changes inside a customer account while impersonating — rarer, and recorded the same way. |\n| System administrator | PLATFORM | Our own staff, who create customer accounts and can suspend one. |\n\n## Granting rules\n\n**Nobody grants what they do not hold.** Integrators hit this, so it is stated\nrather than discovered:\n\n- Putting a permission into a role — editing it, or cloning a template —\n  requires holding that permission yourself, anywhere.\n- Assigning a role requires holding everything it carries **at that scope or\n  wider**. Granting at `TENANT` requires holding at `TENANT` or `PLATFORM`;\n  holding at `GROUP` is never enough.\n- A tenant role can never carry a platform-side permission. That is checked\n  separately from the rule above, so it holds even for a caller who somehow\n  holds one.\n- Refusals answer `403` and are recorded in the audit log, including what was\n  missing.\n\nA tenant with no assignments yet cannot grant anything at all, including to its\nown first administrator: the first grant arrives with provisioning, not from\ninside the tenant.\n",
     "title": "OpenAPI definition",
     "version": "v0"
   },
@@ -627,6 +726,36 @@
         },
         "tags": [
           "auth-info-resource"
+        ]
+      }
+    },
+    "/api/v1/auth/discovery": {
+      "post": {
+        "operationId": "discover",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscoveryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoveryView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "discovery-resource"
         ]
       }
     },
@@ -1417,6 +1546,162 @@
         },
         "tags": [
           "assignment-resource"
+        ]
+      }
+    },
+    "/api/v1/sso/domains": {
+      "get": {
+        "operationId": "domains",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DomainView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "sso-resource"
+        ]
+      },
+      "post": {
+        "operationId": "claim",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DomainRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "sso-resource"
+        ]
+      }
+    },
+    "/api/v1/sso/domains/{id}/verify": {
+      "post": {
+        "operationId": "verify",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "sso-resource"
+        ]
+      }
+    },
+    "/api/v1/sso/providers": {
+      "get": {
+        "operationId": "providers",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProviderView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "sso-resource"
+        ]
+      },
+      "post": {
+        "operationId": "register",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "sso-resource"
+        ]
+      }
+    },
+    "/api/v1/sso/providers/{alias}": {
+      "delete": {
+        "operationId": "unregister",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "alias",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "sso-resource"
         ]
       }
     },
