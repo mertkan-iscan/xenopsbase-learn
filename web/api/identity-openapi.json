@@ -380,6 +380,100 @@
         },
         "type": "object"
       },
+      "SessionView": {
+        "properties": {
+          "actorEmail": {
+            "type": "string"
+          },
+          "actorName": {
+            "type": "string"
+          },
+          "actorUserId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "endedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "endedReason": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "impersonatedName": {
+            "type": "string"
+          },
+          "impersonatedUserId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "tenantId": {
+            "type": "string"
+          },
+          "writable": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "StartRequest": {
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "tenantId": {
+            "type": "string"
+          },
+          "userId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "writable": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "StartedView": {
+        "properties": {
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "header": {
+            "type": "string"
+          },
+          "impersonatedUserId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "sessionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenantId": {
+            "type": "string"
+          },
+          "writable": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "StatusRequest": {
         "properties": {
           "reason": {
@@ -434,7 +528,7 @@
     }
   },
   "info": {
-    "description": "\n## Permission catalog\n\nEvery grantable permission, `resource:action`. Side says who can hold it (tenant members or platform staff); minimum scope is the narrowest assignment that makes sense for it.\n\n| Permission | Side | Minimum scope |\n|---|---|---|\n| `user:read` | TENANT | GROUP |\n| `user:manage` | TENANT | GROUP |\n| `group:read` | TENANT | GROUP |\n| `group:manage` | TENANT | GROUP |\n| `role:read` | TENANT | TENANT |\n| `role:manage` | TENANT | TENANT |\n| `role:assign` | TENANT | GROUP |\n| `content:view` | TENANT | GROUP |\n| `tenant:provision` | PLATFORM | PLATFORM |\n| `tenant:suspend` | PLATFORM | PLATFORM |\n| `support:impersonate` | PLATFORM | PLATFORM |\n\n## Role templates\n\nEvery customer starts with these. Clone one to edit it: the templates are\nowned by the platform and re-projected from code, so a change here reaches\nevery customer and no clone.\n\n| Role | Side | What it can do |\n|---|---|---|\n| Learner | TENANT | Can take the courses assigned to them and see their own progress, and nothing about anyone else. |\n| Author | TENANT | Builds courses, uploads video and writes questions, without administering people. |\n| Group manager | TENANT | Runs one department: sees and manages the people inside it, and nobody outside it. |\n| Company administrator | TENANT | Runs the whole company account: people, departments, roles and who holds them. |\n| Support | PLATFORM | Our support staff, who can act as a customer's user to reproduce a problem — always visibly, afterwards. |\n| System administrator | PLATFORM | Our own staff, who create customer accounts and can suspend one. |\n\n## Granting rules\n\n**Nobody grants what they do not hold.** Integrators hit this, so it is stated\nrather than discovered:\n\n- Putting a permission into a role — editing it, or cloning a template —\n  requires holding that permission yourself, anywhere.\n- Assigning a role requires holding everything it carries **at that scope or\n  wider**. Granting at `TENANT` requires holding at `TENANT` or `PLATFORM`;\n  holding at `GROUP` is never enough.\n- A tenant role can never carry a platform-side permission. That is checked\n  separately from the rule above, so it holds even for a caller who somehow\n  holds one.\n- Refusals answer `403` and are recorded in the audit log, including what was\n  missing.\n\nA tenant with no assignments yet cannot grant anything at all, including to its\nown first administrator: the first grant arrives with provisioning, not from\ninside the tenant.\n",
+    "description": "\n## Permission catalog\n\nEvery grantable permission, `resource:action`. Side says who can hold it (tenant members or platform staff); minimum scope is the narrowest assignment that makes sense for it.\n\n| Permission | Side | Minimum scope |\n|---|---|---|\n| `user:read` | TENANT | GROUP |\n| `user:manage` | TENANT | GROUP |\n| `group:read` | TENANT | GROUP |\n| `group:manage` | TENANT | GROUP |\n| `role:read` | TENANT | TENANT |\n| `role:manage` | TENANT | TENANT |\n| `role:assign` | TENANT | GROUP |\n| `content:view` | TENANT | GROUP |\n| `tenant:provision` | PLATFORM | PLATFORM |\n| `tenant:suspend` | PLATFORM | PLATFORM |\n| `support:impersonate` | PLATFORM | PLATFORM |\n| `support:impersonate_write` | PLATFORM | PLATFORM |\n| `impersonation:read` | TENANT | TENANT |\n\n## Role templates\n\nEvery customer starts with these. Clone one to edit it: the templates are\nowned by the platform and re-projected from code, so a change here reaches\nevery customer and no clone.\n\n| Role | Side | What it can do |\n|---|---|---|\n| Learner | TENANT | Can take the courses assigned to them and see their own progress, and nothing about anyone else. |\n| Author | TENANT | Builds courses, uploads video and writes questions, without administering people. |\n| Group manager | TENANT | Runs one department: sees and manages the people inside it, and nobody outside it. |\n| Company administrator | TENANT | Runs the whole company account: people, departments, roles and who holds them. |\n| Support | PLATFORM | Our support staff, who can look at a customer account through one of its users — read-only, time-boxed, and visible to that customer afterwards. |\n| Support (write) | PLATFORM | Support staff who may also make changes inside a customer account while impersonating — rarer, and recorded the same way. |\n| System administrator | PLATFORM | Our own staff, who create customer accounts and can suspend one. |\n\n## Granting rules\n\n**Nobody grants what they do not hold.** Integrators hit this, so it is stated\nrather than discovered:\n\n- Putting a permission into a role — editing it, or cloning a template —\n  requires holding that permission yourself, anywhere.\n- Assigning a role requires holding everything it carries **at that scope or\n  wider**. Granting at `TENANT` requires holding at `TENANT` or `PLATFORM`;\n  holding at `GROUP` is never enough.\n- A tenant role can never carry a platform-side permission. That is checked\n  separately from the rule above, so it holds even for a caller who somehow\n  holds one.\n- Refusals answer `403` and are recorded in the audit log, including what was\n  missing.\n\nA tenant with no assignments yet cannot grant anything at all, including to its\nown first administrator: the first grant arrives with provisioning, not from\ninside the tenant.\n",
     "title": "OpenAPI definition",
     "version": "v0"
   },
@@ -790,6 +884,29 @@
         ]
       }
     },
+    "/api/v1/impersonations": {
+      "get": {
+        "operationId": "all_3",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SessionView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "tenant-impersonation-resource"
+        ]
+      }
+    },
     "/api/v1/internal/whoami": {
       "get": {
         "operationId": "whoami",
@@ -866,6 +983,81 @@
         },
         "tags": [
           "assignment-resource"
+        ]
+      }
+    },
+    "/api/v1/platform/impersonations": {
+      "get": {
+        "operationId": "mine",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SessionView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "impersonation-resource"
+        ]
+      },
+      "post": {
+        "operationId": "start",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartedView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "impersonation-resource"
+        ]
+      }
+    },
+    "/api/v1/platform/impersonations/{sessionId}": {
+      "delete": {
+        "operationId": "end",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "impersonation-resource"
         ]
       }
     },

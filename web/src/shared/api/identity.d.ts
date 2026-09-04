@@ -143,6 +143,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/impersonations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["all_3"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/internal/whoami": {
         parameters: {
             query?: never;
@@ -186,6 +202,38 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/impersonations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["mine"];
+        put?: never;
+        post: operations["start"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/impersonations/{sessionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["end"];
         options?: never;
         head?: never;
         patch?: never;
@@ -558,6 +606,45 @@ export interface components {
             side?: string;
             system?: boolean;
         };
+        SessionView: {
+            actorEmail?: string;
+            actorName?: string;
+            /** Format: uuid */
+            actorUserId?: string;
+            /** Format: date-time */
+            endedAt?: string;
+            endedReason?: string;
+            /** Format: date-time */
+            expiresAt?: string;
+            /** Format: uuid */
+            id?: string;
+            impersonatedName?: string;
+            /** Format: uuid */
+            impersonatedUserId?: string;
+            reason?: string;
+            /** Format: date-time */
+            startedAt?: string;
+            tenantId?: string;
+            writable?: boolean;
+        };
+        StartRequest: {
+            reason?: string;
+            tenantId?: string;
+            /** Format: uuid */
+            userId?: string;
+            writable?: boolean;
+        };
+        StartedView: {
+            /** Format: date-time */
+            expiresAt?: string;
+            header?: string;
+            /** Format: uuid */
+            impersonatedUserId?: string;
+            /** Format: uuid */
+            sessionId?: string;
+            tenantId?: string;
+            writable?: boolean;
+        };
         StatusRequest: {
             reason?: string;
             status?: string;
@@ -850,6 +937,26 @@ export interface operations {
             };
         };
     };
+    all_3: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SessionView"][];
+                };
+            };
+        };
+    };
     whoami: {
         parameters: {
             query?: never;
@@ -912,6 +1019,70 @@ export interface operations {
                 content: {
                     "*/*": components["schemas"]["ReachView"];
                 };
+            };
+        };
+    };
+    mine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SessionView"][];
+                };
+            };
+        };
+    };
+    start: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["StartedView"];
+                };
+            };
+        };
+    };
+    end: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
