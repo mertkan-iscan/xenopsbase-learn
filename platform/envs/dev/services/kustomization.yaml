@@ -42,9 +42,13 @@ images:
     # permission cache (T-2.5), the seeded system roles (T-2.7) and
     # service-to-service authentication (T-9.11).
     #
-    # NOT YET DEPLOYED. See platform/README.md: the cluster's image policy has
-    # to learn to accept this repository's signing identity first.
-    digest: sha256:8c7e332fd94dbb306032555f6b586ea152c1c5d27b4af75111fad5171432a600
+    # 2026-09-05 — MOVED TO 6a71d6f, THE FIRST DEPLOY THIS FILE HAS EVER MADE.
+    # Adds per-company SSO (T-1.8): tenant_identity_provider keyed on the alias,
+    # so a second company claiming one is a 409 from the database rather than a
+    # rule somebody remembers, and hardcoded tenant_id/side mappers with
+    # syncMode FORCE so a customer's provider cannot assert its way into another
+    # company. Plus the regenerated client the contract gate demanded.
+    digest: sha256:d91da019845d2921371bf8abe41d23deeff642bd5a6793c6a62b9532fbe353e8
   - name: ghcr.io/mertkan-iscan/xenopsbase-learn/streaming
     # Commit 0747e6c — the MediaProvider port and its fake and Cloudflare
     # adapters (T-3.1), tus upload targets with quota enforced before issuance
@@ -54,10 +58,20 @@ images:
     # Runs the FAKE media provider here. Video is the one dependency with no
     # local or in-cluster equivalent, so a green deployment proves the domain
     # and nothing about edge delivery (T-9.14, #100).
-    digest: sha256:2218368a62b8cb67db6f74122eb134367565bc5e10cb6a274d16b5f5d7dcafcb
+    #
+    # 2026-09-05 — moved to 6a71d6f, the first deploy. Adds T-9.14's work on
+    # the Cloudflare side: the token proved by using it, and the two properties
+    # nothing was setting. The provider selected HERE is still the fake one, so
+    # that changes what the adapter can do and not what this deployment does.
+    digest: sha256:b71aed62ea5ac333a695cb4be7074730cb0dfd2a99cf372ed8c0e70b2b7454b1
   - name: ghcr.io/mertkan-iscan/xenopsbase-learn/reporting
     # Commit 0747e6c — the service and its own database with nothing else
     # reading it (T-9.7), and the playback heartbeat ingest path (T-3.6):
     # validate, batch-insert, count, and never a synchronous call while a
     # learner waits.
-    digest: sha256:520b2da7b2ef580dba5946dda14ea13b1a76637fd14d07b75c6257b39e7bea12
+    #
+    # 2026-09-05 — moved to 6a71d6f, the first deploy. Nothing in this service
+    # changed between 0747e6c and here; it moves because all three are built
+    # from one commit and a deployment naming three different ones is a harder
+    # thing to reason about than a rebuild.
+    digest: sha256:0404047229652e9ebfe20b9622b89e884d85e6a38fb7fa7cba983ab31000fa91
