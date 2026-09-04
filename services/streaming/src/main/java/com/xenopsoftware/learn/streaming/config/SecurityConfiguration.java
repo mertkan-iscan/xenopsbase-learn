@@ -29,6 +29,12 @@ public class SecurityConfiguration {
                 .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ERROR).permitAll()
                 .requestMatchers(HttpMethod.GET, "/management/health/**", "/management/info").permitAll()
                 .requestMatchers("/v3/api-docs/**").permitAll()
+                // The provider holds no token; its credential is the signature on the body,
+                // which the adapter verifies before parsing a byte (T-3.3). Permitting the
+                // path here and refusing an unsigned body there IS the design: an
+                // authenticated webhook endpoint would mean holding a credential for
+                // somebody else system.
+                .requestMatchers(HttpMethod.POST, "/webhooks/media").permitAll()
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().denyAll())
             .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> {}));

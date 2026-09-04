@@ -1,6 +1,8 @@
 package com.xenopsoftware.learn.streaming.media.cloudflare;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
@@ -13,15 +15,23 @@ import com.xenopsoftware.learn.streaming.media.MediaAssetStatus;
 import com.xenopsoftware.learn.streaming.media.MediaProvider;
 import com.xenopsoftware.learn.streaming.media.PlaybackGrant;
 import com.xenopsoftware.learn.streaming.media.PlaybackToken;
+import com.xenopsoftware.learn.streaming.media.ProviderEvent;
 import com.xenopsoftware.learn.streaming.media.UploadRequest;
 import com.xenopsoftware.learn.streaming.media.UploadTarget;
 import java.net.URI;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.text.ParseException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
+import java.util.HexFormat;
+import java.util.Map;
+import java.util.Optional;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -45,7 +55,10 @@ public class CloudflareStreamAdapter implements MediaProvider {
 
     private static final Logger LOG = LoggerFactory.getLogger(CloudflareStreamAdapter.class);
 
+    private static final ObjectMapper JSON = new ObjectMapper();
+
     private final RestClient api;
+    private final String webhookSecret;
     private final String signingKeyId;
     private final RSASSASigner signer;
 
@@ -54,6 +67,7 @@ public class CloudflareStreamAdapter implements MediaProvider {
             .baseUrl("https://api.cloudflare.com/client/v4/accounts/" + properties.accountId())
             .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + properties.apiToken())
             .build();
+        this.webhookSecret = properties.webhookSecret();
         this.signingKeyId = properties.signingKeyId();
         this.signer = signerFor(properties.signingKeyJwk());
     }
@@ -132,12 +146,98 @@ public class CloudflareStreamAdapter implements MediaProvider {
         return new PlaybackToken(jwt.serialize(), expiresAt);
     }
 
+    /**
+     * Cloudflare signs a webhook as {@code Webhook-Signature: time=<unix>,sig1=<hex>}, the
+     * signature being HMAC-SHA256 over {@code time.body} with the notification secret.
+     *
+     * <p>Three checks before a byte is parsed, and each has cost somebody an incident
+     * somewhere: the signature, compared in constant time so it cannot be guessed by timing;
+     * the timestamp, because a correctly signed body replayed next week is still correctly
+     * signed; and nothing else, because a parser reached before verification is an attack
+     * surface rather than a convenience.
+     */
+    @Override
+    public Optional<ProviderEvent> interpretWebhook(Map<String, String> headers, byte[] body) {
+        String header = headers.get("webhook-signature");
+        if (header == null || webhookSecret == null || webhookSecret.isBlank()) {
+            return Optional.empty();
+        }
+        String time = null;
+        String signature = null;
+        for (String part : header.split(",")) {
+            String[] pair = part.split("=", 2);
+            if (pair.length == 2 && pair[0].trim().equals("time")) {
+                time = pair[1].trim();
+            } else if (pair.length == 2 && pair[0].trim().equals("sig1")) {
+                signature = pair[1].trim();
+            }
+        }
+        if (time == null || signature == null || !fresh(time)) {
+            return Optional.empty();
+        }
+        String expected = hmac(time + "." + new String(body, StandardCharsets.UTF_8));
+        if (!MessageDigest.isEqual(expected.getBytes(StandardCharsets.US_ASCII),
+                signature.getBytes(StandardCharsets.US_ASCII))) {
+            return Optional.empty();
+        }
+        return parse(body);
+    }
+
     @Override
     public void delete(String providerRef) {
         try {
             api.delete().uri("/stream/{uid}", providerRef).retrieve().toBodilessEntity();
         } catch (HttpClientErrorException.NotFound alreadyGone) {
             // Idempotent by contract: the caller wanted it gone, and it is.
+        }
+    }
+
+    /** Five minutes each way: enough for clock skew, not enough to replay yesterday. */
+    private static boolean fresh(String time) {
+        try {
+            return Math.abs(Instant.now().getEpochSecond() - Long.parseLong(time)) <= 300;
+        } catch (NumberFormatException notATimestamp) {
+            return false;
+        }
+    }
+
+    private String hmac(String payload) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(webhookSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            return HexFormat.of().formatHex(mac.doFinal(payload.getBytes(StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException | java.security.InvalidKeyException e) {
+            throw new IllegalStateException("HMAC-SHA256 is not optional", e);
+        }
+    }
+
+    /** The notification body, mapped onto our vocabulary exactly as {@code status} maps it. */
+    private Optional<ProviderEvent> parse(byte[] body) {
+        try {
+            JsonNode event = JSON.readTree(body);
+            String uid = event.path("uid").asText("");
+            String vendorState = event.path("status").path("state").asText("");
+            if (uid.isEmpty() || vendorState.isEmpty()) {
+                return Optional.empty();
+            }
+            MediaAssetState state = switch (vendorState) {
+                case "ready" -> MediaAssetState.READY;
+                case "error" -> MediaAssetState.ERRORED;
+                case "pendingupload" -> MediaAssetState.PENDING_UPLOAD;
+                case "downloading", "queued", "inprogress" -> MediaAssetState.PROCESSING;
+                default -> {
+                    LOG.warn("Unknown Stream state {} in a webhook; treating as PROCESSING", vendorState);
+                    yield MediaAssetState.PROCESSING;
+                }
+            };
+            Double duration = event.path("duration").asDouble(0) > 0
+                ? event.path("duration").asDouble() : null;
+            // Cloudflare sends no event id, so it is derived from what the event says: a
+            // redelivery of the same notification collides, a genuinely new state does not.
+            return Optional.of(new ProviderEvent(uid + ":" + vendorState, uid, state, duration,
+                event.path("status").path("errorReasonText").asText(null)));
+        } catch (IOException malformed) {
+            return Optional.empty();
         }
     }
 

@@ -11,6 +11,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param accountId     the Cloudflare account the assets live under
  * @param apiToken      API token scoped to Stream; a secret, injected, never defaulted
  * @param signingKeyId  id of the Stream signing key pair, minted once via the API
+ * @param webhookSecret the notification secret, used to verify inbound webhooks (T-3.3). A
+ *        blank one means no webhook is trusted at all, which is the right default: an
+ *        unverifiable notification is not a notification.
  * @param signingKeyJwk the private key as Cloudflare hands it back: a base64-encoded JWK.
  *                      Local signing is the point — minting a playback token must cost zero
  *                      network calls (ADR-0101: the backend only signs)
@@ -20,4 +23,5 @@ public record CloudflareStreamProperties(
     String accountId,
     String apiToken,
     String signingKeyId,
-    String signingKeyJwk) {}
+    String signingKeyJwk,
+    String webhookSecret) {}

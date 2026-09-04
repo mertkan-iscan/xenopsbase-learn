@@ -1,6 +1,10 @@
 package com.xenopsoftware.learn.streaming.media;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
+import java.io.IOException;
+import java.util.Optional;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
@@ -34,6 +38,8 @@ public class FakeMediaProvider implements MediaProvider {
     private static final Logger LOG = LoggerFactory.getLogger(FakeMediaProvider.class);
 
     private record Asset(MediaAssetState state, Double durationSeconds, String error) {}
+
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     private final Map<String, Asset> assets = new ConcurrentHashMap<>();
 
@@ -76,6 +82,37 @@ public class FakeMediaProvider implements MediaProvider {
         // faithful to the real shape -- only the edge verifies tokens, never our services.
         return new PlaybackToken("fake-token." + providerRef + "." + expiresAt.getEpochSecond(),
             expiresAt);
+    }
+
+    /**
+     * The fake signature scheme: a shared secret in a header, compared whole. Enough to
+     * exercise the verify-before-parsing path end to end without pretending to be HMAC -- a
+     * fake that imitated the real scheme badly would teach the wrong thing about it.
+     */
+    @Override
+    public Optional<ProviderEvent> interpretWebhook(Map<String, String> headers, byte[] body) {
+        if (!"local-development-only".equals(headers.get("x-fake-signature"))) {
+            return Optional.empty();
+        }
+        try {
+            JsonNode event = JSON.readTree(body);
+            MediaAssetState state = switch (event.path("state").asText("")) {
+                case "READY" -> MediaAssetState.READY;
+                case "ERRORED" -> MediaAssetState.ERRORED;
+                case "PROCESSING" -> MediaAssetState.PROCESSING;
+                default -> null;
+            };
+            if (state == null || event.path("providerRef").asText("").isEmpty()) {
+                return Optional.empty();
+            }
+            String ref = event.path("providerRef").asText();
+            return Optional.of(new ProviderEvent(
+                event.path("eventId").asText(ref), ref, state,
+                event.has("durationSeconds") ? event.path("durationSeconds").asDouble() : null,
+                event.path("error").asText(null)));
+        } catch (IOException malformed) {
+            return Optional.empty();
+        }
     }
 
     @Override

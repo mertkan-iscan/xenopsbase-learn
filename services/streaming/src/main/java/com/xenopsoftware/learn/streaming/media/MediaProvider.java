@@ -35,6 +35,20 @@ public interface MediaProvider {
      */
     PlaybackToken mintPlaybackToken(String providerRef, PlaybackGrant grant);
 
+    /**
+     * Verifies and interprets an inbound webhook (T-3.3).
+     *
+     * <p>Verification happens <b>before any parsing</b>, inside the adapter that knows the
+     * scheme: an unsigned body is not a message, and treating it as one long enough to read a
+     * field is how a parser becomes an attack surface. An empty result means "not for me, or
+     * not trustworthy" and the caller answers the same way either way — telling an unsigned
+     * caller which of the two it was is free reconnaissance.
+     *
+     * @param headers the request headers, lowercased by the caller
+     * @param body the raw bytes, unparsed, because a signature covers bytes and not an object
+     */
+    java.util.Optional<ProviderEvent> interpretWebhook(java.util.Map<String, String> headers, byte[] body);
+
     /** Deleting a video must delete the bytes (T-3.8). Idempotent: a second delete is a no-op. */
     void delete(String providerRef);
 }

@@ -15,11 +15,13 @@ import com.xenopsoftware.learn.streaming.media.MediaAssetState;
 import com.xenopsoftware.learn.streaming.media.MediaAssetStatus;
 import com.xenopsoftware.learn.streaming.media.PlaybackGrant;
 import com.xenopsoftware.learn.streaming.media.PlaybackToken;
+import com.xenopsoftware.learn.streaming.media.ProviderEvent;
 import com.xenopsoftware.learn.streaming.media.UploadRequest;
 import com.xenopsoftware.learn.streaming.media.UploadTarget;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.Map;
 import java.util.Date;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,6 +43,7 @@ import org.springframework.web.client.RestClient;
 class CloudflareStreamAdapterTest {
 
     private static final String BASE = "https://api.cloudflare.com/client/v4/accounts/acct-1";
+    private static final String WEBHOOK_SECRET = "notification-secret";
 
     private MockRestServiceServer server;
     private CloudflareStreamAdapter adapter;
@@ -54,7 +57,8 @@ class CloudflareStreamAdapterTest {
         adapter = new CloudflareStreamAdapter(builder, new CloudflareStreamProperties(
             "acct-1", "api-token-1", "key-1",
             Base64.getEncoder().encodeToString(
-                signingKey.toJSONString().getBytes(StandardCharsets.UTF_8))));
+                signingKey.toJSONString().getBytes(StandardCharsets.UTF_8)),
+            WEBHOOK_SECRET));
     }
 
     @Test
@@ -148,5 +152,75 @@ class CloudflareStreamAdapterTest {
         assertThat(jwt.getJWTClaimsSet().getExpirationTime())
             .isCloseTo(Date.from(token.expiresAt()), 1000);
         server.verify();
+    }
+
+    @Test
+    void anUnsignedWebhookIsNotAMessage() {
+        // Verify before parsing: an unsigned body never reaches the JSON at all, which is what
+        // keeps a parser from being an attack surface.
+        assertThat(adapter.interpretWebhook(Map.of(), READY_BODY.getBytes(StandardCharsets.UTF_8)))
+            .isEmpty();
+        assertThat(adapter.interpretWebhook(
+            Map.of("webhook-signature", "time=" + now() + ",sig1=deadbeef"),
+            READY_BODY.getBytes(StandardCharsets.UTF_8))).isEmpty();
+    }
+
+    @Test
+    void aCorrectlySignedWebhookIsInterpretedInOurVocabulary() throws Exception {
+        long time = now();
+        Map<String, String> headers = Map.of("webhook-signature",
+            "time=" + time + ",sig1=" + sign(time + "." + READY_BODY));
+
+        ProviderEvent event = adapter.interpretWebhook(headers,
+            READY_BODY.getBytes(StandardCharsets.UTF_8)).orElseThrow();
+
+        assertThat(event.providerRef()).isEqualTo("cf-uid-123");
+        assertThat(event.state()).isEqualTo(MediaAssetState.READY);
+        assertThat(event.durationSeconds()).isEqualTo(542.5);
+        // Derived, because Cloudflare sends no event id: a redelivery of this notification
+        // collides, a genuinely different state for the same asset does not.
+        assertThat(event.eventId()).isEqualTo("cf-uid-123:ready");
+    }
+
+    @Test
+    void aCorrectlySignedBodyFromLastWeekIsStillRefused() throws Exception {
+        long stale = now() - 3600;
+        Map<String, String> headers = Map.of("webhook-signature",
+            "time=" + stale + ",sig1=" + sign(stale + "." + READY_BODY));
+
+        // The signature is valid. Replaying it is the attack this refuses.
+        assertThat(adapter.interpretWebhook(headers, READY_BODY.getBytes(StandardCharsets.UTF_8)))
+            .isEmpty();
+    }
+
+    @Test
+    void anEncodeFailureCarriesTheProvidersOwnReason() throws Exception {
+        String body = """
+            {"uid":"cf-uid-9","status":{"state":"error","errorReasonText":"audio codec not supported"}}""";
+        long time = now();
+        Map<String, String> headers = Map.of("webhook-signature",
+            "time=" + time + ",sig1=" + sign(time + "." + body));
+
+        ProviderEvent event = adapter.interpretWebhook(headers,
+            body.getBytes(StandardCharsets.UTF_8)).orElseThrow();
+
+        assertThat(event.state()).isEqualTo(MediaAssetState.ERRORED);
+        // An author told "encoding failed" opens a ticket; one told this re-exports the file.
+        assertThat(event.error()).isEqualTo("audio codec not supported");
+    }
+
+    private static final String READY_BODY =
+        "{\"uid\":\"cf-uid-123\",\"status\":{\"state\":\"ready\"},\"duration\":542.5}";
+
+    private static long now() {
+        return java.time.Instant.now().getEpochSecond();
+    }
+
+    private static String sign(String payload) throws Exception {
+        javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+        mac.init(new javax.crypto.spec.SecretKeySpec(
+            WEBHOOK_SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+        return java.util.HexFormat.of().formatHex(
+            mac.doFinal(payload.getBytes(StandardCharsets.UTF_8)));
     }
 }
