@@ -34,7 +34,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.0.8</version>
+        <version>4.1.1</version>
         <relativePath/>
     </parent>
 
@@ -90,7 +90,7 @@
         <image.namespace>mertkan-iscan/xenopsbase-learn</image.namespace>
         <!-- Overridden to run the load tests: -Dexcluded.test.groups= (see surefire below). -->
         <excluded.test.groups>load</excluded.test.groups>
-        <spring-cloud-dependencies.version>2025.1.2</spring-cloud-dependencies.version>
+        <spring-cloud-dependencies.version>2025.1.3</spring-cloud-dependencies.version>
     </properties>
 
     <dependencyManagement>
