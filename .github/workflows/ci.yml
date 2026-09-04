@@ -126,6 +126,23 @@ jobs:
       - name: Start the local stack
         run: cp .env.example .env && make up
 
+      # THE CRITERION T-1.7 (#23) WAS LEFT OPEN ON: the non-destructive realm
+      # path "applied from CI rather than by hand".
+      #
+      # `realm-apply` changes settings, clients and roles and never touches a
+      # user — which is the whole point, because the obvious alternative
+      # (delete the realm and re-import) destroys every account while reading
+      # as routine maintenance. The Makefile already describes this as "the one
+      # CI would run"; until now nothing ran it, so a change that broke the
+      # script would have been discovered by someone running it against an
+      # environment with people in it.
+      #
+      # Applied here to the ephemeral Keycloak the stack just started. That
+      # proves the path works on every change; applying it to a deployed realm
+      # needs a deployment, which is the rest of T-9.3 (see platform/README.md).
+      - name: Apply the realm the non-destructive way
+        run: make realm-apply
+
       - name: Build the services
         run: mvn --batch-mode --file services/pom.xml --define skipTests package
 
