@@ -127,6 +127,16 @@ streaming:
     api-token: ${CF_STREAM_API_TOKEN:}
     signing-key-id: ${CF_STREAM_SIGNING_KEY_ID:}
     signing-key-jwk: ${CF_STREAM_SIGNING_KEY_JWK:}
+    # The account's delivery host, as in customer-<subdomain>.cloudflarestream.com.
+    # Every manifest URL is served from it, so a wrong or missing value fails at
+    # PLAYBACK -- after an upload has already succeeded, which is the worst place
+    # to discover a configuration gap. `scripts/cloudflare-check.sh` derives it by
+    # reading an asset back rather than trusting a dashboard page.
+    customer-subdomain: ${CF_STREAM_CUSTOMER_SUBDOMAIN:}
+    # Blank means NO webhook is trusted (T-3.3), which is the right default: an
+    # unverifiable notification is not a notification. The reconciler polls, so a
+    # deployment without this is slower rather than broken.
+    webhook-secret: ${CF_STREAM_WEBHOOK_SECRET:}
 
 management:
   endpoints:
