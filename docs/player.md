@@ -75,8 +75,23 @@ learner does involves no video. It is downloaded by somebody who presses play an
 `vite.config.ts` keeps the 300kB budget and names this as the one expected exceedance; hls.js
 appearing *inside* the entry chunk rather than beside it would mean a static import crept in.
 
-Safari and other browsers with native HLS get the manifest straight on the element — the better
-path there, not a fallback: hardware decoding, lower power, working AirPlay.
+### MSE first; native HLS only where there is no MSE.
+
+The obvious order is wrong, and it cost a real bug. `canPlayType('application/vnd.apple.mpegurl')`
+returns **`"maybe"` on Chromium**, which cannot play HLS natively at all — so a player that asks
+`canPlayType` first and treats hls.js as the fallback hands Chrome a manifest it will not play,
+silently: no error, no quality ladder, a video that never starts. That is what the first version
+of this player did, and it was found by opening it in a real browser rather than by any test.
+
+So the question asked first is whether `MediaSource` exists, which is the capability hls.js
+actually needs. Native HLS is the fallback for browsers with no MSE — iOS Safari, essentially —
+where it is genuinely the better path anyway: hardware decoding, lower power, working AirPlay.
+Those browsers also never download hls.js, which is why the check asks `MediaSource` directly
+instead of importing the library to ask `Hls.isSupported()`.
+
+Two tests stub the browser's answers in both directions, because jsdom returns `""` from
+`canPlayType` and has no `MediaSource` — so left to itself it never takes the branch that was
+broken.
 
 ## Embedding it
 

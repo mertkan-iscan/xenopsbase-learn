@@ -26,8 +26,13 @@ import { VideoPlayer } from './VideoPlayer.tsx';
  * no events — so the player renders its default state and nothing here depends on hls.js's own
  * behaviour, which is hls.js's to test.
  */
+const hls = vi.hoisted(() => ({ constructed: 0 }));
+
 vi.mock('hls.js', () => {
   class FakeHls {
+    constructor() {
+      hls.constructed += 1;
+    }
     static isSupported() {
       return true;
     }
@@ -66,6 +71,7 @@ function playback() {
 }
 
 beforeEach(() => {
+  hls.constructed = 0;
   respond = () => ({ status: 200, body: playback() });
   vi.stubGlobal(
     'fetch',
@@ -80,6 +86,62 @@ beforeEach(() => {
 });
 
 afterEach(() => vi.unstubAllGlobals());
+
+/**
+ * The branch that decides how the stream is attached, and the bug it had.
+ *
+ * <p>`canPlayType('application/vnd.apple.mpegurl')` returns **"maybe" on Chromium**, which cannot
+ * play HLS natively at all. The first version of this player asked `canPlayType` first and used
+ * hls.js only as a fallback — so in Chrome it set the manifest as `<video src>` and the video
+ * silently never started: no error, no quality ladder, nothing to see. It was found by opening
+ * the player in a real browser, and it is exactly the class of bug jsdom cannot find on its own,
+ * because there `canPlayType` returns "" and the wrong branch is never taken.
+ *
+ * <p>So these two stub the browser's answers directly, which is the only way to make a jsdom
+ * suite meaningful about a capability jsdom does not have.
+ */
+describe('choosing between MSE and native HLS', () => {
+  const canPlayType = HTMLMediaElement.prototype.canPlayType;
+
+  afterEach(() => {
+    HTMLMediaElement.prototype.canPlayType = canPlayType;
+    Reflect.deleteProperty(globalThis, 'MediaSource');
+  });
+
+  function browserSays({ mse, native }: { mse: boolean; native: boolean }) {
+    HTMLMediaElement.prototype.canPlayType = () => (native ? 'maybe' : '');
+    if (mse) {
+      vi.stubGlobal('MediaSource', { isTypeSupported: () => true });
+    } else {
+      Reflect.deleteProperty(globalThis, 'MediaSource');
+    }
+  }
+
+  it('uses hls.js where MSE exists, even when canPlayType says "maybe"', async () => {
+    browserSays({ mse: true, native: true });
+
+    render(<VideoPlayer nodeId="node-1" title="Fire safety, part 1" />);
+    const video = await screen.findByLabelText('Fire safety, part 1');
+
+    await waitFor(() => expect(hls.constructed).toBe(1));
+    // The manifest must NOT be on the element: hls.js feeds it through a MediaSource, and a src
+    // attribute here is the Chromium bug returning.
+    expect(video).not.toHaveAttribute('src');
+  });
+
+  it('falls back to the native player only where there is no MSE', async () => {
+    browserSays({ mse: false, native: true });
+
+    render(<VideoPlayer nodeId="node-1" title="Fire safety, part 1" />);
+    const video = await screen.findByLabelText('Fire safety, part 1');
+
+    // iOS Safari, essentially -- where native HLS is genuinely the better path and hls.js could
+    // not run anyway. It is also never downloaded there, which is why the check asks MediaSource
+    // directly rather than importing hls.js to ask it.
+    await waitFor(() => expect(video).toHaveAttribute('src'));
+    expect(hls.constructed).toBe(0);
+  });
+});
 
 describe('the player', () => {
   it('labels the video and offers quality and speed as real form controls', async () => {

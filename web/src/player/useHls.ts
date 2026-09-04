@@ -18,11 +18,20 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * admin console is kept out of a learner's download by route-level splitting (docs/frontend.md);
  * this is the same reasoning applied to the one dependency big enough to matter on its own.
  *
- * <h2>Safari plays HLS natively, and that is not a special case to work around</h2>
+ * <h2>Media Source Extensions first, native HLS only where there is no MSE</h2>
  *
- * Where `canPlayType` says the browser handles `application/vnd.apple.mpegurl`, the manifest goes
- * straight on the element. That path is better than hls.js on those browsers — hardware decoding,
- * lower power, working AirPlay — so it is the preferred branch rather than a fallback.
+ * The order matters and the obvious order is wrong. `canPlayType('application/vnd.apple.mpegurl')`
+ * returns <b>"maybe" on Chromium</b>, which cannot play HLS natively at all — so a check that asks
+ * `canPlayType` first and only falls back to hls.js hands Chrome a manifest it will not play, and
+ * does it silently: no error, no quality ladder, just a video that never starts. Found by running
+ * the player in a real browser; jsdom cannot see it, because there `canPlayType` returns "" and
+ * the wrong branch never gets taken.
+ *
+ * So the question asked first is whether MSE exists, which is the capability hls.js actually
+ * needs. Native HLS is the fallback for the browsers with no MSE — iOS Safari, essentially — where
+ * it is genuinely the better path anyway: hardware decoding, lower power, working AirPlay. Those
+ * browsers also never download hls.js, which is why this asks `MediaSource` directly instead of
+ * importing the library to ask `Hls.isSupported()`.
  *
  * <h2>The position across renewal, which is the whole reason this is a hook</h2>
  *
@@ -65,6 +74,21 @@ export type HlsState = {
 };
 
 const AUTO: Quality = { id: -1, label: 'Auto' };
+
+/**
+ * Whether this browser can play segmented media through MSE — the capability hls.js needs, asked
+ * without importing hls.js so that a browser which will never use it does not download it.
+ *
+ * The codec string is the baseline H.264 + AAC pair every HLS ladder starts from; a browser that
+ * cannot play that cannot play anything we would ship.
+ */
+function supportsMediaSource(): boolean {
+  return (
+    typeof MediaSource !== 'undefined' &&
+    typeof MediaSource.isTypeSupported === 'function' &&
+    MediaSource.isTypeSupported('video/mp4; codecs="avc1.42E01E,mp4a.40.2"')
+  );
+}
 
 type Engine = { destroy: () => void; currentLevel: number };
 
@@ -128,7 +152,7 @@ export function useHls(manifestUrl: string | undefined): [AttachVideo, HlsState]
       }
     }
 
-    if (element.canPlayType('application/vnd.apple.mpegurl')) {
+    if (!supportsMediaSource() && element.canPlayType('application/vnd.apple.mpegurl')) {
       element.src = manifestUrl;
       restore(element);
       return;
