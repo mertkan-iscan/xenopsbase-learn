@@ -156,6 +156,21 @@ spec:
             # worker fills up without anything reporting that it has.
             requests: {cpu: 100m, memory: 640Mi}
             limits: {memory: 896Mi}
+          volumeMounts:
+            # readOnlyRootFilesystem is on and Tomcat still needs a writable
+            # java.io.tmpdir: it creates its work directory under /tmp before
+            # the context refreshes. Without this the pod does not fail a
+            # health check, it fails to start at all --
+            # "Unable to create tempDir. java.io.tmpdir is set to /tmp",
+            # caused by a Read-only file system, on every restart.
+            #
+            # An emptyDir rather than relaxing the root filesystem, which is the
+            # same trade the stemcell's own services make: scratch space is
+            # writable, everything the image ships is not.
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
