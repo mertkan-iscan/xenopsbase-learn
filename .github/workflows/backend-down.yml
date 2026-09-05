@@ -1,0 +1,79 @@
+name: Backend-down playback proof (T-3.10)
+
+# The test that turns ADR-0101 from a claim into a fact: real playback, on the real Cloudflare
+# Stream account, kept going with every one of our services stopped. See docs/slos.md's
+# "Backend down" section for what this run actually asserts and what it measured.
+#
+# WHY workflow_dispatch, NOT pull_request/push LIKE ci.yml
+#
+# ci.yml's jobs run against Postgres, Keycloak, a fake media provider -- free, and safe to run on
+# every push by design. This one uploads and encodes a real (if tiny) video on a real, PAID
+# Cloudflare Stream account every time it runs. T-9.14 (#100) left "spend visibility before any
+# bulk upload" open specifically because of checks like this one: running it on every PR would be
+# unbounded automated spend with nobody watching the bill. Trigger it by hand, or wire a schedule
+# once that visibility exists -- not before.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  backend-down:
+    name: playback survives every service being stopped
+    runs-on: ubuntu-latest
+    # The CF_STREAM_* secrets are the same five scripts/cloudflare-check.sh already needs. If they
+    # are not configured on this repository, fail here with a clear reason rather than partway
+    # through a real upload.
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          java-version: '25'
+          distribution: corretto
+          cache: maven
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Confirm the Cloudflare credentials are configured
+        env:
+          CF_STREAM_ACCOUNT_ID: ${{ secrets.CF_STREAM_ACCOUNT_ID }}
+          CF_STREAM_API_TOKEN: ${{ secrets.CF_STREAM_API_TOKEN }}
+        run: |
+          if [ -z "$CF_STREAM_ACCOUNT_ID" ] || [ -z "$CF_STREAM_API_TOKEN" ]; then
+            echo "::error::CF_STREAM_ACCOUNT_ID / CF_STREAM_API_TOKEN are not set as repository secrets."
+            echo "::error::This check needs the real Cloudflare account (T-9.14); it cannot run against the fake provider."
+            exit 1
+          fi
+
+      - name: Start the local stack
+        run: cp .env.example .env && make up
+
+      - name: Apply the realm the non-destructive way
+        run: make realm-apply
+
+      - name: Build the services
+        run: mvn --batch-mode --file services/pom.xml --define skipTests install
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+
+      - name: Prove playback survives every service being stopped
+        working-directory: web
+        env:
+          CF_STREAM_ACCOUNT_ID: ${{ secrets.CF_STREAM_ACCOUNT_ID }}
+          CF_STREAM_API_TOKEN: ${{ secrets.CF_STREAM_API_TOKEN }}
+          CF_STREAM_CUSTOMER_SUBDOMAIN: ${{ secrets.CF_STREAM_CUSTOMER_SUBDOMAIN }}
+          CF_STREAM_SIGNING_KEY_ID: ${{ secrets.CF_STREAM_SIGNING_KEY_ID }}
+          CF_STREAM_SIGNING_KEY_JWK: ${{ secrets.CF_STREAM_SIGNING_KEY_JWK }}
+        run: node e2e/backend-down.mjs

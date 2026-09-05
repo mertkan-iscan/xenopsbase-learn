@@ -53,6 +53,19 @@ export default tseslint.config(
   },
 
   {
+    // Node orchestration that also hands small functions to `page.evaluate` (T-3.10) -- those
+    // run inside the browser it launches, so `document` is real there even though this file is
+    // not browser code itself.
+    files: ['e2e/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        process: 'readonly', console: 'readonly', fetch: 'readonly', URL: 'readonly',
+        URLSearchParams: 'readonly', document: 'readonly',
+      },
+    },
+  },
+
+  {
     files: ['src/learner/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-imports': ['error', {

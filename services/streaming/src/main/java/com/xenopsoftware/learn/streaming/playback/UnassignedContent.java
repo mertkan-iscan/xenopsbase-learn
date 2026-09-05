@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 /**
@@ -22,12 +23,16 @@ import org.springframework.stereotype.Component;
  * platform where nobody can watch anything is a fact an operator should read in the log rather
  * than deduce from 404s.
  *
- * <p>Unconditional, on purpose. A {@code @ConditionalOnMissingBean} here would read as "a real
- * catalog adapter can slide in beside this", and what should actually happen the day catalog
- * exists is that this class is DELETED -- leaving a fail-closed stand-in registered next to a
- * working implementation is how a refusal nobody expected gets debugged for an afternoon.
+ * <p>Unconditional against a real adapter, on purpose. A {@code @ConditionalOnMissingBean} here
+ * would read as "a real catalog adapter can slide in beside this", and what should actually
+ * happen the day catalog exists is that this class is DELETED -- leaving a fail-closed stand-in
+ * registered next to a working implementation is how a refusal nobody expected gets debugged for
+ * an afternoon. The one exception is {@code e2e}: T-3.10 needs a real video actually entitled so
+ * it can prove playback survives our services dying, and that is a narrower, explicitly-named
+ * carve-out rather than a general escape hatch -- see {@link E2eContentEntitlement}.
  */
 @Component
+@Profile("!e2e")
 public class UnassignedContent implements ContentEntitlement {
 
     private static final Logger LOG = LoggerFactory.getLogger(UnassignedContent.class);
