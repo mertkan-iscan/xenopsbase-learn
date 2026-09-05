@@ -31,6 +31,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/nodes/{id}/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["current"];
+        put?: never;
+        post: operations["record"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/videos": {
         parameters: {
             query?: never;
@@ -114,6 +130,30 @@ export interface components {
             /** Format: uri */
             uploadUrl?: string;
         };
+        LearnerProgress: {
+            allowSeekForward?: boolean;
+            approximate?: boolean;
+            completed?: boolean;
+            /** Format: date-time */
+            completedAt?: string;
+            completionSource?: string;
+            /** Format: int32 */
+            coveredSeconds?: number;
+            /** Format: int32 */
+            extentSeconds?: number;
+            /** Format: int32 */
+            fragments?: number;
+            /** Format: uuid */
+            nodeId?: string;
+            /** Format: int32 */
+            percent?: number;
+            /** Format: int32 */
+            resumeSecond?: number;
+            /** Format: int32 */
+            seekCeilingSecond?: number;
+            /** Format: int32 */
+            thresholdPercent?: number;
+        };
         PlaybackTokenView: {
             /** Format: date-time */
             expiresAt?: string;
@@ -126,6 +166,20 @@ export interface components {
             token?: string;
             /** Format: uuid */
             videoAssetId?: string;
+        };
+        ProgressBatch: {
+            playbackToken?: string;
+            samples?: components["schemas"]["Sample"][];
+        };
+        Sample: {
+            /** Format: int32 */
+            fromSecond?: number;
+            /** Format: date-time */
+            observedAt?: string;
+            /** Format: double */
+            rate?: number;
+            /** Format: int32 */
+            toSecond?: number;
         };
         VideoView: {
             /** Format: double */
@@ -185,6 +239,54 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["PlaybackTokenView"];
+                };
+            };
+        };
+    };
+    current: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["LearnerProgress"];
+                };
+            };
+        };
+    };
+    record: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgressBatch"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["LearnerProgress"];
                 };
             };
         };

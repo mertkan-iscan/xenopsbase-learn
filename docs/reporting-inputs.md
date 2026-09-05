@@ -20,7 +20,7 @@ row is a deliberate act with a review attached; that is the whole point of writi
 | Input | Arrives by | Owner | Status |
 |---|---|---|---|
 | Playback heartbeats (position samples) | Direct ingest from the player | `streaming` domain, posted by the client | T-7.1 |
-| Watched intervals, derived completion | Event | `streaming` | T-3.7 |
+| Watched intervals, derived completion | Event | `streaming` | T-3.7 publishes `streaming.node.completed`; a consumer here is T-7.3's |
 | Video asset facts (id, duration, title) | Event | `streaming` | T-3.3 publishes the READY transition |
 | Course, module and node structure | Event | `catalog` | T-5.2 |
 | Assignment made, revoked, due date changed | Event | `catalog` | T-5.5 |
@@ -31,6 +31,14 @@ row is a deliberate act with a review attached; that is the whole point of writi
 
 Nothing on that list arrives by a query into another service's database, and nothing on it is
 fetched synchronously while a learner waits.
+
+**The first two rows are one measurement arriving twice, and that is deliberate.** The player posts
+the same batch of intervals here (raw, append-only, droppable at ninety days) and to `streaming`,
+which merges them into the coverage completion is derived from (T-3.7, ADR-0107). The rule below —
+progress recording must complete with `reporting` stopped — is what forbids the tidier-looking
+alternative of deriving completion from the rows in this store. It would work, it would be one post
+instead of two, and the first outage would produce reports that render perfectly with fewer
+completions in them.
 
 ## Copies go stale, and that is the trade
 

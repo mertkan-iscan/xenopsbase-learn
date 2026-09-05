@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react';
+import { streaming } from '../shared/api/client.ts';
 import { ErrorState, Loading } from '../shared/state/States.tsx';
-import { useHeartbeats } from './useHeartbeats.ts';
+import { useHeartbeats, type Progress } from './useHeartbeats.ts';
 import { useHls, type HlsState } from './useHls.ts';
 import { usePlaybackToken } from './usePlaybackToken.ts';
 
@@ -26,18 +28,52 @@ import { usePlaybackToken } from './usePlaybackToken.ts';
  * know it or a learner at 2× looks like a learner claiming twice the time they spent. The heartbeat
  * that reports it is T-3.6; what T-3.5 owes is that the rate is a value the player owns and can
  * report, rather than something buried in a browser menu we never see.
+ *
+ * <h2>Progress is read, never computed (T-3.7)</h2>
+ *
+ * Where to resume, how much has been watched, whether it is complete and whether this item allows
+ * skipping ahead all come from the server. None of them is derived here, and that is the whole of
+ * ADR-0107 as it reaches the browser: a player that computed its own completion would be a second
+ * answer to the question a compliance report answers, and the two would disagree the first time a
+ * heartbeat was lost.
  */
 export function VideoPlayer({ nodeId, title }: { nodeId: string; title: string }) {
   const token = usePlaybackToken(nodeId);
   const playback = token.status === 'ready' || token.status === 'renewing' ? token.playback : undefined;
+  const [progress, setProgress] = useState<Progress | undefined>(undefined);
+
+  // Asked once, at load, and separately from the token: the two answer different questions and
+  // either may arrive first. A failure here is not a failure to play -- a learner whose resume
+  // position could not be fetched should start from the beginning, not see an error about a video
+  // that is fine.
+  useEffect(() => {
+    let cancelled = false;
+    void streaming
+      .GET('/api/v1/me/nodes/{id}/progress', { params: { path: { id: nodeId } } })
+      .then(({ data }) => {
+        if (!cancelled && data) {
+          setProgress(data as Progress);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [nodeId]);
+
   // One owner of the element: `useHls` creates the ref, writes the source, restores the position
   // and applies the rate. This component reads state and renders controls.
-  const [attachVideo, hls] = useHls(playback?.manifestUrl);
+  const [attachVideo, hls] = useHls(playback?.manifestUrl, {
+    resumeFrom: progress?.resumeSecond,
+    // Only when the item forbids it. `?? 0` rather than a fallback that lets everything through:
+    // a missing ceiling on an item that forbids skipping means nothing has been watched yet.
+    seekCeiling: progress && !progress.allowSeekForward ? (progress.seekCeilingSecond ?? 0) : undefined,
+  });
 
-  // What was actually watched, batched to analytics (T-3.6). It posts to `reporting` directly and
-  // never through streaming: telemetry is the most write-heavy path in the product, and the whole
-  // point is that it cannot slow the one a learner is waiting on.
-  useHeartbeats(hls.element, nodeId, playback?.token);
+  // What was actually watched (T-3.6, T-3.7): raw samples to `reporting`, the same batch to
+  // `streaming`, which merges them and answers with the progress rendered below. Two posts rather
+  // than one because progress recording has to keep working with analytics stopped.
+  useHeartbeats(hls.element, nodeId, playback?.token, setProgress);
 
   if (token.status === 'loading') {
     return <Loading what="the video" />;
@@ -100,6 +136,15 @@ export function VideoPlayer({ nodeId, title }: { nodeId: string; title: string }
             ))}
           </select>
         </label>
+
+        {progress ? (
+          <p className="player__progress" aria-live="polite">
+            {progress.completed
+              ? 'Complete'
+              : `Watched ${progress.percent}% of ${progress.thresholdPercent}% needed`}
+            {progress.allowSeekForward ? null : ' · this item must be watched in order'}
+          </p>
+        ) : null}
 
         {/* Deliberately quiet while renewal is merely retrying: there are minutes of valid
             playback left and nothing for the learner to do. It says something only because a

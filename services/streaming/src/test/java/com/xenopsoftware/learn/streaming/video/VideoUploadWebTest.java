@@ -49,7 +49,16 @@ class VideoUploadWebTest extends PostgresTestHarness {
             "authorization is not decided by an annotation here on purpose (T-3.4): the "
             + "permission check is one link of an ordered chain inside PlaybackTokenService, "
             + "where it runs after the rate limiter and audits its own refusal. "
-            + "PlaybackEntitlementTest is what holds it honest");
+            + "PlaybackEntitlementTest is what holds it honest",
+        "ProgressResource#record",
+            "same shape as the playback token and for the same reason (T-3.7): the caller may "
+            + "only ever report about themselves, and whether this node reaches them is decided "
+            + "inside ProgressService against the entitlement port -- an annotation would refuse "
+            + "before the batch's shape was checked and without the audit row. ProgressTest holds "
+            + "it honest",
+        "ProgressResource#current",
+            "reads the caller's own progress and nobody else's, gated by the same entitlement "
+            + "lookup; an unassigned node is the same bare 404 the playback token gives");
 
     @Autowired
     @Qualifier("requestMappingHandlerMapping")

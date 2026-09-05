@@ -100,7 +100,27 @@ function supportsMediaSource(): boolean {
 
 type Engine = { destroy: () => void; currentLevel: number };
 
-export function useHls(manifestUrl: string | undefined): [AttachVideo, HlsState] {
+/**
+ * What the server says about this learner's own history with this item (T-3.7), and the only two
+ * things it changes about playback.
+ *
+ * @property resumeFrom where to start. Applied once — a learner who seeks back after resuming has
+ *   not asked to be moved again, and a hook that re-applied this on every update would fight them.
+ * @property seekCeiling the furthest second the learner may seek to, when the item forbids
+ *   skipping past unwatched content. Undefined when seeking is allowed, which is the ordinary
+ *   case. The SERVER enforces the same rule by refusing to credit coverage that could only have
+ *   come from a skip; this is the half that stops the learner from making one, so that the rule
+ *   arrives as a control rather than as coverage they mysteriously did not get.
+ */
+export type PlaybackHistory = {
+  resumeFrom?: number | undefined;
+  seekCeiling?: number | undefined;
+};
+
+export function useHls(
+  manifestUrl: string | undefined,
+  history: PlaybackHistory = {},
+): [AttachVideo, HlsState] {
   const video = useRef<HTMLVideoElement | null>(null);
   const [element, setElement] = useState<HTMLVideoElement | null>(null);
   const attachVideo = useCallback((attached: HTMLVideoElement | null) => {
@@ -120,6 +140,18 @@ export function useHls(manifestUrl: string | undefined): [AttachVideo, HlsState]
   // dependency here would reload the whole stream to change a level that can be set in place.
   const selection = useRef(selectedQualityId);
 
+  // The history is read inside the attach and inside a listener, and neither may depend on it:
+  // a dependency would tear down and rebuild the stream every time the ceiling moved, which is
+  // once per heartbeat.
+  const resumeFrom = useRef(history.resumeFrom ?? 0);
+  const seekCeiling = useRef(history.seekCeiling);
+  const resumed = useRef(false);
+
+  useEffect(() => {
+    resumeFrom.current = history.resumeFrom ?? 0;
+    seekCeiling.current = history.seekCeiling;
+  }, [history.resumeFrom, history.seekCeiling]);
+
   useEffect(() => {
     selection.current = selectedQualityId;
     if (engine.current) {
@@ -137,6 +169,40 @@ export function useHls(manifestUrl: string | undefined): [AttachVideo, HlsState]
     }
   }, [rate, manifestUrl]);
 
+  // THE RESUME THAT ARRIVES LATE. The position comes from a request the player makes at the same
+  // time as the one for a playback token, and either can answer first. When the manifest wins the
+  // race the restore above sees a zero; this is the other order, and `resumed` is what keeps the
+  // two from both seeking -- or from seeking a learner who has already moved themselves.
+  useEffect(() => {
+    const element = video.current;
+    const seconds = history.resumeFrom ?? 0;
+    if (!element || resumed.current || seconds <= 0 || element.currentTime > 0) {
+      return;
+    }
+    element.currentTime = seconds;
+    resumed.current = true;
+  }, [history.resumeFrom, element]);
+
+  // THE SEEK THE ITEM FORBIDS. Enforced on `seeking` rather than by hiding the scrubber: the
+  // native controls are the accessible ones (they are the reason this player has almost no
+  // controls of its own), and a learner is better served by a scrubber that will not go past
+  // where they have watched than by no scrubber at all.
+  useEffect(() => {
+    const element = video.current;
+    if (!element) {
+      return;
+    }
+    function refuseSkippingAhead() {
+      const ceiling = seekCeiling.current;
+      const target = element?.currentTime ?? 0;
+      if (element && ceiling !== undefined && target > ceiling) {
+        element.currentTime = ceiling;
+      }
+    }
+    element.addEventListener('seeking', refuseSkippingAhead);
+    return () => element.removeEventListener('seeking', refuseSkippingAhead);
+  }, [element]);
+
   useEffect(() => {
     const element = video.current;
     if (!element || !manifestUrl) {
@@ -145,14 +211,16 @@ export function useHls(manifestUrl: string | undefined): [AttachVideo, HlsState]
 
     let cancelled = false;
     let hls: Engine | undefined;
-    // Read BEFORE the swap. On the first attach this is 0; on a renewal it is where the learner
-    // actually is, and it is the only copy of that number once the source is replaced.
-    const resumeAt = element.currentTime;
+    // Read BEFORE the swap. On the first attach this is 0 and the server's resume position is
+    // what should apply; on a renewal it is where the learner actually is, and it is the only
+    // copy of that number once the source is replaced.
+    const resumeAt = element.currentTime > 0 ? element.currentTime : resumeFrom.current;
     const wasPlaying = !element.paused && !element.ended;
 
     function restore(video: HTMLVideoElement) {
       if (resumeAt > 0) {
         video.currentTime = resumeAt;
+        resumed.current = true;
       }
       if (wasPlaying) {
         // A renewal must not leave a playing video paused. The rejection is swallowed on

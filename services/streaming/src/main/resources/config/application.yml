@@ -76,6 +76,24 @@ platform:
       streaming: ${STREAMING_URL:http://localhost:8083}
       reporting: ${REPORTING_URL:http://localhost:8084}
 
+  # The transactional outbox and the bus (T-9.8). On here because this service
+  # now announces something: a learner finished an item (T-3.7). A completion
+  # written without its event would leave the gate behind it shut forever, and
+  # an event without the row would open a gate for training nobody did -- which
+  # is why the announcement is a row in the same transaction rather than a call.
+  outbox:
+    enabled: true
+    interval: PT1S
+    batch-size: 100
+  messaging:
+    # EMPTY BY DEFAULT, and that is the local default rather than the only one.
+    # Without it the outbox still fills and drains, and messages are delivered
+    # nowhere -- with a WARN at every startup, because a green run against that
+    # proves the outbox works and nothing at all about the bus.
+    nats-url: ${NATS_URL:}
+    poll-interval: PT1S
+    batch-size: 50
+
 server:
   port: ${SERVER_PORT:8083}
 
@@ -116,6 +134,42 @@ streaming:
     # a loop within a second.
     mints-per-window: ${PLAYBACK_MINTS_PER_WINDOW:20}
     mint-window: ${PLAYBACK_MINT_WINDOW:PT5M}
+
+  progress:
+    # THE COMPLETION THRESHOLD (ADR-0107). 90% of the provider-reported extent,
+    # because the last few seconds of a video are credits and a dropped final
+    # heartbeat is ordinary -- and because 75 would pass a learner who skipped
+    # the last quarter, who did not do the training. Per item where an item says
+    # so; this is what applies when it does not.
+    default-threshold-percent: ${PROGRESS_THRESHOLD_PERCENT:90}
+    # THE SIZE BOUND. Straight-through playback is one fragment; fragments come
+    # only from seeking, and the simulation in docs/slos.md put a deliberate
+    # scrubber in the low twenties over a whole video. Sixty-four leaves an order
+    # of magnitude over that and still bounds the work a heartbeat can do. At the
+    # cap the smallest gap is closed and the row is marked approximate.
+    max-fragments: ${PROGRESS_MAX_FRAGMENTS:64}
+    # Gaps this small are noise from a ten-second heartbeat's sampling, not
+    # unwatched content. Two seconds is also the most this can add per gap.
+    coalesce-gap-seconds: 2
+    # The same bounds reporting's ingest applies (T-3.6), so a batch analytics
+    # accepts is never one progress refuses.
+    max-samples-per-batch: 60
+    max-interval-seconds: 120
+    min-rate: 0.25
+    # The fastest the player offers, and therefore the most video wall clock can
+    # account for. Narrower than reporting's band deliberately: that one
+    # validates a number a client reported, this one bounds what is CREDITED.
+    max-rate: 2.0
+    # One full client buffer of grace, so a learner returning from an outage is
+    # not called a liar for posting the sixty samples they buffered.
+    rate-grace: PT2M
+    # How long an item's threshold and seek rule may be assumed unchanged. An
+    # author changing a threshold expects it to take effect; a heartbeat may not
+    # ask catalog for it. An hour is where those two meet.
+    policy-refresh: PT1H
+    # The same "is this still continuous playback" threshold the player uses, so
+    # an honest player is never refused by the no-skipping-ahead rule.
+    seek-tolerance-seconds: 3
 
   media:
     # `fake` is the local default because video is the one dependency with no

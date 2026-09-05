@@ -58,6 +58,31 @@ const FIVE_MINUTES = 5 * 60 * 1000;
 
 let respond: () => { status: number; body: unknown } = () => ({ status: 200, body: playback() });
 
+/**
+ * What `streaming` says this learner has already done (T-3.7). Answered separately from the token
+ * because it is a separate request, and the player has to render correctly whichever lands first.
+ */
+let progress: () => { status: number; body: unknown } = () => ({ status: 200, body: derived() });
+
+function derived(overrides: Record<string, unknown> = {}) {
+  return {
+    nodeId: 'node-1',
+    coveredSeconds: 0,
+    extentSeconds: 600,
+    percent: 0,
+    thresholdPercent: 90,
+    completed: false,
+    completedAt: null,
+    completionSource: 'DERIVED',
+    resumeSecond: 0,
+    allowSeekForward: true,
+    seekCeilingSecond: null,
+    fragments: 0,
+    approximate: false,
+    ...overrides,
+  };
+}
+
 function playback() {
   const now = Date.now();
   return {
@@ -73,10 +98,14 @@ function playback() {
 beforeEach(() => {
   hls.constructed = 0;
   respond = () => ({ status: 200, body: playback() });
+  progress = () => ({ status: 200, body: derived() });
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => {
-      const { status, body } = respond();
+    vi.fn(async (input: Request | string) => {
+      const url = input instanceof Request ? input.url : String(input);
+      // Two endpoints under the same prefix, and the player calls both on load: the token it
+      // needs to play at all, and the progress it needs to know where to start.
+      const { status, body } = url.includes('/progress') ? progress() : respond();
       return new Response(JSON.stringify(body), {
         status,
         headers: { 'content-type': 'application/json' },
@@ -204,6 +233,34 @@ describe('the player', () => {
     // No retry: a closed gate answers the same way however many times it is asked, and a button
     // that does nothing twice is worse than no button.
     expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+  });
+
+  it('renders the coverage the server derived, and what the item asks for', async () => {
+    progress = () => ({
+      status: 200,
+      body: derived({ coveredSeconds: 300, percent: 50, resumeSecond: 300 }),
+    });
+
+    render(<VideoPlayer nodeId="node-1" title="Fire safety, part 1" />);
+
+    // 50% of a ten-minute video against a threshold of 90. Both numbers are the server's; the
+    // player computes neither, because a second answer to "is this complete" is one that
+    // disagrees with the compliance report (ADR-0107).
+    const readout = await screen.findByText(/Watched 50% of 90% needed/);
+    expect(readout).toHaveAttribute('aria-live', 'polite');
+  });
+
+  it('says so when an item has to be watched in order', async () => {
+    progress = () => ({
+      status: 200,
+      body: derived({ allowSeekForward: false, seekCeilingSecond: 30, percent: 5 }),
+    });
+
+    render(<VideoPlayer nodeId="node-1" title="Fire safety, part 1" />);
+
+    // The rule is enforced on the element and stated in words. A scrubber that silently snaps
+    // back is a broken player; one that snaps back next to a sentence explaining it is a rule.
+    expect(await screen.findByText(/must be watched in order/)).toBeInTheDocument();
   });
 
   it('does not translate a deliberately silent 404 into a claim about the video', async () => {

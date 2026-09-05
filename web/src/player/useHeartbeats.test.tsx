@@ -1,6 +1,6 @@
 import { act, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useHeartbeats, type Sample } from './useHeartbeats.ts';
+import { useHeartbeats, type Progress, type Sample } from './useHeartbeats.ts';
 
 /**
  * The heartbeat loop (T-3.6): what the player tells analytics, and what it does when it cannot.
@@ -13,10 +13,30 @@ import { useHeartbeats, type Sample } from './useHeartbeats.ts';
 
 const FLUSH = 10_000;
 
-type Posted = { nodeId: string; playbackToken: string; samples: Sample[] };
+type Posted = { url: string; nodeId?: string; playbackToken: string; samples: Sample[] };
 
 let posts: Posted[] = [];
+
+/** What went to analytics (T-3.6), and what went to progress (T-3.7). Two sinks, one buffer. */
+const analytics = () => posts.filter((post) => post.url.includes('/telemetry/playback'));
+const progress = () => posts.filter((post) => post.url.includes('/progress'));
 let respond: () => { status: number } | 'network-error' = () => ({ status: 202 });
+
+/** What streaming answers a progress post with -- the server's derivation, never the client's. */
+let derived: Progress = {
+  coveredSeconds: 12,
+  extentSeconds: 600,
+  percent: 2,
+  thresholdPercent: 90,
+  completed: false,
+  resumeSecond: 12,
+  allowSeekForward: true,
+  seekCeilingSecond: null,
+  fragments: 1,
+  approximate: false,
+};
+
+let reported: Progress[] = [];
 
 /** A video element the test drives, since jsdom's has no clock of its own. */
 function fakeVideo(): HTMLVideoElement {
@@ -36,12 +56,13 @@ function fakeVideo(): HTMLVideoElement {
 }
 
 function Probe({ video, token }: { video: HTMLVideoElement | null; token?: string }) {
-  useHeartbeats(video, 'node-1', token);
+  useHeartbeats(video, 'node-1', token, (progress) => reported.push(progress));
   return null;
 }
 
 beforeEach(() => {
   posts = [];
+  reported = [];
   respond = () => ({ status: 202 });
   vi.useFakeTimers({ shouldAdvanceTime: true });
   vi.stubGlobal(
@@ -57,8 +78,9 @@ beforeEach(() => {
       }
       const body =
         input instanceof Request ? await input.clone().text() : (init?.body ?? '{}');
-      posts.push(JSON.parse(body || '{}') as Posted);
-      return new Response(JSON.stringify({ samples: 0 }), {
+      const url = input instanceof Request ? input.url : String(input);
+      posts.push({ url, ...(JSON.parse(body || '{}') as Omit<Posted, 'url'>) });
+      return new Response(JSON.stringify(url.includes('/progress') ? derived : { samples: 0 }), {
         status: answer.status,
         headers: { 'content-type': 'application/json' },
       });
@@ -88,13 +110,13 @@ describe('the heartbeat loop', () => {
 
     await play(video, 12);
 
-    // One post, not twelve. At 5,000 concurrent learners the difference between these two is
-    // ~500 posts/second and ~6,000 (ADR-0107).
-    expect(posts).toHaveLength(1);
-    expect(posts[0]!.samples.length).toBeGreaterThan(1);
-    expect(posts[0]!.playbackToken).toBe('token-1');
+    // One post per sink, not twelve. At 5,000 concurrent learners the difference between these
+    // two is ~500 posts/second and ~6,000 (ADR-0107).
+    expect(analytics()).toHaveLength(1);
+    expect(analytics()[0]!.samples.length).toBeGreaterThan(1);
+    expect(analytics()[0]!.playbackToken).toBe('token-1');
     // Contiguous playback: each sample ends where the next begins, so the union is one run.
-    expect(posts[0]!.samples.every((s) => s.toSecond > s.fromSecond)).toBe(true);
+    expect(analytics()[0]!.samples.every((s) => s.toSecond > s.fromSecond)).toBe(true);
   });
 
   it('does not credit a seek as watched content', async () => {
@@ -150,8 +172,8 @@ describe('the heartbeat loop', () => {
     });
 
     // Nothing was dropped by the retry itself: the samples buffered during the outage arrive.
-    expect(posts).toHaveLength(1);
-    expect(posts[0]!.samples.length).toBeGreaterThan(1);
+    expect(analytics()).toHaveLength(1);
+    expect(analytics()[0]!.samples.length).toBeGreaterThan(1);
   });
 
   it('gives up on a batch rather than retrying it forever', async () => {
@@ -222,8 +244,62 @@ describe('the heartbeat loop', () => {
     });
 
     // One final flush on the way out is allowed -- closing a tab should not silently discard the
-    // last ten seconds of every session -- but the loop must not outlive the player.
+    // last ten seconds of every session -- but the loop must not outlive the player. A flush is
+    // two requests now (analytics and progress), so the allowance is two.
     expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.length)
-      .toBeLessThanOrEqual(duringPlayback + 1);
+      .toBeLessThanOrEqual(duringPlayback + 2);
+  });
+
+  it('sends the same batch to analytics and to progress', async () => {
+    const video = fakeVideo();
+    render(<Probe video={video} token="token-1" />);
+
+    await play(video, 12);
+
+    // The same measurement, going to two places that do different things with it: raw and
+    // droppable in reporting (ADR-0108), merged into completion state in streaming (ADR-0107).
+    expect(analytics()).toHaveLength(1);
+    expect(progress()).toHaveLength(1);
+    expect(progress()[0]!.samples).toEqual(analytics()[0]!.samples);
+    expect(progress()[0]!.url).toContain('/api/v1/me/nodes/node-1/progress');
+  });
+
+  it('renders what the server derived and never its own idea of it', async () => {
+    const video = fakeVideo();
+    derived = { ...derived, coveredSeconds: 540, percent: 90, completed: true, resumeSecond: 540 };
+    render(<Probe video={video} token="token-1" />);
+
+    await play(video, 12);
+
+    // The client posted twelve seconds and reports ninety per cent, because completion is the
+    // server's answer to a question the browser is not allowed to answer (ADR-0107).
+    expect(reported.at(-1)).toMatchObject({ percent: 90, completed: true });
+  });
+
+  it('keeps recording progress while analytics is down', async () => {
+    const video = fakeVideo();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: Request | string) => {
+        const url = input instanceof Request ? input.url : String(input);
+        if (url.includes('/telemetry/playback')) {
+          throw new TypeError('Failed to fetch');
+        }
+        posts.push({ url, playbackToken: 'token-1', samples: [] });
+        return new Response(JSON.stringify(derived), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }),
+    );
+    render(<Probe video={video} token="token-1" />);
+
+    await play(video, 12);
+
+    // The property docs/reporting-inputs.md states as a rule: progress recording completes with
+    // reporting stopped. If completion were derived from the analytics store, this would be the
+    // outage in which nobody finished anything and no screen said so.
+    expect(progress().length).toBeGreaterThan(0);
+    expect(reported.length).toBeGreaterThan(0);
   });
 });

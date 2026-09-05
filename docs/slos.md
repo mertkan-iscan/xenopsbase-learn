@@ -67,10 +67,49 @@ generator and the database; until then the number is unresolved rather than vali
 
 Every post was accepted at both settings. The pool was affecting latency, not correctness.
 
+## Watched intervals — how many fragments, and what a merge costs
+
+**Task:** T-3.7 · **Answers:** [ADR-0107](adr/0107-completion-is-derived-by-the-server.md)'s two
+open numbers, the fragment cap and the distribution real learners produce.
+
+**What this is, and what it is not.** A seeded simulation, not an observation: there are no
+learners yet, so what is measured here is the *structure* — how many fragments a viewing produces
+under behaviours chosen to bracket what a person can do to a video, and what a merge costs against
+a set already at its cap. It is not evidence about people, and the cap should be revisited against
+`progress.coverage.fragments` (published as percentiles from real viewings) rather than against
+this, once there is enough of it.
+
+**Run it:** `mvn -f services/pom.xml -pl streaming test -Dtest=FragmentDistributionTest`
+
+### What was measured, 2026-09-05
+
+1,000 simulated viewings of a 1,800-second video in ten-second heartbeats. 70% watch it through,
+20% rewind three to eight times, 10% scrub deliberately (20–60 seeks).
+
+| | |
+|---|---|
+| Fragments, median | **1** — watching a video is one run |
+| Fragments, p95 | 13 |
+| Fragments, p99 | 18 |
+| Fragments, worst of 1,000 | 20 |
+| **Cap chosen** | **64**, about three times the worst simulated scrubber |
+| Merge cost at the cap | **13µs**, over 2,000 merges against a full set |
+
+The merge figure is the one that matters for the write path: it is flat. A learner who has been
+scrubbing a four-hour recording all afternoon costs the same per heartbeat as one who started a
+minute ago, which is what "amortised" has to mean for a write that happens every ten seconds per
+learner.
+
+**What the cap costs when it does bite:** the two fragments separated by the smallest gap are
+merged, the record is flagged `approximate`, and the coverage credited grows by that gap. It
+rounds in the learner's favour and the row says it happened.
+
+**Conditions.** In-process, no database, Java 25, one machine. The database side is not what this
+measures — the merged set is written as one `int4multirange` literal against a row already locked
+by the same statement.
+
 ## Not yet measured
 
-- **Fragment cap and distribution for watched intervals** — ADR-0107 marks both unmeasured and
-  T-3.7 (#40) owes them.
 - **Per-service memory under real load** — ADR-0109's process-count arithmetic is derived from
   declared configuration; T-9.15 (#101) replaces it with measurements.
 - **Ingest under sustained load rather than a ten-second window** — what happens after an hour,

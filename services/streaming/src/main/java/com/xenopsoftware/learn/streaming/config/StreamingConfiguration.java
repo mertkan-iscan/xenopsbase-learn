@@ -1,6 +1,7 @@
 package com.xenopsoftware.learn.streaming.config;
 
 import com.xenopsoftware.learn.streaming.playback.PlaybackProperties;
+import com.xenopsoftware.learn.streaming.progress.ProgressProperties;
 import com.xenopsoftware.learn.streaming.video.UploadProperties;
 import java.time.Clock;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -15,7 +16,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  */
 @Configuration(proxyBeanMethods = false)
 @EnableScheduling
-@EnableConfigurationProperties({UploadProperties.class, PlaybackProperties.class})
+@EnableConfigurationProperties({UploadProperties.class, PlaybackProperties.class,
+    ProgressProperties.class})
 public class StreamingConfiguration {
 
     /**

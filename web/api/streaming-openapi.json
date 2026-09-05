@@ -34,6 +34,59 @@
         },
         "type": "object"
       },
+      "LearnerProgress": {
+        "properties": {
+          "allowSeekForward": {
+            "type": "boolean"
+          },
+          "approximate": {
+            "type": "boolean"
+          },
+          "completed": {
+            "type": "boolean"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "completionSource": {
+            "type": "string"
+          },
+          "coveredSeconds": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "extentSeconds": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "fragments": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "nodeId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "percent": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "resumeSecond": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "seekCeilingSecond": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "thresholdPercent": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "PlaybackTokenView": {
         "properties": {
           "expiresAt": {
@@ -58,6 +111,41 @@
           "videoAssetId": {
             "format": "uuid",
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ProgressBatch": {
+        "properties": {
+          "playbackToken": {
+            "type": "string"
+          },
+          "samples": {
+            "items": {
+              "$ref": "#/components/schemas/Sample"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "Sample": {
+        "properties": {
+          "fromSecond": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "rate": {
+            "format": "double",
+            "type": "number"
+          },
+          "toSecond": {
+            "format": "int32",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -139,6 +227,76 @@
         },
         "tags": [
           "playback-resource"
+        ]
+      }
+    },
+    "/api/v1/me/nodes/{id}/progress": {
+      "get": {
+        "operationId": "current",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/LearnerProgress"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "progress-resource"
+        ]
+      },
+      "post": {
+        "operationId": "record",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProgressBatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/LearnerProgress"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "progress-resource"
         ]
       }
     },

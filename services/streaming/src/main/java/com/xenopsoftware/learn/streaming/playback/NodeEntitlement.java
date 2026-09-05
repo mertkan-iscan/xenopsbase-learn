@@ -21,6 +21,30 @@ import java.util.UUID;
  * @param reachable    whether the gate in front of it is open for this viewer (T-5.3)
  * @param gateReason   the sentence a learner should read when {@code reachable} is false; null
  *                     otherwise. T-5.3 requires the rule to be readable by the person it stops
+ * @param thresholdPercent how much of this item has to be presented before it counts as complete,
+ *                     or null to take the platform default (90%, ADR-0107). Per item, because an
+ *                     item that genuinely needs all of it must be able to say so — and it travels
+ *                     on this record rather than being asked for per heartbeat, which at one post
+ *                     per learner per ten seconds would be the most-called call in the product
+ * @param allowSeekForward whether a learner may skip past content they have not been shown. Also
+ *                     the item's, also carried here, and enforced on BOTH sides: the player is
+ *                     told it so it can stop the seek, and {@code streaming} refuses to credit
+ *                     coverage that could only have come from making it anyway (T-3.7)
  */
 public record NodeEntitlement(UUID nodeId, UUID videoAssetId, boolean assigned, boolean reachable,
-                              String gateReason) {}
+                              String gateReason, Integer thresholdPercent,
+                              boolean allowSeekForward) {
+
+    /**
+     * The entitlement of an item that has said nothing about completion or seeking — the common
+     * case, and the shape every caller written before T-3.7 already uses.
+     *
+     * <p>Defaults spelled out rather than left to a null check at the far end: "no threshold" means
+     * the platform's, and "nothing said about seeking" means seeking is allowed, which is the
+     * ordinary behaviour of a video and the only default that does not surprise a learner.
+     */
+    public NodeEntitlement(UUID nodeId, UUID videoAssetId, boolean assigned, boolean reachable,
+            String gateReason) {
+        this(nodeId, videoAssetId, assigned, reachable, gateReason, null, true);
+    }
+}

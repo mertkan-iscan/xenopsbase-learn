@@ -124,19 +124,43 @@ aspect ratio until the player reports the real one.
 Every message is filtered on **both** origin and channel id. Origin makes a stranger's message
 untrusted; the channel id is what makes another of *our own* players on the same page not ours.
 
+### Progress is read from the server, never computed here (T-3.7).
+
+Where to resume, how much has been watched, whether it is complete, and whether this item allows
+skipping ahead all arrive from `GET /api/v1/me/nodes/{id}/progress` and from the answer to every
+progress post. **None of it is derived in the browser.** A player that kept its own idea of
+completion would be a second answer to the question a compliance report answers, and the two would
+disagree the first time a heartbeat was lost — which is exactly the disagreement
+[ADR-0107](adr/0107-completion-is-derived-by-the-server.md) exists to prevent.
+
+Three consequences worth stating, because each of them looks like a bug from the outside:
+
+- **The resume position can arrive after the video does.** The token request and the progress
+  request are made together and either can answer first. The player seeks once, whichever order
+  they land in, and never afterwards — a learner who scrolls back after resuming has not asked to
+  be moved again.
+- **Seeking forward is stopped by a listener, not by hiding the scrubber.** Native controls are the
+  accessible ones, and a scrubber that will not go past what has been watched serves a learner
+  better than no scrubber. The server enforces the same rule from its side by refusing to credit
+  coverage that could only have come from a skip, so a modified client gains nothing but a refusal.
+- **Progress lags by up to one flush.** Completion is derived on the server from a batch posted
+  every ten seconds, so a learner who finishes and immediately looks for their certificate may wait
+  that long. The UI says what it knows rather than guessing ahead of it.
+
+### The batch goes to two services, and that is on purpose (T-3.6, T-3.7).
+
+The same samples are posted to `reporting` (raw, append-only, droppable at ninety days) and to
+`streaming` (merged into the coverage completion is derived from). One extra request per learner
+per ten seconds buys the property [`reporting-inputs.md`](reporting-inputs.md) states as a rule:
+**progress recording completes with `reporting` stopped.** Deriving completion from rows in the
+analytics store would break that in one commit, invisibly — reports would keep rendering, with
+fewer completions in them.
+
 ## What is deliberately not here yet
 
-- **Resume from the server-held position.** The criterion says it must follow a learner across
-  devices, so it cannot come from `localStorage` — it comes from watched intervals, which are
-  T-3.7 (#40). The player has no position to resume to until then.
-- **The heartbeat loop.** T-3.6 (#39) owns the ingest endpoint and the batching contract. The
-  player emits `progress` to a host today; it posts nothing to us.
 - **Captions and multiple audio tracks.** T-3.9 (#42) produces them. A hard-coded `<track>`
   pointing at nothing would announce captions that do not exist, so the caption list is empty
   until an asset has one.
-- **Seek-forward restrictions.** T-3.7 owns the rule and the intervals it is enforced against.
-  The player will enforce the same rule it is told, which is the point of it being a server
-  decision.
 - **A published package.** T-10.7 (#98), including the example page built in CI so it cannot rot.
 
 ## What cannot be proved locally
@@ -153,6 +177,23 @@ tests stub hls.js and assert everything around the picture — the controls, the
 refusals — and claim nothing about decoding.
 
 T-9.14's real Cloudflare account is the only thing that can prove edge delivery.
+
+## Verified, on 2026-09-05 (T-3.7)
+
+Against the real local stack, `streaming`, `identity` and `reporting` all running, as
+`acme-learner`:
+
+- `GET` and `POST /api/v1/me/nodes/<uuid>/progress` both answered **404 with an empty body** for a
+  node nobody has, and `playback_refusal` recorded `UNKNOWN_NODE` against the caller's
+  `app_user.id` — the same disclosure rule the playback token follows (T-3.4), and proof that the
+  hop to `identity` resolved the person before anything was written.
+- A batch with no playback token answered **400 `MISSING_ATTRIBUTION`**, before any of that: the
+  shape of a batch is checked before the request is allowed to cost a lookup.
+
+What still cannot be checked locally is a *credited* interval, for the same reason T-3.4's
+entitlement decision cannot: `UnassignedContent` refuses every node because no catalog adapter
+exists yet, so nothing is assigned to anybody. The merge, the thresholds, the rate check and the
+seek rule are covered by `ProgressTest` against a real Postgres instead.
 
 ## Verified, on 2026-09-04
 

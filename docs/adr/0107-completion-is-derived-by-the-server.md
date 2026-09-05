@@ -78,8 +78,32 @@ seeking, so the bound is stated in terms of that:
   are merged and the record is flagged as approximate, so a pathological scrubber degrades a
   bounded amount rather than growing an unbounded value that is rewritten on every heartbeat.
 
-The cap's value and the fragment distribution real learners produce are **not measured** — there
-are no learners yet. T-3.7 owns both, and owes a number.
+**The cap is 64** (T-3.7, 2026-09-05), and the distribution behind it is in
+[`docs/slos.md`](../slos.md): over 1,000 simulated viewings of a thirty-minute video, the median
+viewing is **one** fragment, the 95th is 13, the 99th is 18 and the worst is 20. Sixty-four is
+therefore roughly three times the most scrubbing anybody simulated, which is what makes it a bound
+rather than a routine approximation — and merging against a set already at the cap costs 13µs, so
+the work per heartbeat is fixed rather than proportional to a watching history.
+
+**That is a simulation, and it is not evidence about people.** There are still no learners. The
+meter `progress.coverage.fragments` publishes the same distribution as percentiles from real
+viewings, and the cap should be revisited against that when there is enough of it — not against
+the simulation, which was built to bracket the structure rather than to predict behaviour.
+
+### Where the record actually lives, which is not quite what this ADR said
+
+This ADR keys coverage by `(app_user_id, content_item_id)`. The implementation keys it by
+`(app_user_id, node_id)`, in `streaming`, and the difference is deliberate (T-3.7):
+
+- `streaming` is the module that sees playback and therefore owns the measurement (ADR-0109), and
+  it does not know what a content item is. What it has is the node a playback token was minted for.
+- Keying by node keeps a product question open that keying by item would answer by accident:
+  whether finishing a video in the onboarding course finishes the same video in the refresher is
+  T-5.7's decision, and `catalog` can fold node-grained evidence either way. Item-grained coverage
+  would have decided it in a schema.
+
+The threshold and the completion source are unchanged, and `catalog` still receives a completion
+per node by event rather than reading anything.
 
 ### Rate sanity, using the credential that already exists
 
