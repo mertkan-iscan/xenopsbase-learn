@@ -75,7 +75,13 @@ class CatalogCoverageTest extends PostgresTestHarness {
         Map.entry("CourseVersionResource#publish", AUTHZ_GAP),
         Map.entry("CourseVersionResource#diff", AUTHZ_GAP),
         Map.entry("CourseVersionResource#migrationCost", AUTHZ_GAP),
-        Map.entry("CourseVersionResource#migrate", AUTHZ_GAP));
+        Map.entry("CourseVersionResource#migrate", AUTHZ_GAP),
+        Map.entry("DueResource#cycles", AUTHZ_GAP),
+        Map.entry("DueResource#unsent",
+            "the reminders this company's own assignments failed to deliver -- addresses that "
+            + "bounced and windows missed while the service was down. It is about this tenant's "
+            + "operational health and is scoped to it, and it needs a permission for the same "
+            + "reason everything else on this list does (T-9.11)"));
 
     @Autowired
     @Qualifier("requestMappingHandlerMapping")

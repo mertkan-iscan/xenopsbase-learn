@@ -103,6 +103,10 @@ class CatalogCoverageTest extends PostgresTestHarness {
             "the caller is accepting an invitation, so they hold nothing yet -- requiring a "
             + "permission would require a grant, and a grant requires the account this creates. "
             + "The token is the whole credential (T-1.9)"),
+        Map.entry("UserLifecycleResource#moveTo",
+            "sets the caller's OWN timezone, taken from the token and never from the path, so "
+            + "there is no other person's it could change. A permission would be one that every "
+            + "member of every company had to hold to say where they live (T-5.6)"),
         Map.entry("GroupResource#roots", GROUP_GAP),
         Map.entry("GroupResource#children", GROUP_GAP),
         Map.entry("GroupResource#reach", GROUP_GAP),

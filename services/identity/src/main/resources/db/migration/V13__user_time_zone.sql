@@ -1,0 +1,24 @@
+-- V13 — the learner's own timezone (T-5.6).
+--
+-- WHY THIS COLUMN IS IN IDENTITY AND NOT WHERE IT IS USED. Catalog computes
+-- deadlines and needs to know when a day ends for the person who owes the
+-- training; it must not read this table to find out (ADR-0109), and identity
+-- owns the person (ADR-0104). So the column lives here, next to the rest of
+-- who somebody is, and travels to catalog as an event.
+--
+-- NULLABLE, AND THE NULL MEANS SOMETHING. "They have not told us" is a
+-- different state from "they are in UTC", and the difference is visible: the
+-- fallback is applied where the deadline is computed and is named there, so a
+-- learner who has never set one can be found and asked. Defaulting the column
+-- to UTC would make that population unfindable forever.
+--
+-- NOT GUESSED FROM AN ADDRESS, A BROWSER OR AN IP. A guess would be wrong
+-- silently, for years, and would move a compliance deadline for somebody who
+-- travelled.
+ALTER TABLE app_user ADD COLUMN time_zone varchar(64);
+
+-- No CHECK constraint on the value. The IANA database is not a list Postgres
+-- can be asked about portably, and it CHANGES -- zones are added, renamed and
+-- retired. A constraint written today would start refusing valid rows on some
+-- future tzdata update, so the value is validated where it is set and where it
+-- is read, and an unparseable one falls back rather than failing a whole page.

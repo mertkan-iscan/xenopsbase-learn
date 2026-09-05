@@ -327,6 +327,9 @@
           },
           "status": {
             "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -596,6 +599,14 @@
             "type": "string"
           },
           "tenantId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TimeZoneRequest": {
+        "properties": {
+          "timeZone": {
             "type": "string"
           }
         },
@@ -1784,6 +1795,36 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AcceptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "user-lifecycle-resource"
+        ]
+      }
+    },
+    "/api/v1/users/me/timezone": {
+      "put": {
+        "operationId": "moveTo",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimeZoneRequest"
               }
             }
           },

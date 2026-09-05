@@ -42,6 +42,25 @@ public class LearnerGroupReach {
         this.jdbc = new JdbcTemplate(dataSource);
     }
 
+    /**
+     * When each group started reaching this learner (T-5.6).
+     *
+     * <p>What makes "within 30 days of joining" computable. A group assignment made a year before
+     * somebody arrived carries no date for their arrival -- the date is on the membership, and
+     * this is where it is kept.
+     */
+    public java.util.Map<UUID, java.time.Instant> reachedAtOf(String tenantId, UUID learnerId) {
+        java.util.Map<UUID, java.time.Instant> when = new java.util.LinkedHashMap<>();
+        jdbc.query("""
+            SELECT group_id, reached_at FROM learner_group_reach
+             WHERE tenant_id = ? AND learner_id = ?
+            """, rows -> {
+                when.put(rows.getObject("group_id", UUID.class),
+                    rows.getTimestamp("reached_at").toInstant());
+            }, tenantId, learnerId);
+        return when;
+    }
+
     /** Every group that reaches this learner, or the sentinel when there are none. */
     public List<UUID> of(String tenantId, UUID learnerId) {
         List<UUID> reaching = jdbc.queryForList("""

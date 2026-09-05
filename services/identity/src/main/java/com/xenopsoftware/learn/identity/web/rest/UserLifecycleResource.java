@@ -33,9 +33,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserLifecycleResource {
 
     private final UserLifecycleService lifecycle;
+    private final com.xenopsoftware.learn.identity.audit.CurrentUser currentUser;
 
-    public UserLifecycleResource(UserLifecycleService lifecycle) {
+    public UserLifecycleResource(UserLifecycleService lifecycle,
+            com.xenopsoftware.learn.identity.audit.CurrentUser currentUser) {
         this.lifecycle = lifecycle;
+        this.currentUser = currentUser;
     }
 
     public record InviteRequest(String email, String displayName) {}
@@ -44,16 +47,28 @@ public class UserLifecycleResource {
 
     public record UpdateUserRequest(String email, String displayName) {}
 
+    /**
+     * @param timeZone an IANA zone id such as {@code Europe/Istanbul}, or empty to clear it and
+     *                 go back to having not said
+     */
+    public record TimeZoneRequest(String timeZone) {}
+
     /** The token appears here and nowhere else, ever again. */
     public record InvitationView(UUID userId, String email, String displayName, String token,
                                  Instant expiresAt) {}
 
+    /**
+     * @param timeZone the IANA zone their deadlines are reckoned in, or null when they have not
+     *                 said (T-5.6). Returned because it is normalised on the way in — a caller
+     *                 that set one should be able to see what was actually stored rather than
+     *                 trust that their string survived
+     */
     public record PersonView(UUID id, String email, String displayName, String status,
-                             Instant deactivatedAt) {
+                             Instant deactivatedAt, String timeZone) {
 
         static PersonView of(AppUser user) {
             return new PersonView(user.getId(), user.getEmail(), user.getDisplayName(),
-                user.getStatus().name(), user.getDeactivatedAt());
+                user.getStatus().name(), user.getDeactivatedAt(), user.getTimeZone());
         }
     }
 
@@ -93,6 +108,19 @@ public class UserLifecycleResource {
     @PreAuthorize("hasPermission('user', 'manage')")
     public PersonView update(@PathVariable UUID id, @RequestBody UpdateUserRequest request) {
         return PersonView.of(lifecycle.update(id, request.email(), request.displayName()));
+    }
+
+    /**
+     * Where somebody is, for the deadlines they are held to (T-5.6).
+     *
+     * <p><b>No {@code @PreAuthorize}, and it takes no id.</b> It always changes the CALLER's own
+     * timezone. Moving to Berlin is not an administrative act, and an endpoint that let one person
+     * set another's would be one that moved somebody else's compliance deadline — so the identity
+     * comes from the token rather than from the path, and there is nothing to get wrong.
+     */
+    @PutMapping("/me/timezone")
+    public PersonView moveTo(@RequestBody TimeZoneRequest request) {
+        return PersonView.of(lifecycle.moveTo(currentUser.requireId(), request.timeZone()));
     }
 
     /**
