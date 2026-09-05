@@ -39,4 +39,8 @@ public interface AssignmentRepository extends JpaRepository<Assignment, UUID> {
         ReferenceKind referenceType, UUID referenceId);
 
     List<Assignment> findByRevokedAtIsNullOrderByAssignedAtDesc();
+
+    /** Live assignments that carry a deadline -- what a reminder pass considers (T-5.6). */
+    List<Assignment> findByRevokedAtIsNullAndDueKindNot(
+        com.xenopsoftware.learn.catalog.due.DueKind dueKind);
 }

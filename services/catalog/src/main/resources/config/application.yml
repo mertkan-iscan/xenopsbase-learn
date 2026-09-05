@@ -107,6 +107,31 @@ platform:
     poll-interval: PT1S
     batch-size: 50
 
+  # Mail (T-5.6). On, because this service sends reminders -- and unconfigured
+  # by default, which is not the same thing. With no spring.mail.host the
+  # LoggingMailer is wired: every reminder is claimed, recorded and delivered
+  # nowhere, with a WARN at startup. That is the local default for the same
+  # reason the bus has no broker locally, and it is said out loud because a
+  # green test run against it proves the call sites work and nothing about mail.
+  mail:
+    enabled: true
+    from: ${MAIL_FROM:}
+
+# Due dates, recurrence and reminders (T-5.6).
+catalog:
+  due:
+    # THE HOUR IS IN THE LEARNER'S OWN TIMEZONE, not the server's. A server-side
+    # "send at 09:00" reaches a third of a global company in the middle of the
+    # night, which is how reminders get filtered to a folder nobody opens.
+    send-hour: ${DUE_SEND_HOUR:9}
+    # How late a reminder may still be sent. A window missed by longer is
+    # RECORDED AS MISSED rather than delivered: a service down for a week must
+    # not mail a week of nudges the moment it returns, and must not pretend the
+    # window never existed either.
+    catch-up: ${DUE_CATCH_UP:P2D}
+    # How often the pass runs. The pass is idempotent -- the claim is a primary
+    # key -- so this is a latency knob and not a correctness one.
+    interval: ${DUE_INTERVAL:PT15M}
 
 server:
   port: ${SERVER_PORT:8085}

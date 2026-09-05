@@ -264,6 +264,67 @@ class UserLifecycleTest extends PostgresTestHarness {
      * comma in it, somebody who already has an account, the same address twice, and something
      * that is not an address at all.
      */
+    // ---------------------------------------------------------------- where somebody is (T-5.6)
+
+    @Test
+    void aPersonSetsTheirOwnTimezoneAndItIsAnnouncedToWhoeverNeedsIt() throws Exception {
+        UUID learner = signIn("kaya");
+
+        HttpResponse<String> set = expect(200, put("/api/v1/users/me/timezone",
+            "kaya~acme~TENANT", "{\"timeZone\":\"Europe/Istanbul\"}"));
+
+        assertThat(json.readTree(set.body()).path("timeZone").asText())
+            .as("the value is normalised on the way in, so the caller is shown what was actually "
+                + "stored rather than left to assume their string survived")
+            .isEqualTo("Europe/Istanbul");
+        assertThat(jdbc.queryForObject("SELECT time_zone FROM app_user WHERE id = ?", String.class,
+            learner))
+            .as("a deadline expires when the day ends where the LEARNER is, and this is the only "
+                + "place that fact is recorded (T-5.6)")
+            .isEqualTo("Europe/Istanbul");
+        assertThat(jdbc.queryForList(
+            "SELECT payload::text FROM outbox WHERE topic = 'identity.user.profile'", String.class))
+            .as("catalog computes the deadline and must not read this table to do it (ADR-0109), "
+                + "so the zone travels as an event -- written in the transaction that changed it")
+            .isNotEmpty();
+        assertThat(jdbc.queryForList(
+            "SELECT payload::text FROM outbox WHERE topic = 'identity.user.profile'", String.class)
+            .toString())
+            .contains("Europe/Istanbul");
+    }
+
+    @Test
+    void aTimezoneThePlatformCannotResolveIsRefusedRatherThanStored() throws Exception {
+        signIn("kaya");
+
+        HttpResponse<String> refused = put("/api/v1/users/me/timezone", "kaya~acme~TENANT",
+            "{\"timeZone\":\"Middle/Earth\"}");
+
+        // The failure of an unparseable zone is remote and quiet -- a reminder at the wrong hour,
+        // or somebody marked late on a day they were not -- so it is refused where it is set.
+        //
+        // The status and nothing else: no service in this platform returns an exception message in
+        // a response body, so the sentence the refusal carries is for whoever reads the log.
+        assertThat(refused.statusCode()).isEqualTo(400);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM app_user WHERE time_zone IS NOT NULL",
+            Integer.class)).isZero();
+    }
+
+    @Test
+    void clearingItPutsThemBackInTheHaveNotSaidPopulation() throws Exception {
+        UUID learner = signIn("kaya");
+        expect(200, put("/api/v1/users/me/timezone", "kaya~acme~TENANT",
+            "{\"timeZone\":\"Europe/Istanbul\"}"));
+
+        expect(200, put("/api/v1/users/me/timezone", "kaya~acme~TENANT", "{\"timeZone\":\"\"}"));
+
+        assertThat(jdbc.queryForObject("SELECT time_zone FROM app_user WHERE id = ?", String.class,
+            learner))
+            .as("null is a state and not a missing value: somebody who has left the country "
+                + "should be asked again rather than reckoned in a zone they no longer live in")
+            .isNull();
+    }
+
     private static String spreadsheet() {
         return "﻿email,displayName\r\n"
             + "gita@acme.test,\"Gita Rao, PhD\"\r\n"
@@ -362,6 +423,7 @@ class UserLifecycleTest extends PostgresTestHarness {
     }
 
     private void removeEverything() {
+        jdbc.update("DELETE FROM outbox");
         jdbc.update("DELETE FROM role_assignment");
         jdbc.update("DELETE FROM audit_log");
         jdbc.update("DELETE FROM role_permission");

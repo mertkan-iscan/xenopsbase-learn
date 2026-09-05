@@ -479,6 +479,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/me/timezone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["moveTo"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/{id}": {
         parameters: {
             query?: never;
@@ -673,6 +689,7 @@ export interface components {
             /** Format: uuid */
             id?: string;
             status?: string;
+            timeZone?: string;
         };
         ProviderRequest: {
             alias?: string;
@@ -771,6 +788,9 @@ export interface components {
             name?: string;
             status?: string;
             tenantId?: string;
+        };
+        TimeZoneRequest: {
+            timeZone?: string;
         };
         UpdateUserRequest: {
             displayName?: string;
@@ -1675,6 +1695,30 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["AcceptRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PersonView"];
+                };
+            };
+        };
+    };
+    moveTo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TimeZoneRequest"];
             };
         };
         responses: {

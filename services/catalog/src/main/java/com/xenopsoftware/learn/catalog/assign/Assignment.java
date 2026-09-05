@@ -1,5 +1,8 @@
 package com.xenopsoftware.learn.catalog.assign;
 
+import com.xenopsoftware.learn.catalog.due.Deadlines;
+import com.xenopsoftware.learn.catalog.due.DueBasis;
+import com.xenopsoftware.learn.catalog.due.DueKind;
 import com.xenopsoftware.learn.common.tenancy.TenantOwned;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -8,6 +11,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -53,6 +57,32 @@ public class Assignment extends TenantOwned {
 
     @Column(name = "revoked_at")
     private Instant revokedAt;
+
+    /**
+     * The deadline, in the four columns that state it (T-5.6).
+     *
+     * <p>A CHECK constraint makes each kind carry exactly the columns it means and none of the
+     * others, so a RELATIVE assignment cannot also be holding a stale absolute date that a second
+     * reader would believe.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "due_kind", nullable = false, length = 16)
+    private DueKind dueKind = DueKind.NONE;
+
+    /** A DATE, not an instant: it expires when that day ends where the LEARNER is. */
+    @Column(name = "due_on")
+    private LocalDate dueOn;
+
+    @Column(name = "due_after_days")
+    private Integer dueAfterDays;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "due_basis", length = 16)
+    private DueBasis dueBasis;
+
+    /** 12 for annual mandatory training; null for an obligation that is due once. */
+    @Column(name = "recurrence_months")
+    private Integer recurrenceMonths;
 
     protected Assignment() {
         // Hibernate.
@@ -125,5 +155,54 @@ public class Assignment extends TenantOwned {
 
     public boolean isLive() {
         return revokedAt == null;
+    }
+
+    /** The deadline, as the pure arithmetic wants it. */
+    public Deadlines.DueSpec due() {
+        return new Deadlines.DueSpec(dueKind, dueOn, dueAfterDays, dueBasis, recurrenceMonths);
+    }
+
+    /**
+     * Sets the deadline, refusing a shape the database would refuse.
+     *
+     * <p>Checked here as well as by the CHECK constraint, because a constraint violation reaches
+     * the caller as a 500 about a constraint name. The database is what makes the rule true; this
+     * is what makes the refusal answerable.
+     */
+    public void setDue(Deadlines.DueSpec spec) {
+        switch (spec.kind()) {
+            case NONE -> {
+                if (spec.dueOn() != null || spec.afterDays() != null || spec.basis() != null) {
+                    throw new IllegalArgumentException(
+                        "An assignment with no deadline cannot also carry one");
+                }
+            }
+            case ABSOLUTE -> {
+                if (spec.dueOn() == null || spec.afterDays() != null || spec.basis() != null) {
+                    throw new IllegalArgumentException(
+                        "An absolute deadline is a date and nothing else");
+                }
+            }
+            case RELATIVE -> {
+                if (spec.dueOn() != null || spec.afterDays() == null || spec.afterDays() <= 0
+                        || spec.basis() == null) {
+                    throw new IllegalArgumentException(
+                        "A relative deadline needs a positive number of days and a basis: "
+                        + "ASSIGNED gives everybody the same date, REACHED gives each learner "
+                        + "their own (T-5.6)");
+                }
+            }
+        }
+        if (spec.recurrenceMonths() != null
+                && (spec.recurrenceMonths() <= 0 || spec.kind() == DueKind.NONE)) {
+            throw new IllegalArgumentException(
+                "Recurrence needs a deadline to recur against: \"every year, no due date\" has "
+                + "no meaning, and would produce cycles that never end");
+        }
+        this.dueKind = spec.kind();
+        this.dueOn = spec.dueOn();
+        this.dueAfterDays = spec.afterDays();
+        this.dueBasis = spec.basis();
+        this.recurrenceMonths = spec.recurrenceMonths();
     }
 }

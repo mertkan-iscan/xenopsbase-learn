@@ -54,13 +54,15 @@ public class UserLifecycleService {
     private final InvitationProperties invitations;
     private final AuditLogger audit;
     private final CurrentUser currentUser;
+    private final UserProfilePublisher profiles;
 
     public UserLifecycleService(AppUserRepository repository, InvitationProperties invitations,
-            AuditLogger audit, CurrentUser currentUser) {
+            AuditLogger audit, CurrentUser currentUser, UserProfilePublisher profiles) {
         this.repository = repository;
         this.invitations = invitations;
         this.audit = audit;
         this.currentUser = currentUser;
+        this.profiles = profiles;
     }
 
     /** An invitation, and the one moment its token exists outside the invitee's hands. */
@@ -207,6 +209,37 @@ public class UserLifecycleService {
         }
         AppUser updated = repository.saveAndFlush(user);
         audit.record("user.update", "user", updated.getId(), changed);
+        // In the same transaction as the change it announces (T-9.8): an update that rolls back
+        // announces nothing, and an announcement that commits describes something real.
+        profiles.announce(updated);
+        return updated;
+    }
+
+    /**
+     * Sets the timezone this person's deadlines are reckoned in (T-5.6).
+     *
+     * <p>Its own method rather than a fourth argument to {@link #update}, because it is the one
+     * field on this row a person legitimately sets for THEMSELVES — changing somebody else's name
+     * or address is an administrative act, and moving to Berlin is not.
+     *
+     * <p>An empty value clears it, which is a real request: it puts them back in the "has not told
+     * us" population rather than leaving a stale zone from a country they have left.
+     */
+    @Transactional
+    public AppUser moveTo(UUID userId, String zoneId) {
+        AppUser user = require(userId);
+        String before = user.getTimeZone();
+        try {
+            user.moveTo(zoneId);
+        } catch (IllegalArgumentException notAZone) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, notAZone.getMessage());
+        }
+        AppUser updated = repository.saveAndFlush(user);
+        Map<String, Object> changed = new LinkedHashMap<>();
+        changed.put("timeZoneBefore", before == null ? "unset" : before);
+        changed.put("timeZoneAfter", updated.getTimeZone() == null ? "unset" : updated.getTimeZone());
+        audit.record("user.timezone", "user", updated.getId(), changed);
+        profiles.announce(updated);
         return updated;
     }
 

@@ -62,6 +62,7 @@ this project has.
 | Cache | Valkey | same | yes |
 | Content origin | second port, real CSP | Cloudflare in front of R2 | **partly** — origin isolation and the `postMessage` bridge are real here; edge signing and lifecycle rules are not |
 | **Video** | **nothing** | Cloudflare Stream | **no** |
+| **Mail** | **nothing** | an SMTP provider | **no** — `LoggingMailer` records every letter and delivers none, with a WARN at startup |
 
 **Video has no local equivalent.** Cloudflare Stream is managed transcoding, an adaptive ladder, an
 edge and a signing scheme. `streaming` therefore runs against a fake `MediaProvider` by default,
@@ -70,6 +71,12 @@ entire domain. Upload, encode webhooks and signed playback need a real account (
 
 **A green local build does not prove edge delivery works.** It cannot, and nothing here should be
 read as if it did.
+
+**Mail has no local equivalent either, and it is the same shape of gap.** Reminders (T-5.6) are
+claimed, recorded and handed to a `Mailer` that logs the recipient and the subject and delivers
+nothing. That exercises every call site and proves nothing about delivery. Set
+`spring.mail.host` and `platform.mail.from` to send for real; see
+[deadlines.md](deadlines.md).
 
 ## Databases
 

@@ -57,6 +57,16 @@ public class AppUser extends TenantOwned {
     @Column(name = "deactivated_at")
     private Instant deactivatedAt;
 
+    /**
+     * An IANA zone id, or null when they have not told us (T-5.6).
+     *
+     * <p>Null is a state, not a missing value: catalog's deadlines fall back to UTC and say so,
+     * which keeps the people who have never set one findable. Defaulting this to UTC would make
+     * them indistinguishable from everybody who deliberately chose it.
+     */
+    @Column(name = "time_zone", length = 64)
+    private String timeZone;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -168,6 +178,27 @@ public class AppUser extends TenantOwned {
     }
 
     /**
+     * Sets the timezone deadlines are reckoned in (T-5.6).
+     *
+     * <p>Validated as a zone the platform can actually resolve, because the failure of an
+     * unparseable one is remote and quiet: a reminder at the wrong hour, or a learner marked late
+     * on a day they were not.
+     */
+    public void moveTo(String zoneId) {
+        if (zoneId == null || zoneId.isBlank()) {
+            this.timeZone = null;
+            return;
+        }
+        try {
+            this.timeZone = java.time.ZoneId.of(zoneId).getId();
+        } catch (java.time.DateTimeException e) {
+            throw new IllegalArgumentException(
+                "\"" + zoneId + "\" is not a timezone this platform knows. Use an IANA id such "
+                + "as Europe/Istanbul.", e);
+        }
+    }
+
+    /**
      * The repair ADR-0104 exists for: point this person at their new IdP identity. Everything
      * that references them keeps referencing {@link #id}, so this is the entire migration.
      */
@@ -205,5 +236,10 @@ public class AppUser extends TenantOwned {
 
     public Instant getDeactivatedAt() {
         return deactivatedAt;
+    }
+
+    /** Their timezone, or null when they have not told us. */
+    public String getTimeZone() {
+        return timeZone;
     }
 }

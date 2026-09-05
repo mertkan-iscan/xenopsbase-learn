@@ -24,7 +24,9 @@ public abstract class PostgresTestHarness {
      * <p>Add a table to this list in the same commit that creates it.
      */
     private static final java.util.List<String> TABLES_IN_FK_ORDER = java.util.List.of(
-        "assignment", "learner_group_reach", "node_completion", "course_version",
+        "reminder_sent", "assignment_reminder", "assignment_cycle",
+        "assignment", "learner_group_reach", "learner_profile", "node_completion",
+        "course_version",
         "gate_requirement", "gate",
         "course_node", "course_module", "course",
         "content_item");
@@ -72,5 +74,10 @@ public abstract class PostgresTestHarness {
         registry.add("platform.outbox.interval", () -> "PT1H");
         registry.add("platform.messaging.poll-interval", () -> "PT1H");
         registry.add("platform.outbox.metrics-interval", () -> "PT1H");
+        // The reminder pass, parked for the same reason (T-5.6). It claims rows and sends mail on
+        // a schedule; a test asserting that nothing has been sent yet would otherwise be racing
+        // it. The tests drive sendFor() themselves with an explicit clock, which is the only way
+        // an assertion about "not yet" or "eleven months from now" can mean anything.
+        registry.add("catalog.due.interval", () -> "PT1H");
     }
 }

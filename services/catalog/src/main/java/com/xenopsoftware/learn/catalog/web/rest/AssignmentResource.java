@@ -4,7 +4,11 @@ import com.xenopsoftware.learn.catalog.assign.Assignment;
 import com.xenopsoftware.learn.catalog.assign.AssignmentService;
 import com.xenopsoftware.learn.catalog.assign.ReferenceKind;
 import com.xenopsoftware.learn.catalog.assign.TargetKind;
+import com.xenopsoftware.learn.catalog.due.Deadlines;
+import com.xenopsoftware.learn.catalog.due.DueBasis;
+import com.xenopsoftware.learn.catalog.due.DueKind;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -47,7 +51,32 @@ public class AssignmentResource {
      *                   recorded as stated rather than silently left null.
      */
     public record AssignRequest(String targetType, UUID targetId, String referenceType,
-                                UUID referenceId, UUID assignedBy) {}
+                                UUID referenceId, UUID assignedBy, DueRequest due,
+                                List<Integer> reminderOffsets) {
+
+        /** The four-field form. An assignment with no deadline is still the common one. */
+        public AssignRequest(String targetType, UUID targetId, String referenceType,
+                UUID referenceId, UUID assignedBy) {
+            this(targetType, targetId, referenceType, referenceId, assignedBy, null, null);
+        }
+    }
+
+    /**
+     * The deadline, as a caller states it (T-5.6).
+     *
+     * @param kind             NONE, ABSOLUTE or RELATIVE
+     * @param on               ABSOLUTE only: the date. It expires when that day ends where the
+     *                         LEARNER is, so two people with this same date are late at different
+     *                         moments
+     * @param afterDays        RELATIVE only
+     * @param basis            RELATIVE only: ASSIGNED gives everybody the same date, REACHED gives
+     *                         each learner their own. Never defaulted -- both are right for
+     *                         different training
+     * @param recurrenceMonths 12 for annual mandatory training. Each period is a new cycle and the
+     *                         previous one is kept
+     */
+    public record DueRequest(String kind, LocalDate on, Integer afterDays, String basis,
+                             Integer recurrenceMonths) {}
 
     public record BulkRequest(List<AssignRequest> assignments) {}
 
@@ -60,7 +89,8 @@ public class AssignmentResource {
      *                learner is reached by two groups, or by a group and by name.
      */
     public record ObligationView(String referenceType, UUID referenceId, Instant assignedAt,
-                                 Long pinnedVersion, List<UUID> sources) {}
+                                 Long pinnedVersion, List<UUID> sources, LocalDate dueOn,
+                                 boolean overdue, Integer cycleNumber) {}
 
     @GetMapping
     public List<AssignmentView> all() {
@@ -105,7 +135,8 @@ public class AssignmentResource {
         return assignments.obligationsOf(learnerId).stream()
             .map(obligation -> new ObligationView(obligation.referenceType().name(),
                 obligation.referenceId(), obligation.assignedAt(), obligation.pinnedVersion(),
-                obligation.sources()))
+                obligation.sources(), obligation.dueOn(), obligation.overdue(),
+                obligation.cycleNumber()))
             .toList();
     }
 
@@ -116,7 +147,47 @@ public class AssignmentResource {
             request.targetId(),
             parse(ReferenceKind.class, request.referenceType(),
                 "referenceType must be COURSE, MODULE, NODE or CONTENT_ITEM"),
-            request.referenceId());
+            request.referenceId(),
+            due(request.due()),
+            request.reminderOffsets() == null ? List.of() : request.reminderOffsets());
+    }
+
+    /**
+     * The deadline, or none.
+     *
+     * <p>An absent {@code due} means no deadline, and that is not the same as a missing field
+     * somebody forgot: an obligation nobody put a date on genuinely has none, and inventing one
+     * would put dates on training nobody agreed to.
+     */
+    private static Deadlines.DueSpec due(DueRequest request) {
+        if (request == null || request.kind() == null || request.kind().isBlank()) {
+            return Deadlines.DueSpec.none();
+        }
+        DueKind kind = parse(DueKind.class, request.kind(),
+            "due.kind must be NONE, ABSOLUTE or RELATIVE");
+        Deadlines.DueSpec spec = switch (kind) {
+            case NONE -> Deadlines.DueSpec.none();
+            case ABSOLUTE -> {
+                if (request.on() == null) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "An absolute deadline needs due.on, a date");
+                }
+                yield Deadlines.DueSpec.on(request.on());
+            }
+            case RELATIVE -> {
+                if (request.afterDays() == null) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "A relative deadline needs due.afterDays");
+                }
+                yield Deadlines.DueSpec.within(request.afterDays(),
+                    parse(DueBasis.class, request.basis(),
+                        "due.basis must be ASSIGNED (one date for everybody) or REACHED (each "
+                        + "learner counts from when the assignment reached them). It has no "
+                        + "default: both are right for different training"));
+            }
+        };
+        return request.recurrenceMonths() == null ? spec
+            : spec.repeatingEvery(request.recurrenceMonths());
     }
 
     private static UUID assignedBy(AssignRequest request) {
