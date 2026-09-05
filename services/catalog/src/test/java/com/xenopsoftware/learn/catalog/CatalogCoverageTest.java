@@ -70,7 +70,12 @@ class CatalogCoverageTest extends PostgresTestHarness {
         Map.entry("AssignmentResource#assign", AUTHZ_GAP),
         Map.entry("AssignmentResource#assignAll", AUTHZ_GAP),
         Map.entry("AssignmentResource#revoke", AUTHZ_GAP),
-        Map.entry("AssignmentResource#obligations", AUTHZ_GAP));
+        Map.entry("AssignmentResource#obligations", AUTHZ_GAP),
+        Map.entry("CourseVersionResource#all", AUTHZ_GAP),
+        Map.entry("CourseVersionResource#publish", AUTHZ_GAP),
+        Map.entry("CourseVersionResource#diff", AUTHZ_GAP),
+        Map.entry("CourseVersionResource#migrationCost", AUTHZ_GAP),
+        Map.entry("CourseVersionResource#migrate", AUTHZ_GAP));
 
     @Autowired
     @Qualifier("requestMappingHandlerMapping")
