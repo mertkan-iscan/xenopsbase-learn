@@ -57,7 +57,15 @@ class CatalogCoverageTest extends PostgresTestHarness {
         Map.entry("CourseResource#addNode", AUTHZ_GAP),
         Map.entry("CourseResource#moveNode", AUTHZ_GAP),
         Map.entry("CourseResource#setRequired", AUTHZ_GAP),
-        Map.entry("CourseResource#rebalance", AUTHZ_GAP));
+        Map.entry("CourseResource#rebalance", AUTHZ_GAP),
+        Map.entry("GateResource#save", AUTHZ_GAP),
+        Map.entry("GateResource#remove", AUTHZ_GAP),
+        Map.entry("GateResource#rule", AUTHZ_GAP),
+        Map.entry("GateResource#reachability",
+            "reads another person's reachability by learnerId, which is not a secret from anyone "
+            + "who can already read the whole course -- and an author previewing a course as a "
+            + "particular learner is a real need. It should still require a permission once "
+            + "grants travel between services (T-9.11), like everything else on this list"));
 
     @Autowired
     @Qualifier("requestMappingHandlerMapping")

@@ -29,7 +29,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * <p>Built through the service rather than over HTTP: this is about the queries, and 900 HTTP
  * round trips would make the test slow for a reason that has nothing to do with what it checks.
  */
-@SpringBootTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
+@SpringBootTest
 class DeepCourseTest extends PostgresTestHarness {
 
     /** Deliberately past the point where a per-module query would still look fine. */

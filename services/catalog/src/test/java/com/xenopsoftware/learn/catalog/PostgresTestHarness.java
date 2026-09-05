@@ -29,5 +29,10 @@ public abstract class PostgresTestHarness {
         // whichever class happened to load last, which reads as that class being broken. A test
         // class drives one request at a time.
         registry.add("spring.datasource.hikari.maximum-pool-size", () -> 2);
+        // Statement counting, for the tests that assert a read is bounded rather than per-row.
+        // Set HERE rather than as a @SpringBootTest property on the classes that need it, because
+        // a class declaring its own properties gets its own Spring context -- and a context is a
+        // live connection pool against the one shared Postgres.
+        registry.add("spring.jpa.properties.hibernate.generate_statistics", () -> true);
     }
 }
