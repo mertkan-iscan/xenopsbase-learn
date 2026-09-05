@@ -81,7 +81,12 @@ class CatalogCoverageTest extends PostgresTestHarness {
             "the reminders this company's own assignments failed to deliver -- addresses that "
             + "bounced and windows missed while the service was down. It is about this tenant's "
             + "operational health and is scoped to it, and it needs a permission for the same "
-            + "reason everything else on this list does (T-9.11)"));
+            + "reason everything else on this list does (T-9.11)"),
+        Map.entry("HomeResource#home",
+            "answers about the CALLER and nobody else (T-5.8): it takes no learner id, and the "
+            + "identity comes from the token by way of identity's own /me. There is nothing a "
+            + "permission would add that authentication has not already decided -- which is why "
+            + "this one is on the list as a deliberate choice rather than as a gap"));
 
     @Autowired
     @Qualifier("requestMappingHandlerMapping")

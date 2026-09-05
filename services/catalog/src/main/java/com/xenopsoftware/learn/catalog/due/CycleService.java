@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -64,9 +65,21 @@ public class CycleService {
         AssignmentCycle latest = cycles
             .findFirstByAssignmentIdOrderByCycleNumberDesc(assignment.getId())
             .orElseGet(() -> opener.open(assignment, 1, assignment.getAssignedAt()));
+        return Optional.of(rollForward(assignment, latest, now));
+    }
 
+    /**
+     * Opens whatever cycles should have opened by {@code now}, and answers with the current one.
+     *
+     * <p>Shared by the one-assignment path and the bulk one, so "which period are we in" has a
+     * single implementation. Both hand it the latest cycle they have; only how that row was read
+     * differs.
+     */
+    private AssignmentCycle rollForward(Assignment assignment, AssignmentCycle from, Instant now) {
+        Deadlines.DueSpec spec = assignment.due();
+        AssignmentCycle latest = from;
         if (!spec.recurs()) {
-            return Optional.of(latest);
+            return latest;
         }
         for (int guard = 0; guard < MAX_CYCLES_PER_CALL; guard++) {
             Optional<LocalDate> due = latest.getDueOn();
@@ -74,7 +87,7 @@ public class CycleService {
                 // A recurring assignment reckoned from REACHED has no shared date to roll on.
                 // Refused at write time; if one is ever here anyway, the honest answer is the
                 // cycle that exists rather than an invented one.
-                return Optional.of(latest);
+                return latest;
             }
             // The cycle ends when its due date ends. In UTC, deliberately: the CYCLE is a company
             // level period, and the per-learner timezone applies to the DEADLINE inside it
@@ -82,14 +95,52 @@ public class CycleService {
             // it has timezones, and "the 2026 cycle" would stop meaning one thing.
             Instant endsAt = Deadlines.expiresAt(due.get(), ZoneId.of("UTC"));
             if (now.isBefore(endsAt)) {
-                return Optional.of(latest);
+                return latest;
             }
             latest = opener.open(assignment, latest.getCycleNumber() + 1, endsAt);
         }
         LOG.warn("Assignment {} needed more than {} cycles opened in one call; stopping at {}. "
             + "Check recurrence_months.", assignment.getId(), MAX_CYCLES_PER_CALL,
             latest.getCycleNumber());
-        return Optional.of(latest);
+        return latest;
+    }
+
+    /**
+     * The current cycle of MANY assignments, in one query rather than one each (T-5.8).
+     *
+     * <p>The learner home screen asks this for everything somebody has been assigned, and
+     * {@link #currentCycle} per assignment is a query per assignment — the shape that screen's
+     * criterion forbids. The rolling arithmetic is unchanged and still comes from
+     * {@link Deadlines}: what differs is only how the rows are read.
+     *
+     * <p>Cycles that are missing or overdue to exist are still opened, one write each, because
+     * that is rare — the first read after an assignment is made, and once per period afterwards.
+     */
+    @Transactional(readOnly = true)
+    public Map<UUID, AssignmentCycle> currentCycles(List<Assignment> assignments, Instant now) {
+        List<Assignment> dated = assignments.stream()
+            .filter(assignment -> assignment.due().kind() != DueKind.NONE)
+            .toList();
+        if (dated.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, AssignmentCycle> latest = new java.util.HashMap<>();
+        for (AssignmentCycle cycle : cycles.findByAssignmentIdIn(
+                dated.stream().map(Assignment::getId).toList())) {
+            latest.merge(cycle.getAssignmentId(), cycle,
+                (one, other) -> one.getCycleNumber() >= other.getCycleNumber() ? one : other);
+        }
+        Map<UUID, AssignmentCycle> current = new java.util.LinkedHashMap<>();
+        for (Assignment assignment : dated) {
+            AssignmentCycle known = latest.get(assignment.getId());
+            // The rolling is the same method the single-assignment path uses, given a head start:
+            // a cycle that is already current costs nothing, and one that is not is opened here
+            // exactly as it would have been there.
+            current.put(assignment.getId(),
+                rollForward(assignment, known == null
+                    ? opener.open(assignment, 1, assignment.getAssignedAt()) : known, now));
+        }
+        return current;
     }
 
     /**

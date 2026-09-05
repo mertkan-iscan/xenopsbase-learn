@@ -76,6 +76,47 @@ public class CourseService {
             .toList());
     }
 
+    /**
+     * Several whole courses, in three queries however many there are (T-5.8).
+     *
+     * <p>The learner home screen needs a tree per assigned course, and {@link #tree} per course is
+     * a query per assignment — the exact shape that criterion forbids. Courses that do not exist
+     * are simply absent from the result: an assignment can outlive the course it points at, and a
+     * screen that threw for one stale row would show nothing at all.
+     */
+    @Transactional(readOnly = true)
+    public Map<UUID, CourseTree> trees(java.util.Collection<UUID> courseIds) {
+        if (courseIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, Course> found = new LinkedHashMap<>();
+        courses.findAllById(courseIds).forEach(course -> found.put(course.getId(), course));
+        if (found.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, List<CourseModule>> modulesByCourse = new LinkedHashMap<>();
+        Map<UUID, List<CourseNode>> nodesByModule = new LinkedHashMap<>();
+        for (CourseModule module : modules
+                .findByCourseIdInOrderByCourseIdAscOrdinalAscIdAsc(found.keySet())) {
+            modulesByCourse.computeIfAbsent(module.getCourseId(), any -> new ArrayList<>())
+                .add(module);
+            nodesByModule.put(module.getId(), new ArrayList<>());
+        }
+        for (CourseNode node : nodes.findWholeCourses(found.keySet())) {
+            // Already ordered by the query; grouping preserves it.
+            nodesByModule.computeIfAbsent(node.getModuleId(), any -> new ArrayList<>()).add(node);
+        }
+        Map<UUID, CourseTree> trees = new LinkedHashMap<>();
+        for (Course course : found.values()) {
+            List<ModuleTree> tree = modulesByCourse.getOrDefault(course.getId(), List.of()).stream()
+                .map(module -> new ModuleTree(module,
+                    nodesByModule.getOrDefault(module.getId(), List.of())))
+                .toList();
+            trees.put(course.getId(), new CourseTree(course, tree));
+        }
+        return trees;
+    }
+
     @Transactional
     public CourseModule addModule(UUID courseId, String title, UUID afterModuleId) {
         Course course = courses.findById(courseId).orElseThrow(CourseService::notFound);

@@ -108,6 +108,43 @@ rounds in the learner's favour and the row says it happened.
 measures — the merged set is written as one `int4multirange` literal against a row already locked
 by the same statement.
 
+## The learner home screen — what it costs to assemble
+
+**Task:** T-5.8 · **The criterion:** one endpoint, and no N+1 across assignments, gates or progress.
+
+**Why it is measured rather than argued.** The screen touches assignments, group reach, course
+structure, gates, completions, progress and due dates at once. Every naive assembly of it is a
+query per assignment — or per module, or per node — and every one of those is invisible on a demo
+tenant with three courses. The number that matters is not how fast it is on this laptop; it is
+whether it changes when a customer's content does.
+
+**Run it:** `mvn -f services/pom.xml -pl catalog test -Dtest=HomeQueryBudgetTest`
+
+### What was measured, 2026-09-05
+
+| | |
+|---|---|
+| Shape | 20 courses × 5 modules × 5 nodes = **500 nodes**, 20 assignments, one learner |
+| The learner | a third of the nodes complete, a third part-watched — so the completion and progress reads answer about a real set rather than an empty one |
+| **Statements, 1 assignment** | **7** |
+| **Statements, 20 assignments** | **7** — the same, which is the whole point |
+| Assembly, median of 10 | **62ms** |
+| Assembly, worst of 10 | 74ms |
+
+A query per assignment would have been 27 statements at this shape; a query per module, 107. The
+count is pinned by an assertion, because the property is one line away from being lost and no test
+of a three-course fixture would notice.
+
+**Conditions.** Testcontainers Postgres 17 on one laptop, JVM warmed with three assemblies first,
+cache bypassed — a cached screen measures Valkey rather than this. Statements counted with
+Hibernate's own JDBC counter, which sees the JPA reads; the four plain-JDBC reads (group reach,
+profile, completions, progress) are one each per assembly by construction and are inside the
+wall-clock figure.
+
+**What this does not measure.** Concurrency: this is one learner at a time against an idle
+database. The screen is also cached for a minute per learner (T-5.8), so the rate that reaches this
+path in production is lower than the request rate by however often a person reloads.
+
 ## Not yet measured
 
 - **Per-service memory under real load** — ADR-0109's process-count arithmetic is derived from

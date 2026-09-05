@@ -39,6 +39,14 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *        that forbids seeking forward refuses it. Three seconds, matching the player's own
  *        "is this still continuous playback" threshold — the same rule on both sides, so an honest
  *        player is never refused by it
+ * @param announceEveryPercent how far the percentage must move before the outside world is told
+ *        (T-5.8). <b>Ten</b>: the learner home screen renders a progress bar, and a bar that is
+ *        accurate to ten per cent is one nobody can tell from an exact one — while an event per
+ *        heartbeat would be ~500 outbox rows a second at 5,000 concurrent learners, on the hot
+ *        path ADR-0107 keeps that volume off
+ * @param announceAfter how long a moved percentage may go unannounced when it has not crossed a
+ *        step. Five minutes, which bounds how stale a resume point on a screen can be — the player
+ *        never uses it, because it asks for the row itself
  */
 @ConfigurationProperties(prefix = "streaming.progress")
 public record ProgressProperties(
@@ -51,7 +59,9 @@ public record ProgressProperties(
         @DefaultValue("2.0") double maxRate,
         @DefaultValue("PT2M") Duration rateGrace,
         @DefaultValue("PT1H") Duration policyRefresh,
-        @DefaultValue("3") int seekToleranceSeconds) {
+        @DefaultValue("3") int seekToleranceSeconds,
+        @DefaultValue("10") int announceEveryPercent,
+        @DefaultValue("PT5M") Duration announceAfter) {
 
     public ProgressProperties {
         if (defaultThresholdPercent < 1 || defaultThresholdPercent > 100) {
@@ -76,6 +86,15 @@ public record ProgressProperties(
         }
         if (rateGrace.isNegative()) {
             throw new IllegalArgumentException("streaming.progress.rate-grace cannot be negative");
+        }
+        if (announceEveryPercent < 1 || announceEveryPercent > 100) {
+            throw new IllegalArgumentException(
+                "streaming.progress.announce-every-percent must be between 1 and 100; a step of "
+                + "zero would mean an event per heartbeat, which is the volume this bounds");
+        }
+        if (announceAfter.isNegative() || announceAfter.isZero()) {
+            throw new IllegalArgumentException(
+                "streaming.progress.announce-after must be positive");
         }
     }
 }

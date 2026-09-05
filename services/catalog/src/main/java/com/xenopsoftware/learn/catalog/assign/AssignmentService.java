@@ -213,19 +213,25 @@ public class AssignmentService {
         // The learner's OWN timezone, not the server's (T-5.6). A deadline expires when the day
         // ends where they are, so somebody in Auckland finishing at 23:00 on the due date is on
         // time -- and a server reckoning in UTC would have filed them as late that morning.
-        ZoneId zone = Deadlines.zoneOf(profiles.of(tenantId, learnerId)
-            .map(LearnerProfiles.Profile::timeZone).orElse(null));
-        Instant firstSeen = profiles.of(tenantId, learnerId)
-            .map(LearnerProfiles.Profile::firstSeenAt).orElse(Instant.EPOCH);
+        // Read once, not twice: this is on the learner home screen's path (T-5.8), and asking the
+        // same row for two of its columns is a query nobody would notice adding.
+        java.util.Optional<LearnerProfiles.Profile> profile = profiles.of(tenantId, learnerId);
+        ZoneId zone = Deadlines.zoneOf(profile.map(LearnerProfiles.Profile::timeZone).orElse(null));
+        Instant firstSeen = profile.map(LearnerProfiles.Profile::firstSeenAt).orElse(Instant.EPOCH);
+
+        List<Assignment> reaching = assignments.reaching(learnerId, groups);
+        // Every current cycle in ONE query rather than one per assignment (T-5.8). The learner
+        // home screen reads this list, and a query per assignment is the shape that makes it the
+        // first thing to fall over at a customer with five thousand people.
+        Map<UUID, AssignmentCycle> currentCycles = cycles.currentCycles(reaching, now);
 
         Map<String, Obligation> byReference = new LinkedHashMap<>();
-        for (Assignment assignment : assignments.reaching(learnerId, groups)) {
+        for (Assignment assignment : reaching) {
             String key = assignment.getReferenceType() + ":" + assignment.getReferenceId();
-            LocalDate due = dueDateFor(assignment, learnerId, reachedAt, firstSeen, zone, now)
-                .orElse(null);
-            Integer cycleNumber = assignment.due().kind() == DueKind.NONE ? null
-                : cycles.currentCycle(assignment, now).map(AssignmentCycle::getCycleNumber)
-                    .orElse(null);
+            LocalDate due = dueDateFor(assignment, currentCycles.get(assignment.getId()), learnerId,
+                reachedAt, firstSeen, zone, now).orElse(null);
+            AssignmentCycle cycle = currentCycles.get(assignment.getId());
+            Integer cycleNumber = cycle == null ? null : cycle.getCycleNumber();
             boolean overdue = due != null && Deadlines.isOverdue(due, zone, now);
 
             Obligation existing = byReference.get(key);
@@ -275,15 +281,13 @@ public class AssignmentService {
      * "this learner came into its scope", so a new onboarding course does not land on the existing
      * department already thirty days overdue.
      */
-    private java.util.Optional<LocalDate> dueDateFor(Assignment assignment, UUID learnerId,
-            Map<UUID, Instant> reachedAt, Instant firstSeen, ZoneId zone, Instant now) {
-        if (assignment.due().kind() == DueKind.NONE) {
+    private java.util.Optional<LocalDate> dueDateFor(Assignment assignment,
+            AssignmentCycle current, UUID learnerId, Map<UUID, Instant> reachedAt,
+            Instant firstSeen, ZoneId zone, Instant now) {
+        if (assignment.due().kind() == DueKind.NONE || current == null) {
             return java.util.Optional.empty();
         }
-        java.util.Optional<AssignmentCycle> cycle = cycles.currentCycle(assignment, now);
-        if (cycle.isEmpty()) {
-            return java.util.Optional.empty();
-        }
+        java.util.Optional<AssignmentCycle> cycle = java.util.Optional.of(current);
         Instant reached = switch (assignment.getTargetType()) {
             case USER -> assignment.getAssignedAt();
             case GROUP -> reachedAt.getOrDefault(assignment.getTargetId(),

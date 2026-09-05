@@ -26,6 +26,7 @@ public abstract class PostgresTestHarness {
     private static final java.util.List<String> TABLES_IN_FK_ORDER = java.util.List.of(
         "reminder_sent", "assignment_reminder", "assignment_cycle",
         "assignment", "learner_group_reach", "learner_profile", "node_completion",
+        "node_progress", "home_version",
         "course_version",
         "gate_requirement", "gate",
         "course_node", "course_module", "course",
