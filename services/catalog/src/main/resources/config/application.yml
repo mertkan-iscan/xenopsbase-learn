@@ -1,0 +1,121 @@
+# catalog — configuration.
+#
+# Values here are the LOCAL STACK's. Anything that differs per environment is an
+# environment variable with this as the development default, so a developer runs
+# `make up` and then the service, with no setup step in between.
+
+spring:
+  application:
+    name: catalog
+
+  servlet:
+    multipart:
+      # OFF. Nothing is uploaded here: a content item POINTS at a video, a
+      # package or a document, and the bytes belong to streaming or packaging.
+      # A multipart parser on this service would be a door onto a path that
+      # should not exist (the same reasoning streaming applies to its own).
+      enabled: false
+
+  datasource:
+    url: ${CATALOG_DB_URL:jdbc:postgresql://localhost:5432/catalog}
+    username: ${CATALOG_DB_USER:catalog}
+    password: ${CATALOG_DB_PASSWORD:catalog}
+    hikari:
+      # The template's 10, unmeasured and said so. This service's shape is
+      # ordinary reads and occasional writes, with nothing yet to argue it
+      # away from the default -- and reporting's load run (docs/slos.md) is a
+      # standing reminder that a pool size changed without a measurement is a
+      # guess wearing a measurement's clothes.
+      maximum-pool-size: 10
+      pool-name: catalog
+
+  data:
+    jpa:
+      repositories:
+        # Lazy, for identity's reason: repository initialization validates
+        # queries by opening a session on the startup thread, which binds no
+        # tenant, and the T-1.1 resolver rightly refuses one. The tests reach
+        # every repository, so a broken derived query still cannot reach a
+        # deploy.
+        bootstrap-mode: lazy
+
+    redis:
+      # The tenant status fast path only (T-1.4). A suspended company must not
+      # be able to edit its catalog either.
+      host: ${VALKEY_HOST:localhost}
+      port: ${VALKEY_PORT:6379}
+      password: ${VALKEY_PASSWORD:}
+      connect-timeout: 250ms
+      timeout: 250ms
+      client-name: catalog
+      repositories:
+        enabled: false
+
+  jpa:
+    hibernate:
+      # validate, never update. The migration is written first and the entity
+      # matches it; `update` would reshape the schema silently and the
+      # migration history would stop describing the database.
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate.jdbc.time_zone: UTC
+      # The tenant discriminator is the persistence layer's job (T-1.1), which
+      # is what makes a forgotten WHERE clause a query that was already
+      # filtered rather than a data leak.
+      hibernate.tenant_identifier_resolver: com.xenopsoftware.learn.common.tenancy.TenantIdentifierResolver
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OIDC_ISSUER_URI:http://localhost:8081/realms/xenopslearn}
+
+# Service-to-service (T-9.11): this service's own credential, rotatable alone.
+platform:
+  service-auth:
+    client-id: ${SERVICE_CLIENT_ID:svc-catalog}
+    client-secret: ${SERVICE_CLIENT_SECRET:local-development-only-catalog-secret}
+  services:
+    endpoints:
+      identity: ${IDENTITY_URL:http://localhost:8082}
+      streaming: ${STREAMING_URL:http://localhost:8083}
+      reporting: ${REPORTING_URL:http://localhost:8084}
+      catalog: ${CATALOG_URL:http://localhost:8085}
+
+server:
+  port: ${SERVER_PORT:8085}
+
+management:
+  endpoints:
+    web:
+      base-path: /management
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when-authorized
+  health:
+    db:
+      enabled: true
+    redis:
+      # Off, for identity's reason: DOWN on the aggregate would stop a rollout
+      # for a dependency this service is built to run without.
+      enabled: false
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  writer-with-order-by-keys: true
+  writer-with-default-pretty-printer: true
+
+logging:
+  level:
+    com.xenopsoftware.learn: DEBUG

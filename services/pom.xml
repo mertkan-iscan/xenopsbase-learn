@@ -43,6 +43,7 @@
         <module>identity</module>
         <module>streaming</module>
         <module>reporting</module>
+        <module>catalog</module>
     </modules>
 
     <properties>
