@@ -29,7 +29,7 @@ The planned set maps to the E0 tasks:
 | 0106 | A question version is immutable once it has been served | T-0.6 |
 | 0107 | Completion is derived by the server, never reported by the client | T-0.7 |
 | 0108 | Telemetry stays in Postgres until a measurement says otherwise | T-0.8 |
-| 0109 | Eight modules, and how many processes to run them in | T-0.9 |
+| 0109 | Eight modules, six processes | T-0.9 |
 
 Decisions taken outside E0 continue the same sequence. A decision earns an ADR when it constrains
 work that comes after it, not when it happens to belong to a planning epic:

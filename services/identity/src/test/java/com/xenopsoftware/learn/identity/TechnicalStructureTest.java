@@ -49,6 +49,42 @@ class TechnicalStructureTest {
         .because("platform-common is shared infrastructure, not a place for domain code");
 
     /**
+     * NO MODULE REACHES INTO ANOTHER MODULE'S INTERNALS (ADR-0109).
+     *
+     * <p><b>This rule is vacuous today, and that is exactly why it is being added now.</b> The
+     * three modules it names are separate Maven artifacts in separate processes, so a call
+     * between them cannot even compile — there is nothing for it to catch. ADR-0109 merges
+     * {@code identity}, {@code catalog} and {@code assessment} into one deployable to fit dev's
+     * measured memory, and the moment that happens the shortcut this forbids becomes a shortcut
+     * that COMPILES, in a codebase where nothing else would object.
+     *
+     * <p>The expensive part of splitting a service back out is untangling a schema and the
+     * free-form calls that grew across it. A rule added after the merge is a rule added after
+     * the calls, which is the point at which writing it means deleting somebody's work. Added
+     * before, it costs one paragraph and never has to be argued about.
+     *
+     * <p>{@code allowEmptyShould} because an empty match set is the current correct state rather
+     * than a broken rule — the same reasoning {@code noPreAuthorizeNamesARole} carries.
+     *
+     * <p>What stays allowed is a module's PUBLISHED interface, which is what a caller keeps
+     * using unchanged when the two are pulled apart again: in-process today, a client or a
+     * subscription tomorrow. Reading another module's tables is refused a second time by the
+     * database itself, where each module has its own role (ADR-0109's data-ownership rule).
+     */
+    @ArchTest
+    static final ArchRule noModuleReachesIntoAnothersInternals = noClasses()
+        .that()
+        .resideInAPackage("com.xenopsoftware.learn.identity..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage("com.xenopsoftware.learn.catalog..", "com.xenopsoftware.learn.assessment..",
+                            "com.xenopsoftware.learn.streaming..", "com.xenopsoftware.learn.reporting..",
+                            "com.xenopsoftware.learn.packaging..")
+        .because("modules merged into one process (ADR-0109) must stay separable: a call that "
+            + "bypasses a published interface is what makes the later split expensive")
+        .allowEmptyShould(true);
+
+    /**
      * The tenant comes from a verified claim, never from something the caller controls.
      *
      * <p>Enforced structurally because the version of this that gets added is reasonable-looking:
