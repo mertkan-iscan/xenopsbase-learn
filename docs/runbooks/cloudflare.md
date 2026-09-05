@@ -73,6 +73,13 @@ from every other failure so a scope problem is never confused with a malformed r
 It also derives `CF_STREAM_CUSTOMER_SUBDOMAIN` by reading an asset back, because that value fails
 only at **playback** — after an upload has already succeeded.
 
+**Stream is a paid feature, and enabling it allocates nothing.** A fresh account reports
+`allocated 0 minutes` and the first upload fails with code `10011` — which arrives as an HTTP 413
+and reads like a broken token if nothing names it. It is the opposite: authorization runs *before*
+the quota check, so reaching that error proves the token carries `Stream:Edit`. Buy minutes
+(Cloudflare dashboard → **Stream** → subscribe) and re-run the script to confirm the create path
+end to end.
+
 ### 2. The signing key
 
 Mint one, once, and keep what comes back:

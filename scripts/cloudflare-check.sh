@@ -70,9 +70,26 @@ verdict() {
         403) red "$what -- FORBIDDEN: the token lacks this permission"; return 1 ;;
         401) red "$what -- UNAUTHORIZED: the token is wrong, expired, or for another account"; return 1 ;;
         404) red "$what -- NOT FOUND: check CF_STREAM_ACCOUNT_ID"; return 1 ;;
-        *)   red "$what -- HTTP $status (not a permission problem; see below)"
-             note "$(body | head -c 400)"
-             return 1 ;;
+        *)
+            # Cloudflare's 10011 is worth naming rather than dumping, because it is the
+            # opposite of what a failure here looks like: authorization ran BEFORE the quota
+            # check, so reaching this error means the token was accepted and it is the ACCOUNT
+            # that has nothing. Enabling Stream in the dashboard allocates no capacity -- the
+            # minutes are bought. Left as a generic failure it reads as a broken token, which
+            # is the one conclusion it rules out.
+            if body | grep -q '"code": *10011'; then
+                red "$what -- the token is fine; this ACCOUNT has no Stream capacity"
+                note "Cloudflare says: allocated 0 minutes. Stream is a paid feature and"
+                note "enabling it does not buy any."
+                note "  Cloudflare dashboard > Stream > subscribe (minutes are sold in blocks)"
+                note "Authorization runs before this check, so reaching it proves the token"
+                note "carries Stream:Edit. Re-run this script after buying to confirm the"
+                note "whole create path end to end."
+                return 1
+            fi
+            red "$what -- HTTP $status (not a permission problem; see below)"
+            note "$(body | head -c 400)"
+            return 1 ;;
     esac
 }
 
@@ -147,7 +164,11 @@ if verdict "$STATUS" "can list signing keys"; then
     if [ "$KEYS" = "0" ]; then
         note "no signing key yet. Mint ONE, once, and keep the response -- the private"
         note "key is returned only at creation and Cloudflare does not store it:"
-        note "  curl -X POST '$API/accounts/\$CF_STREAM_ACCOUNT_ID/stream/keys' \\"
+        # Double quotes, not single: the reader pastes this, and inside single quotes the
+        # variables would stay literal and the request would go to a path spelled
+        # /accounts/$CF_STREAM_ACCOUNT_ID/ -- which fails in a way that looks like the account
+        # is wrong rather than like the instruction was.
+        note "  curl -X POST \"$API/accounts/\$CF_STREAM_ACCOUNT_ID/stream/keys\" \\"
         note "       -H \"Authorization: Bearer \$CF_STREAM_API_TOKEN\""
         note "then export CF_STREAM_SIGNING_KEY_ID=<result.id>"
         note "     and CF_STREAM_SIGNING_KEY_JWK=<result.jwk>"
