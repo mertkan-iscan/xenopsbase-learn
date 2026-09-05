@@ -12,7 +12,7 @@ SHELL := /bin/sh
 COMPOSE := docker compose
 
 .DEFAULT_GOAL := help
-.PHONY: help up down reset logs ps psql token realm-export realm-apply realm-reset realm-relink
+.PHONY: help up down reset logs ps psql token realm-export realm-apply realm-reset realm-relink env
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -137,3 +137,40 @@ test: ## Run every service's tests
 
 run: ## Run one service against the local stack (make run S=identity)
 	@JAVA_HOME="$(JAVA_HOME_RESOLVED)" 		"$(JAVA_HOME_RESOLVED)/bin/java" -jar services/$(or $(S),identity)/target/$(or $(S),identity)-0.0.1-SNAPSHOT.jar
+
+
+# ------------------------------------------------------------------------------
+# Credentials.
+#
+# THIS TARGET REPORTS; IT DOES NOT SOURCE. `make` guarding on the variables
+# rather than reading the file itself is deliberate: a Makefile that sources
+# credentials means `make` and your shell disagree about what is set, and a
+# credential that exists only inside make is one you cannot reproduce by hand at
+# the moment something breaks. So the human sources it once per terminal and
+# make says so when it is missing -- the stemcell's convention, for that reason.
+#
+# The file lives OUTSIDE this repository. .gitignore is a rule somebody can
+# defeat without meaning to; a path is not.
+# ------------------------------------------------------------------------------
+# Written as ~ rather than $(HOME). On Windows make expands HOME to the native
+# form, whose backslashes are escape characters to the shell that has to run the
+# copy -- so the instruction this target prints would not paste back in.
+ENV_FILE := ~/.xenopsbase-learn.env
+
+CREDENTIALS := MEDIA_PROVIDER CF_STREAM_ACCOUNT_ID CF_STREAM_API_TOKEN \
+	CF_STREAM_CUSTOMER_SUBDOMAIN CF_STREAM_SIGNING_KEY_ID CF_STREAM_SIGNING_KEY_JWK \
+	CF_STREAM_WEBHOOK_SECRET REALM_ADMIN_URL REALM_ADMIN_CLIENT_ID REALM_ADMIN_CLIENT_SECRET
+
+env: ## Show which credentials this shell has (names only -- never a value)
+	@test -f "$$HOME/.xenopsbase-learn.env" || { \
+		echo "No $(ENV_FILE) yet:"; \
+		echo "  cp local/env.example $(ENV_FILE)"; \
+		echo "  then fill it in and: source $(ENV_FILE)"; \
+		echo; }
+	@echo "credentials in this shell:"
+	@for v in $(CREDENTIALS); do \
+		if [ -n "$$(printenv $$v)" ]; then echo "  set    $$v"; else echo "  unset  $$v"; fi; \
+	done
+	@echo
+	@echo "The local stack needs none of these -- make up and make run work empty."
+	@echo "To prove the Cloudflare ones really work: bash scripts/cloudflare-check.sh"

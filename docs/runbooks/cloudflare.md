@@ -51,10 +51,18 @@ than its job for no benefit.
 **Then prove it, rather than reading the permissions page back:**
 
 ```bash
-export CF_STREAM_ACCOUNT_ID=...
-export CF_STREAM_API_TOKEN=...
+source ~/.xenopsbase-learn.env
 bash scripts/cloudflare-check.sh
 ```
+
+Credentials live in `~/.xenopsbase-learn.env`, **outside this repository**, copied from
+`local/env.example` and filled in there. `.gitignore` lists `.env`, but a gitignore is a rule
+somebody defeats without meaning to -- a `git add -f`, a rename no pattern covers, an editor's
+backup file -- and several agents work in this checkout at once. A secret outside the working
+tree cannot be committed by accident, and that is a property of where it lives rather than of
+anybody remembering. `make env` says which of them the current shell has, by name and never by
+value. Nothing sources the file for you: `make` guarding rather than reading it is what keeps
+`make` and your shell from disagreeing about what is set.
 
 This is the acceptance criterion, not a convenience. `Stream:Read` where `Stream:Edit` was meant
 looks correct in the dashboard, passes every GET anybody tries by hand, and fails on the first
