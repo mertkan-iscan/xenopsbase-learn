@@ -57,6 +57,12 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- The message bus (T-9.8). platform-common keeps it optional. -->
+        <dependency>
+            <groupId>io.nats</groupId>
+            <artifactId>jnats</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-api</artifactId>

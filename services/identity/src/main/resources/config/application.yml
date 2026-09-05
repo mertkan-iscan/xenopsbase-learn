@@ -171,6 +171,26 @@ platform:
       streaming: ${STREAMING_URL:http://localhost:8083}
       reporting: ${REPORTING_URL:http://localhost:8084}
 
+  # The transactional outbox and the bus (T-9.8).
+  outbox:
+    # On for the services that publish or consume. A service with neither pays
+    # for none of it -- no relay, no scheduled task, no broker connection.
+    enabled: true
+    # How often the relay drains. A second is unnoticeable to a person and keeps
+    # the backlog metric near zero when things are working, which is what makes
+    # the age alarm meaningful.
+    interval: PT1S
+    batch-size: 100
+  messaging:
+    # EMPTY BY DEFAULT, and that is the local default rather than the only one.
+    # Without it the outbox still fills and drains, and messages are delivered
+    # nowhere -- with a WARN at every startup, because a green run against that
+    # proves the outbox works and nothing at all about the bus.
+    nats-url: ${NATS_URL:}
+    poll-interval: PT1S
+    batch-size: 50
+
+
 server:
   port: ${SERVER_PORT:8082}
 

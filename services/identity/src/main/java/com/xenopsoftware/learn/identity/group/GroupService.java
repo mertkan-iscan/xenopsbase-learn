@@ -19,14 +19,17 @@ public class GroupService {
     private final GroupMembershipRepository memberships;
     private final GroupHierarchy hierarchy;
     private final com.xenopsoftware.learn.identity.tenant.StatusGuard statusGuard;
+    private final GroupReachPublisher reach;
 
     public GroupService(UserGroupRepository groups, GroupMembershipRepository memberships,
             GroupHierarchy hierarchy,
-            com.xenopsoftware.learn.identity.tenant.StatusGuard statusGuard) {
+            com.xenopsoftware.learn.identity.tenant.StatusGuard statusGuard,
+            GroupReachPublisher reach) {
         this.statusGuard = statusGuard;
         this.groups = groups;
         this.memberships = memberships;
         this.hierarchy = hierarchy;
+        this.reach = reach;
     }
 
     @Transactional
@@ -122,8 +125,12 @@ public class GroupService {
     public GroupMembership addMember(UUID groupId, UUID userId) {
         statusGuard.requireWritable();
         require(groupId);
-        return memberships.findByGroupIdAndUserId(groupId, userId)
+        GroupMembership membership = memberships.findByGroupIdAndUserId(groupId, userId)
             .orElseGet(() -> memberships.save(new GroupMembership(groupId, userId)));
+        // In the same transaction as the change it announces (T-9.8): a membership that rolls
+        // back announces nothing, and an announcement that commits describes something real.
+        reach.announce(userId);
+        return membership;
     }
 
     @Transactional
@@ -136,6 +143,10 @@ public class GroupService {
         // stays a no-op: DELETE is idempotent about the membership, never about the group.
         require(groupId);
         memberships.findByGroupIdAndUserId(groupId, userId).ifPresent(memberships::delete);
+        // Announced even when nothing was removed. The message carries the WHOLE reach set, so
+        // re-announcing an unchanged one costs a consumer nothing and re-stating it after a
+        // no-op is cheaper than deciding whether it was one.
+        reach.announce(userId);
     }
 
     /**

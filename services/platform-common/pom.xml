@@ -72,6 +72,31 @@
             <optional>true</optional>
         </dependency>
 
+        <!--
+            JDBC, for the outbox (T-9.8). Optional like the rest of the
+            persistence story here: the outbox writer and relay work against
+            whatever DataSource the including service already has, and a service
+            with no database must not inherit one by depending on this library.
+        -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-jdbc</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!--
+            The message bus (T-9.8). Optional for the same reason Hibernate and
+            Redis are: a service that neither publishes nor consumes must not
+            inherit a broker client by depending on this library. Each service
+            that joins the bus brings it, and the messaging beans are
+            conditional on it being there.
+        -->
+        <dependency>
+            <groupId>io.nats</groupId>
+            <artifactId>jnats</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

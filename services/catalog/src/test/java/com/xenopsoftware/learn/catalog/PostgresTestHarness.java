@@ -60,5 +60,17 @@ public abstract class PostgresTestHarness {
         // a class declaring its own properties gets its own Spring context -- and a context is a
         // live connection pool against the one shared Postgres.
         registry.add("spring.jpa.properties.hibernate.generate_statistics", () -> true);
+        // THE SCHEDULED RELAY AND SUBSCRIBER ARE PARKED, not disabled.
+        //
+        // Both are @Scheduled and both mutate the tables the messaging tests assert on -- the
+        // relay marks rows published once a second, using whatever publisher is wired. A test
+        // that wrote a row and then checked it was still unpublished was racing a background job
+        // it never mentioned, and passed or failed on timing. Pushing the interval out to an hour
+        // leaves every bean wired and constructed (so the wiring is still under test) while the
+        // tests drive drain() themselves, which is the only way an assertion about the outbox can
+        // mean anything.
+        registry.add("platform.outbox.interval", () -> "PT1H");
+        registry.add("platform.messaging.poll-interval", () -> "PT1H");
+        registry.add("platform.outbox.metrics-interval", () -> "PT1H");
     }
 }

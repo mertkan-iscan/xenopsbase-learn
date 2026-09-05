@@ -131,6 +131,17 @@
                 <version>${project.version}</version>
             </dependency>
 
+            <!--
+                NATS, the message bus (T-9.8). Pinned here so eight services
+                cannot drift onto eight client versions; the broker itself is
+                pinned in docker-compose.yml.
+            -->
+            <dependency>
+                <groupId>io.nats</groupId>
+                <artifactId>jnats</artifactId>
+                <version>2.20.5</version>
+            </dependency>
+
             <dependency>
                 <groupId>org.springdoc</groupId>
                 <artifactId>springdoc-openapi-starter-webmvc-api</artifactId>
