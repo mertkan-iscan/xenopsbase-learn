@@ -145,6 +145,43 @@ wall-clock figure.
 database. The screen is also cached for a minute per learner (T-5.8), so the rate that reaches this
 path in production is lower than the request rate by however often a person reloads.
 
+## Backend down — does playback actually survive it (T-3.10)
+
+**Why this one has to be measured against the real account.** `FakeMediaProvider` mints a manifest
+on `fake-media.invalid`, which is unroutable by construction (T-3.1): a green run against it proves
+every path up to the edge and nothing about the edge itself. `web/e2e/backend-down.mjs` is the
+first thing in this repository that runs against the real Cloudflare Stream account (T-9.14) rather
+than the fake one, for exactly that reason — it is real spend, and T-9.14 (#100) left "spend
+visibility before any bulk upload" open, so it is a manual/`workflow_dispatch` check
+(`.github/workflows/backend-down.yml`), never a job on every push.
+
+**Run it:** `make up && mvn -f services/pom.xml -DskipTests install && node web/e2e/backend-down.mjs`
+(needs `CF_STREAM_*` in the environment — `scripts/cloudflare-check.sh` proves they work).
+
+### What was measured, 2026-09-05
+
+| | |
+|---|---|
+| Asset | a 45-second synthetic clip (`web/e2e/fixtures/backend-down-clip.mp4`), uploaded and encoded by the real account for each run |
+| Outage | identity, catalog, reporting and streaming all killed (`taskkill /T /F`), **30 seconds**, while a real Cloudflare Stream manifest played in a real Chromium |
+| Playback during the outage | continuous — `currentTime` advanced at real-time rate for the whole window, no stall, no error state shown |
+| Renewal attempts observed while down | 3, all answered `502` by vite's own dev proxy (nothing was listening on the target port) — the player retried quietly and the held token, still valid, kept the video playing |
+| Heartbeats after recovery | 7-14 `playback_heartbeat` rows landed in reporting once it was reachable again — the client-side buffer was not lost |
+| Coverage after recovery | streaming credited a merged interval spanning the outage (e.g. `[37,44)`), proving the buffered progress flushed and merged correctly, not just "arrived" |
+
+**Why a shortened token lifetime.** `PLAYBACK_TOKEN_TTL=PT3M` / `PLAYBACK_RENEW_AFTER=PT20S` for
+this run only (the production defaults are 5 minutes / 3 minutes): long enough that restarting
+four JVMs (measured: 15-20s to pass health) and the recovery wait never race a real token expiry,
+short enough that a 45-second clip crosses a renewal attempt without needing a multi-minute video
+and the Stream minutes that would cost. The first version of this test set both too tight and the
+held token expired mid-recovery — which the player correctly, and confusingly for a test not
+expecting it, turned into a terminal refusal.
+
+**What this does not prove.** Concurrency (one learner, one video); a real production deployment
+rather than the local stack; recovery after an outage longer than the token's own TTL, which is a
+different property (T-1.9 and T-3.4 already bound that one — a suspended account or revoked
+assignment stops within one token lifetime, and this is the same lifetime working the other way).
+
 ## Not yet measured
 
 - **Per-service memory under real load** — ADR-0109's process-count arithmetic is derived from
