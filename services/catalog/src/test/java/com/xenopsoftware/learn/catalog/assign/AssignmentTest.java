@@ -67,6 +67,16 @@ class AssignmentTest extends PostgresTestHarness {
         module = idOf(post("/api/v1/courses/" + course + "/modules", ACME, "{\"title\":\"Week one\"}"));
         node = addNode(module, publishedItem("the induction video"));
         bareItem = publishedItem("a loose video");
+        // T-5.7: a course must be published before anything in it can be assigned. Assigning a
+        // draft would mean a learner working through something that changes underneath them.
+        publishCourse(course);
+    }
+
+    /** Freezes the current draft as a version, which is what an assignment pins (T-5.7). */
+    private void publishCourse(UUID courseId) throws Exception {
+        assertThat(post("/api/v1/courses/" + courseId + "/versions", ACME,
+            "{\"notes\":\"ready\",\"publishedBy\":\"" + ADMIN + "\"}").statusCode())
+            .isEqualTo(200);
     }
 
     @org.junit.jupiter.api.AfterEach
@@ -203,21 +213,20 @@ class AssignmentTest extends PostgresTestHarness {
     }
 
     @Test
-    void anAssignmentPinsTheStructureItWasMadeAgainstAndNoticesDrift() throws Exception {
+    void anAssignmentPinsAPublishedVersionAndNoticesANewerOne() throws Exception {
         UUID id = idOf(assign("USER", LEARNER, "COURSE", course));
         assertThat(assignmentById(id).get("drifted").asBoolean()).isFalse();
 
-        // Renumbering ordinals is NOT a structural change: the learner sees the same steps in the
-        // same order. Bumping on it would flag every assignment in the tenant for a change nobody
-        // needs to know about, and a drift warning people learn to ignore is worse than none.
-        assertThat(post("/api/v1/courses/modules/" + module + "/rebalance", ACME, "{}").statusCode())
-            .isEqualTo(200);
+        // Editing the DRAFT does not drift anything. T-5.7 changed what the pin means: it is a
+        // published version now, not the draft's edit counter, so an author working on the next
+        // revision no longer flags every assignment in the tenant while they do it.
+        post("/api/v1/courses/" + course + "/modules", ACME, "{\"title\":\"Week two\"}");
         assertThat(assignmentById(id).get("drifted").asBoolean())
-            .as("rebalancing preserves what a learner does, so it is not drift")
+            .as("a draft in progress is not a course anybody was assigned")
             .isFalse();
 
-        // Adding a module is.
-        post("/api/v1/courses/" + course + "/modules", ACME, "{\"title\":\"Week two\"}");
+        // Publishing it is what makes the pin stale.
+        publishCourse(course);
 
         assertThat(assignmentById(id).get("drifted").asBoolean())
             .as("\"this course is not what you assigned any more\" is a query, not a guess")
@@ -273,6 +282,10 @@ class AssignmentTest extends PostgresTestHarness {
     @Test
     void bulkAssignmentIsOneTransaction() throws Exception {
         UUID second = idOf(post("/api/v1/courses", ACME, "{\"title\":\"Second course\"}"));
+        UUID secondModule = idOf(post("/api/v1/courses/" + second + "/modules", ACME,
+            "{\"title\":\"M\"}"));
+        addNode(secondModule, publishedItem("a step"));
+        publishCourse(second);
         String body = "{\"assignments\":["
             + assignBody("USER", LEARNER, "COURSE", course) + ","
             + assignBody("USER", LEARNER, "COURSE", second) + ","

@@ -35,10 +35,13 @@ public class AssignmentService {
     private final CourseModuleRepository modules;
     private final CourseNodeRepository nodes;
     private final ContentItemRepository items;
+    private final com.xenopsoftware.learn.catalog.version.CourseVersionService versions;
 
     public AssignmentService(AssignmentRepository assignments, LearnerGroupReach reach,
             CourseRepository courses, CourseModuleRepository modules, CourseNodeRepository nodes,
-            ContentItemRepository items) {
+            ContentItemRepository items,
+            com.xenopsoftware.learn.catalog.version.CourseVersionService versions) {
+        this.versions = versions;
         this.assignments = assignments;
         this.reach = reach;
         this.courses = courses;
@@ -205,18 +208,36 @@ public class AssignmentService {
             "No such " + kind + " in this company"));
     }
 
-    /** The structure version of the course a reference belongs to, whatever level it points at. */
+    /**
+     * The PUBLISHED version an assignment pins, for whatever level it points at.
+     *
+     * <p>Changed by T-5.7 from {@code course.structure_version} -- the draft's edit counter -- to
+     * the number of the latest published version. The old pin recorded which shape of the DRAFT an
+     * assignment was made against, which is not a thing anybody can be served: a draft moves.
+     * Pinning a published version means the pin resolves to a document that cannot change, which
+     * is what the pin was always supposed to mean.
+     */
     private Optional<Long> courseOf(ReferenceKind kind, UUID referenceId) {
-        return switch (kind) {
-            case COURSE -> courses.findById(referenceId).map(course -> course.getStructureVersion());
-            case MODULE -> modules.findById(referenceId)
-                .flatMap(module -> courses.findById(module.getCourseId()))
-                .map(course -> course.getStructureVersion());
+        Optional<UUID> courseId = switch (kind) {
+            case COURSE -> courses.findById(referenceId).map(course -> course.getId());
+            case MODULE -> modules.findById(referenceId).map(CourseModuleId::of);
             case NODE -> nodes.findById(referenceId)
                 .flatMap(node -> modules.findById(node.getModuleId()))
-                .flatMap(module -> courses.findById(module.getCourseId()))
-                .map(course -> course.getStructureVersion());
+                .map(CourseModuleId::of);
             case CONTENT_ITEM -> Optional.empty();
         };
+        return courseId.map(id -> versions.latest(id)
+            .map(published -> published.version())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT,
+                "That course has never been published, so there is no version to pin. Publish it "
+                + "first (T-5.7): assigning a draft would mean a learner working through "
+                + "something that changes underneath them.")));
+    }
+
+    /** Reads a module's course id without dragging the course in. */
+    private interface CourseModuleId {
+        static UUID of(com.xenopsoftware.learn.catalog.structure.CourseModule module) {
+            return module.getCourseId();
+        }
     }
 }
