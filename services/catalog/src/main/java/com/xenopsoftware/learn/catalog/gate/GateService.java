@@ -111,15 +111,39 @@ public class GateService {
     @Transactional(readOnly = true)
     public List<Reachability> reachability(UUID courseId, UUID learnerId) {
         CourseService.CourseTree tree = courses.tree(courseId);
-        List<Gate> courseGates = gates.findByCourseId(courseId);
-        Map<UUID, GateRule> rules = rulesOf(courseGates);
-        Map<UUID, String> titles = titlesOf(tree);
-
         List<UUID> nodeIds = tree.modules().stream()
             .flatMap(module -> module.nodes().stream())
             .map(CourseNode::getId).toList();
-        Map<UUID, Set<RequiredState>> satisfied = new HashMap<>(
+        return evaluate(tree, rulesFor(List.of(courseId)), titlesOf(tree),
             completions.statesOf(TenantContext.require(), learnerId, nodeIds));
+    }
+
+    /**
+     * The gate rules on a set of courses, in two queries however many courses there are (T-5.8).
+     *
+     * <p>Public and bulk because the learner home screen evaluates every course somebody has been
+     * assigned at once, and asking per course would put this task's own N+1 back into the screen
+     * the criterion is about.
+     */
+    @Transactional(readOnly = true)
+    public Map<UUID, GateRule> rulesFor(java.util.Collection<UUID> courseIds) {
+        return courseIds.isEmpty() ? Map.of() : rulesOf(gates.findByCourseIdIn(courseIds));
+    }
+
+    /**
+     * THE GATE RULE ITSELF, over data somebody else has already loaded (T-5.3, T-5.8).
+     *
+     * <p>Pure: no query, no clock, no tenant. One caller reads one course's worth of rows and calls
+     * this; the other reads twenty courses' worth in the same number of queries and calls it twenty
+     * times. That is the only way the home screen can avoid a query per assignment without growing
+     * a second, subtly different, copy of what "locked" means.
+     *
+     * @param satisfiedIn what the learner has completed, by node — the caller's to read, because
+     *                    it is one query for every course together
+     */
+    public List<Reachability> evaluate(CourseService.CourseTree tree, Map<UUID, GateRule> rules,
+            Map<UUID, String> titles, Map<UUID, Set<RequiredState>> satisfiedIn) {
+        Map<UUID, Set<RequiredState>> satisfied = new HashMap<>(satisfiedIn);
 
         // A module counts as COMPLETED when every REQUIRED node in it is -- optional nodes never
         // block a gate (T-5.2), which is the whole reason that flag exists. Derived here rather

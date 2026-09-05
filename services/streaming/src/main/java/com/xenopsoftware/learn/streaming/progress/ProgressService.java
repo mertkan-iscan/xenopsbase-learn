@@ -80,6 +80,14 @@ public class ProgressService {
     /** What a completion is announced as. Catalog folds it into node state (ADR-0109, T-5.3). */
     static final String COMPLETED_SUBJECT = "streaming.node.completed";
 
+    /**
+     * What a moved percentage is announced as, for the screens that draw one (T-5.8).
+     *
+     * <p>Throttled — see {@link #worthAnnouncing}. A subject of its own because it is a different
+     * claim from a completion, with a different tolerance for being late.
+     */
+    static final String PROGRESS_SUBJECT = "streaming.node.progress";
+
     private final JdbcTemplate jdbc;
     private final ContentEntitlement entitlement;
     private final VideoAssetRepository videoAssets;
@@ -152,6 +160,9 @@ public class ProgressService {
             && coveredSeconds >= requiredSeconds(extent, row.thresholdPercent());
         Instant now = clock.instant();
 
+        int percent = percentOf(coveredSeconds, extent);
+        boolean announce = worthAnnouncing(row, percent, crossedNow, now);
+
         jdbc.update("""
             UPDATE learner_node_progress
                SET covered = ?::int4multirange,
@@ -164,6 +175,8 @@ public class ProgressService {
                    session_hash = ?,
                    session_started_at = CASE WHEN session_hash IS DISTINCT FROM ?
                                              THEN ? ELSE session_started_at END,
+                   announced_percent = CASE WHEN ? THEN ? ELSE announced_percent END,
+                   announced_at = CASE WHEN ? THEN ? ELSE announced_at END,
                    updated_at = ?
              WHERE id = ?
             """,
@@ -171,15 +184,19 @@ public class ProgressService {
             merge.approximated(), merge.coverage().furthestSecond(), extent,
             crossedNow ? java.sql.Timestamp.from(now) : null,
             sessionHash(batch), sessionHash(batch), java.sql.Timestamp.from(now),
+            announce, percent, announce, java.sql.Timestamp.from(now),
             java.sql.Timestamp.from(now), row.id());
 
         metrics.merged(merge.newlySeconds(), merge.coverage().fragmentCount());
+        Row updated = row.after(merge, coveredSeconds, extent, crossedNow ? now : row.completedAt());
         if (crossedNow) {
             announceCompletion(viewer.tenantId(), learnerId, row, coveredSeconds, extent, now);
             metrics.completed();
         }
+        if (announce) {
+            announceProgress(viewer.tenantId(), learnerId, updated, percent, crossedNow, now);
+        }
 
-        Row updated = row.after(merge, coveredSeconds, extent, crossedNow ? now : row.completedAt());
         return view(nodeId, updated);
     }
 
@@ -331,7 +348,7 @@ public class ProgressService {
             java.sql.Timestamp.from(now), DERIVED, java.sql.Timestamp.from(now),
             java.sql.Timestamp.from(now), java.sql.Timestamp.from(now));
         return new Row(id, nodeId, Coverage.empty(), 0, false, 0, threshold,
-            node.allowSeekForward(), now, null, null, now, asset.getId());
+            node.allowSeekForward(), now, null, null, now, asset.getId(), null, null);
     }
 
     private Row refreshPolicy(Row row, NodeEntitlement node) {
@@ -367,7 +384,7 @@ public class ProgressService {
     private static final String SELECT_ROW = """
         SELECT id, node_id, covered::text AS covered, covered_seconds, approximate, furthest_second,
                threshold_percent, allow_seek_forward, policy_seen_at, extent_seconds,
-               completed_at, first_seen_at, video_asset_id
+               completed_at, first_seen_at, video_asset_id, announced_percent, announced_at
           FROM learner_node_progress
          WHERE tenant_id = ? AND learner_id = ? AND node_id = ?
         """;
@@ -386,7 +403,10 @@ public class ProgressService {
             rows.getTimestamp("completed_at") == null
                 ? null : rows.getTimestamp("completed_at").toInstant(),
             rows.getTimestamp("first_seen_at").toInstant(),
-            rows.getObject("video_asset_id", UUID.class));
+            rows.getObject("video_asset_id", UUID.class),
+            (Integer) rows.getObject("announced_percent"),
+            rows.getTimestamp("announced_at") == null
+                ? null : rows.getTimestamp("announced_at").toInstant());
     }
 
     /**
@@ -408,6 +428,73 @@ public class ProgressService {
     }
 
     // ------------------------------------------------------------------ the announcement
+
+    /**
+     * WHETHER THIS HEARTBEAT IS WORTH TELLING ANYBODY ABOUT (T-5.8).
+     *
+     * <p>The learner home screen renders a percentage and a resume point, and it may not read this
+     * module's tables to get them (ADR-0109) — so they travel as an event. What must not travel is
+     * one event per heartbeat: at 5,000 concurrent learners that is ~500 outbox rows a second on
+     * the hot path, which is the volume ADR-0107 exists to keep off it.
+     *
+     * <p>So an event goes out when the percentage crosses a step, when nothing has been said for a
+     * while and the number has moved, or when this is the first thing ever known about this
+     * learner and this node. A completion always announces, through its own subject.
+     *
+     * <p>The cost, stated: a screen can be one step or one interval behind — <b>ten per cent or
+     * five minutes</b>, and the resume point with it. A learner who closes the tab mid-video and
+     * reopens the screen may see the position from a few minutes ago rather than the exact second
+     * they left. The player itself never uses this: it asks {@link #current} and gets the row.
+     */
+    private boolean worthAnnouncing(Row row, int percent, boolean completedNow, Instant now) {
+        if (outbox == null) {
+            return false;
+        }
+        if (completedNow || row.announcedAt() == null) {
+            return true;
+        }
+        int announced = row.announcedPercent() == null ? 0 : row.announcedPercent();
+        if (percent <= announced) {
+            // Coverage can grow without the percentage moving, and re-announcing the same number
+            // is a row in the outbox that changes nothing on any screen.
+            return false;
+        }
+        int step = properties.announceEveryPercent();
+        return percent / step > announced / step
+            || !now.isBefore(row.announcedAt().plus(properties.announceAfter()));
+    }
+
+    /**
+     * Tells whoever is rendering a learner's screen where they are.
+     *
+     * <p><b>A different subject from the completion, deliberately.</b> They are different claims
+     * with different guarantees: a completion is a state transition a gate turns on and must never
+     * be lost, and a percentage is a number a screen draws that may be a few minutes stale without
+     * anybody being misled. One subject carrying both would force the careful handling of the
+     * first onto the volume of the second.
+     */
+    private void announceProgress(String tenantId, UUID learnerId, Row row, int percent,
+            boolean completedNow, Instant now) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("tenantId", tenantId);
+        payload.put("learnerId", learnerId.toString());
+        payload.put("nodeId", row.nodeId().toString());
+        payload.put("coveredSeconds", row.coveredSeconds());
+        payload.put("extentSeconds", row.extentSeconds());
+        payload.put("percent", percent);
+        // Where they are, not where they have watched to: the resume point is the furthest second
+        // reached, which is what a player is handed when it opens (T-3.7).
+        payload.put("resumeSecond", row.furthestSecond());
+        payload.put("completed", completedNow || row.completedAt() != null);
+        payload.put("updatedAt", now.toString());
+        outbox.publish(tenantId, PROGRESS_SUBJECT, "NodeProgress", json.writeValueAsString(payload));
+    }
+
+    /** Coverage as a percentage of the extent, or zero when the extent is not known yet. */
+    static int percentOf(int coveredSeconds, Integer extentSeconds) {
+        return extentSeconds == null || extentSeconds == 0 ? 0
+            : Math.min(100, (int) Math.floor(coveredSeconds * 100.0 / extentSeconds));
+    }
 
     private void announceCompletion(String tenantId, UUID learnerId, Row row, int coveredSeconds,
             Integer extent, Instant completedAt) {
@@ -447,8 +534,7 @@ public class ProgressService {
 
     private LearnerProgress view(UUID nodeId, Row row) {
         Integer extent = row.extentSeconds();
-        int percent = extent == null || extent == 0 ? 0
-            : Math.min(100, (int) Math.floor(row.coveredSeconds() * 100.0 / extent));
+        int percent = percentOf(row.coveredSeconds(), extent);
         return new LearnerProgress(nodeId, row.coveredSeconds(), extent, percent,
             row.thresholdPercent(), row.completedAt() != null, row.completedAt(), DERIVED,
             row.furthestSecond(), row.allowSeekForward(),
@@ -500,25 +586,27 @@ public class ProgressService {
     private record Row(UUID id, UUID nodeId, Coverage coverage, int coveredSeconds,
                        boolean approximate, int furthestSecond, int thresholdPercent,
                        boolean allowSeekForward, Instant policySeenAt, Integer extentSeconds,
-                       Instant completedAt, Instant firstSeenAt, UUID videoAssetId) {
+                       Instant completedAt, Instant firstSeenAt, UUID videoAssetId,
+                       Integer announcedPercent, Instant announcedAt) {
 
         Row withPolicy(int threshold, boolean allowSeekForward, Instant seenAt) {
             return new Row(id, nodeId, coverage, coveredSeconds, approximate, furthestSecond,
                 threshold, allowSeekForward, seenAt, extentSeconds, completedAt, firstSeenAt,
-                videoAssetId);
+                videoAssetId, announcedPercent, announcedAt);
         }
 
         Row withExtent(Integer extent) {
             return new Row(id, nodeId, coverage, coveredSeconds, approximate, furthestSecond,
                 thresholdPercent, allowSeekForward, policySeenAt, extent, completedAt, firstSeenAt,
-                videoAssetId);
+                videoAssetId, announcedPercent, announcedAt);
         }
 
         Row after(Coverage.Merge merge, int coveredSeconds, Integer extent, Instant completedAt) {
             return new Row(id, nodeId, merge.coverage(), coveredSeconds,
                 approximate || merge.approximated(),
                 Math.max(furthestSecond, merge.coverage().furthestSecond()), thresholdPercent,
-                allowSeekForward, policySeenAt, extent, completedAt, firstSeenAt, videoAssetId);
+                allowSeekForward, policySeenAt, extent, completedAt, firstSeenAt, videoAssetId,
+                announcedPercent, announcedAt);
         }
     }
 }

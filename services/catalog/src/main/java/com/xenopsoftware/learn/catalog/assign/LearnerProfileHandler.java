@@ -31,10 +31,13 @@ public class LearnerProfileHandler implements MessageHandler {
     static final String FORGOTTEN = "user.forgotten";
 
     private final LearnerProfiles profiles;
+    private final com.xenopsoftware.learn.catalog.home.HomeVersions versions;
     private final JsonMapper json = JsonMapper.builder().build();
 
-    public LearnerProfileHandler(LearnerProfiles profiles) {
+    public LearnerProfileHandler(LearnerProfiles profiles,
+            com.xenopsoftware.learn.catalog.home.HomeVersions versions) {
         this.profiles = profiles;
+        this.versions = versions;
     }
 
     @Override
@@ -47,6 +50,9 @@ public class LearnerProfileHandler implements MessageHandler {
         JsonNode body = json.readTree(message.payload());
         String tenantId = body.get("tenantId").asString();
         UUID learnerId = UUID.fromString(body.get("userId").asString());
+
+        // A timezone decides when their deadlines expire, so their screen changed with it (T-5.8).
+        versions.bumpLearner(tenantId, learnerId);
 
         if (FORGOTTEN.equals(message.type())) {
             profiles.remove(tenantId, learnerId);

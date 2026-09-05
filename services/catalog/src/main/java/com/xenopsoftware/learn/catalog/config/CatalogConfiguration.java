@@ -1,7 +1,9 @@
 package com.xenopsoftware.learn.catalog.config;
 
 import com.xenopsoftware.learn.catalog.due.DueProperties;
+import java.time.Clock;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
@@ -18,4 +20,16 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 @EnableConfigurationProperties(DueProperties.class)
 public class CatalogConfiguration {
+
+    /**
+     * The clock everything that reasons about time takes as an argument (T-5.6, T-5.8).
+     *
+     * <p>A bean rather than {@code Instant.now()} scattered through services, so a test can ask
+     * what a screen looks like the day after a deadline without waiting for one — and so every row
+     * in one answer is reckoned against the same instant.
+     */
+    @Bean
+    Clock clock() {
+        return Clock.systemUTC();
+    }
 }

@@ -37,10 +37,13 @@ public class GroupReachHandler implements MessageHandler {
     private static final Logger LOG = LoggerFactory.getLogger(GroupReachHandler.class);
 
     private final JdbcTemplate jdbc;
+    private final com.xenopsoftware.learn.catalog.home.HomeVersions versions;
     private final JsonMapper json = JsonMapper.builder().build();
 
-    public GroupReachHandler(DataSource dataSource) {
+    public GroupReachHandler(DataSource dataSource,
+            com.xenopsoftware.learn.catalog.home.HomeVersions versions) {
         this.jdbc = new JdbcTemplate(dataSource);
+        this.versions = versions;
     }
 
     @Override
@@ -99,6 +102,9 @@ public class GroupReachHandler implements MessageHandler {
                 ON CONFLICT (tenant_id, learner_id, group_id) DO NOTHING
                 """, rows);
         }
+        // The groups somebody is in decide what is assigned to them, so their screen changed
+        // (T-5.8). Bumped in this transaction, beside the rows it describes.
+        versions.bumpLearner(tenantId, learnerId);
         LOG.debug("Reach for {} in {} is now {} group(s)", learnerId, tenantId, groupIds.size());
     }
 }

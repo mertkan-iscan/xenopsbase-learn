@@ -14,6 +14,15 @@ public interface AssignmentCycleRepository extends JpaRepository<AssignmentCycle
     Optional<AssignmentCycle> findFirstByAssignmentIdOrderByCycleNumberDesc(UUID assignmentId);
 
     /**
+     * Every cycle of several assignments, for the screen that needs all of them (T-5.8).
+     *
+     * <p>Whole cycles rather than "the latest of each", because SQL's way of expressing the latter
+     * is a window function or a lateral join and the sets here are small: an assignment has one
+     * cycle unless it recurs, and a recurring one gains a cycle a year.
+     */
+    List<AssignmentCycle> findByAssignmentIdIn(java.util.Collection<UUID> assignmentIds);
+
+    /**
      * Cycles whose shared deadline falls in a window — what a reminder pass scans.
      *
      * <p>Bounded by the window rather than by "every open cycle", so the work of a pass is

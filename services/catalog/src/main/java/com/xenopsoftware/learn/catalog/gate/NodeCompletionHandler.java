@@ -43,10 +43,13 @@ public class NodeCompletionHandler implements MessageHandler {
     private static final Logger LOG = LoggerFactory.getLogger(NodeCompletionHandler.class);
 
     private final JdbcTemplate jdbc;
+    private final com.xenopsoftware.learn.catalog.home.HomeVersions versions;
     private final JsonMapper json = JsonMapper.builder().build();
 
-    public NodeCompletionHandler(DataSource dataSource) {
+    public NodeCompletionHandler(DataSource dataSource,
+            com.xenopsoftware.learn.catalog.home.HomeVersions versions) {
         this.jdbc = new JdbcTemplate(dataSource);
+        this.versions = versions;
     }
 
     @Override
@@ -72,6 +75,11 @@ public class NodeCompletionHandler implements MessageHandler {
             ON CONFLICT ON CONSTRAINT uq_node_completion DO NOTHING
             """, UUID.randomUUID(), tenantId, learnerId, nodeId, Timestamp.from(completedAt),
             nodeId, tenantId);
+
+        // Their home screen said this was still to do; it is not any more (T-5.8). In the same
+        // transaction as the row, so a cached screen keyed on the old version stops being
+        // addressed the moment this commits.
+        versions.bumpLearner(tenantId, learnerId);
 
         if (written == 0) {
             // Either already recorded (a redelivery, which is expected) or the node is gone.

@@ -133,6 +133,20 @@ catalog:
     # key -- so this is a latency knob and not a correctness one.
     interval: ${DUE_INTERVAL:PT15M}
 
+  # The learner home screen (T-5.8).
+  home:
+    # HOW LONG AN ASSEMBLED SCREEN IS KEPT. Everything that CHANGES the screen
+    # bumps a version and makes the cached copy unaddressable immediately -- but
+    # nothing changes at midnight, and a deadline expiring is exactly that. One
+    # minute is long enough to absorb a reload and a second tab, and short enough
+    # that "overdue" is never wrong by more than that against a deadline measured
+    # in days.
+    cache-ttl: ${HOME_CACHE_TTL:PT1M}
+    # After a Valkey failure, stop trying for this long. A cache outage should
+    # cost one timeout, not one per request; screens are built from Postgres
+    # meanwhile, which is what a miss does anyway.
+    cache-cooldown: ${HOME_CACHE_COOLDOWN:PT30S}
+
 server:
   port: ${SERVER_PORT:8085}
 

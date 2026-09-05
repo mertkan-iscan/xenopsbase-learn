@@ -17,5 +17,14 @@ public interface CourseModuleRepository extends JpaRepository<CourseModule, UUID
      */
     List<CourseModule> findByCourseIdOrderByOrdinalAscIdAsc(UUID courseId);
 
+    /**
+     * The modules of several courses at once, in course and then in order (T-5.8).
+     *
+     * <p>What the learner home screen needs: somebody assigned twenty courses is twenty trees, and
+     * building them one query at a time is the N+1 that screen exists to avoid.
+     */
+    List<CourseModule> findByCourseIdInOrderByCourseIdAscOrdinalAscIdAsc(
+        java.util.Collection<UUID> courseIds);
+
     long countByCourseId(UUID courseId);
 }

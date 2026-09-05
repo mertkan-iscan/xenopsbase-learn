@@ -170,6 +170,16 @@ streaming:
     # The same "is this still continuous playback" threshold the player uses, so
     # an honest player is never refused by the no-skipping-ahead rule.
     seek-tolerance-seconds: 3
+    # HOW OFTEN THE OUTSIDE WORLD IS TOLD (T-5.8). The learner home screen draws a
+    # progress bar and a resume point and may not read this module's tables to get
+    # them, so they travel as an event -- but one event per heartbeat would be
+    # ~500 outbox rows a second at 5,000 concurrent learners, which is exactly the
+    # volume ADR-0107 keeps off this path. An event goes out when the percentage
+    # crosses a step, or when it has moved and nothing has been said for a while.
+    # The cost is that a screen can be one step or one interval behind; the player
+    # is not, because it asks for the row itself.
+    announce-every-percent: ${PROGRESS_ANNOUNCE_PERCENT:10}
+    announce-after: ${PROGRESS_ANNOUNCE_AFTER:PT5M}
 
   media:
     # `fake` is the local default because video is the one dependency with no

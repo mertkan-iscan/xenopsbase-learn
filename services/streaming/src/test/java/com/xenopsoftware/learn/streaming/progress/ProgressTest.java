@@ -183,6 +183,54 @@ class ProgressTest extends PostgresTestHarness {
         assertThat(completions()).hasSize(1);
     }
 
+    /**
+     * The learner home screen needs a percentage and a resume point (T-5.8), and they may not be
+     * read out of this module's tables — so they are announced. What must not be announced is one
+     * event per heartbeat: at 5,000 concurrent learners that is ~500 outbox rows a second on the
+     * path ADR-0107 exists to keep light.
+     */
+    @Test
+    void progressIsAnnouncedByTheStepAndNotByTheHeartbeat() throws Exception {
+        for (int second = 0; second < 540; second += 10) {
+            assertThat(post(node, batch("session-1", second, second + 10)).statusCode())
+                .isEqualTo(200);
+            clock.advance(Duration.ofSeconds(10));
+        }
+
+        List<String> announced = progressEvents();
+
+        assertThat(announced.size())
+            .as("fifty-four heartbeats, nine minutes of wall clock and ninety per cent of a video: "
+                + "one event per ten-per-cent step, plus the first thing ever known about this "
+                + "learner and this node, plus whatever the five-minute floor adds")
+            .isBetween(6, 16);
+        assertThat(number(announced.getFirst(), "percent"))
+            .as("the first heartbeat says something, because a screen showing nothing at all for "
+                + "somebody who has started is the state this event exists to prevent")
+            .isNotNull();
+        assertThat(number(announced.getLast(), "percent")).isEqualTo(90);
+        assertThat(number(announced.getLast(), "resumeSecond")).isEqualTo(540);
+        assertThat(announced.getLast().replace(" ", "")).contains("\"completed\":true");
+        assertThat(completions())
+            .as("and the completion is still its own event on its own subject: a gate turns on "
+                + "that one and it may never be lost, while a percentage may be minutes stale")
+            .hasSize(1);
+    }
+
+    @Test
+    void aRepeatedBatchAnnouncesNothingNew() throws Exception {
+        post(node, batch("session-1", 0, 60));
+        clock.advance(Duration.ofSeconds(60));
+        int afterFirst = progressEvents().size();
+
+        post(node, batch("session-1", 0, 60));
+
+        assertThat(progressEvents())
+            .as("the percentage did not move, so there is nothing to tell anybody -- an event "
+                + "here would be a row in the outbox that changes no screen")
+            .hasSize(afterFirst);
+    }
+
     // ---------------------------------------------------------------- what it refuses
 
     @Test
@@ -413,9 +461,18 @@ class ProgressTest extends PostgresTestHarness {
             String.class);
     }
 
+    private List<String> progressEvents() {
+        return jdbc.queryForList(
+            "SELECT payload::text FROM outbox WHERE topic = 'streaming.node.progress' "
+            + "ORDER BY occurred_at", String.class);
+    }
+
     private static Integer number(String body, String field) {
+        // Whitespace-tolerant, because this reads two shapes of the same JSON: an HTTP response,
+        // which has no spaces, and a jsonb payload read back out of the outbox, which Postgres
+        // renders with one after every colon.
         java.util.regex.Matcher matcher = java.util.regex.Pattern
-            .compile("\"" + field + "\":(-?\\d+)").matcher(body);
+            .compile("\"" + field + "\"\\s*:\\s*(-?\\d+)").matcher(body);
         return matcher.find() ? Integer.valueOf(matcher.group(1)) : null;
     }
 }
