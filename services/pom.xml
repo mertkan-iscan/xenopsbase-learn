@@ -65,8 +65,8 @@
         <project.build.outputTimestamp>2026-08-27T00:00:00Z</project.build.outputTimestamp>
 
         <archunit-junit5.version>1.4.2</archunit-junit5.version>
-        <awssdk.version>2.46.7</awssdk.version>
-        <springdoc-openapi.version>3.0.3</springdoc-openapi.version>
+        <awssdk.version>2.54.9</awssdk.version>
+        <springdoc-openapi.version>3.1.0</springdoc-openapi.version>
         <testcontainers.version>1.21.3</testcontainers.version>
 
         <!--
@@ -80,7 +80,7 @@
             diff moved. Resolved from eclipse-temurin:25-jre-noble; update it
             deliberately, the way a dependency version is updated.
         -->
-        <jib-maven-plugin.version>3.5.1</jib-maven-plugin.version>
+        <jib-maven-plugin.version>3.5.2</jib-maven-plugin.version>
         <jib-maven-plugin.image>eclipse-temurin@sha256:1a99f30a84d58729f1184c1c693f25fb6f91970ddf05395515540bc5773b8edd</jib-maven-plugin.image>
         <jib-maven-plugin.architecture>amd64</jib-maven-plugin.architecture>
         <!--
