@@ -37,18 +37,27 @@ class CatalogCoverageTest extends PostgresTestHarness {
         "T-9.11/T-2.4 -- content:author and content:publish belong in the catalog and cannot be "
         + "checked here until grants travel between services; annotating now would deny everyone";
 
-    private static final Map<String, String> AUTH_ONLY = Map.of(
-        "ServiceChainResource#whoami",
+    private static final Map<String, String> AUTH_ONLY = Map.ofEntries(
+        Map.entry("ServiceChainResource#whoami",
             "shared by every service (T-9.11): reports what the caller's own token says and which "
-            + "service carried it here, and nothing about anybody else",
-        "ContentItemResource#types",
+            + "service carried it here, and nothing about anybody else"),
+        Map.entry("ContentItemResource#types",
             "the list of content types this build supports. It is the same for every company and "
-            + "reveals nothing about any of them -- a type picker is not a disclosure",
-        "ContentItemResource#search", AUTHZ_GAP,
-        "ContentItemResource#item", AUTHZ_GAP,
-        "ContentItemResource#create", AUTHZ_GAP,
-        "ContentItemResource#update", AUTHZ_GAP,
-        "ContentItemResource#state", AUTHZ_GAP);
+            + "reveals nothing about any of them -- a type picker is not a disclosure"),
+        Map.entry("ContentItemResource#search", AUTHZ_GAP),
+        Map.entry("ContentItemResource#item", AUTHZ_GAP),
+        Map.entry("ContentItemResource#create", AUTHZ_GAP),
+        Map.entry("ContentItemResource#update", AUTHZ_GAP),
+        Map.entry("ContentItemResource#state", AUTHZ_GAP),
+        Map.entry("CourseResource#all", AUTHZ_GAP),
+        Map.entry("CourseResource#tree", AUTHZ_GAP),
+        Map.entry("CourseResource#create", AUTHZ_GAP),
+        Map.entry("CourseResource#addModule", AUTHZ_GAP),
+        Map.entry("CourseResource#moveModule", AUTHZ_GAP),
+        Map.entry("CourseResource#addNode", AUTHZ_GAP),
+        Map.entry("CourseResource#moveNode", AUTHZ_GAP),
+        Map.entry("CourseResource#setRequired", AUTHZ_GAP),
+        Map.entry("CourseResource#rebalance", AUTHZ_GAP));
 
     @Autowired
     @Qualifier("requestMappingHandlerMapping")
