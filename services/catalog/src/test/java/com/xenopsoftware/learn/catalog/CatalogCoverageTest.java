@@ -65,7 +65,12 @@ class CatalogCoverageTest extends PostgresTestHarness {
             "reads another person's reachability by learnerId, which is not a secret from anyone "
             + "who can already read the whole course -- and an author previewing a course as a "
             + "particular learner is a real need. It should still require a permission once "
-            + "grants travel between services (T-9.11), like everything else on this list"));
+            + "grants travel between services (T-9.11), like everything else on this list"),
+        Map.entry("AssignmentResource#all", AUTHZ_GAP),
+        Map.entry("AssignmentResource#assign", AUTHZ_GAP),
+        Map.entry("AssignmentResource#assignAll", AUTHZ_GAP),
+        Map.entry("AssignmentResource#revoke", AUTHZ_GAP),
+        Map.entry("AssignmentResource#obligations", AUTHZ_GAP));
 
     @Autowired
     @Qualifier("requestMappingHandlerMapping")

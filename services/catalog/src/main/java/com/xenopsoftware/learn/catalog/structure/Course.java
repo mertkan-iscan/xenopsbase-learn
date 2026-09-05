@@ -29,6 +29,15 @@ public class Course extends TenantOwned {
     @Column(columnDefinition = "text")
     private String description;
 
+    /**
+     * Bumped whenever the STRUCTURE changes -- a module or node added, moved, removed, or made
+     * required or optional (T-5.5). Deliberately NOT on a rename: a typo fixed in a title is not a
+     * different course, and treating it as one would flag every assignment in the tenant as
+     * drifted for a change nobody needs to know about.
+     */
+    @Column(name = "structure_version", nullable = false)
+    private long structureVersion;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -42,6 +51,7 @@ public class Course extends TenantOwned {
     public static Course named(String title, String description) {
         Course course = new Course();
         course.id = UUID.randomUUID();
+        course.structureVersion = 1;
         course.createdAt = Instant.now();
         course.rename(title, description);
         return course;
@@ -55,6 +65,16 @@ public class Course extends TenantOwned {
         this.description = newDescription == null || newDescription.isBlank()
             ? null : newDescription.strip();
         this.updatedAt = Instant.now();
+    }
+
+    /** Records that the shape changed, so assignments pinned to the old one can say so. */
+    public void structureChanged() {
+        this.structureVersion++;
+        this.updatedAt = Instant.now();
+    }
+
+    public long getStructureVersion() {
+        return structureVersion;
     }
 
     public UUID getId() {

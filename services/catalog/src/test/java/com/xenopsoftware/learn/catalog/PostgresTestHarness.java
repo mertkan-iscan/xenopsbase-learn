@@ -12,6 +12,32 @@ import org.testcontainers.containers.PostgreSQLContainer;
  */
 public abstract class PostgresTestHarness {
 
+    /**
+     * Every table, in foreign-key order, newest dependency first.
+     *
+     * <p>ONE list, here, rather than one per test class -- which is what this repository had until
+     * a class that created course rows met a class that only knew how to delete content items, and
+     * the failure surfaced as {@code course_node_content_item_id_fkey} inside a test that has
+     * never heard of courses. The container is shared by every class in the module, so a class
+     * that leaves rows behind is a class that breaks somebody else's setup, far from here.
+     *
+     * <p>Add a table to this list in the same commit that creates it.
+     */
+    private static final java.util.List<String> TABLES_IN_FK_ORDER = java.util.List.of(
+        "assignment", "learner_group_reach", "node_completion",
+        "gate_requirement", "gate",
+        "course_node", "course_module", "course",
+        "content_item");
+
+    /** Empties the schema. Call it before AND after: before for a clean start, after out of manners. */
+    protected static void emptyEveryTable(javax.sql.DataSource dataSource) {
+        org.springframework.jdbc.core.JdbcTemplate jdbc =
+            new org.springframework.jdbc.core.JdbcTemplate(dataSource);
+        for (String table : TABLES_IN_FK_ORDER) {
+            jdbc.update("DELETE FROM " + table);
+        }
+    }
+
     private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:17-alpine");
 
     static {

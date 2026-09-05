@@ -50,10 +50,12 @@ class DeepCourseTest extends PostgresTestHarness {
     @BeforeEach
     void emptyEverything() {
         jdbc = new JdbcTemplate(dataSource);
-        jdbc.update("DELETE FROM course_node");
-        jdbc.update("DELETE FROM course_module");
-        jdbc.update("DELETE FROM course");
-        jdbc.update("DELETE FROM content_item");
+        emptyEveryTable(dataSource);
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void leaveNothingForTheNextClass() {
+        emptyEveryTable(dataSource);
     }
 
     @Test

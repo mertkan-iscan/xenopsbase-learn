@@ -59,10 +59,7 @@ class GateReachabilityTest extends PostgresTestHarness {
     @BeforeEach
     void aTwoModuleCourse() throws Exception {
         jdbc = new JdbcTemplate(dataSource);
-        for (String table : List.of("node_completion", "gate_requirement", "gate", "course_node",
-                "course_module", "course", "content_item")) {
-            jdbc.update("DELETE FROM " + table);
-        }
+        emptyEveryTable(dataSource);
         course = idOf(post("/api/v1/courses", "{\"title\":\"Onboarding\"}"));
         weekOne = idOf(post("/api/v1/courses/" + course + "/modules", "{\"title\":\"Week one\"}"));
         weekTwo = idOf(post("/api/v1/courses/" + course + "/modules",
@@ -70,6 +67,11 @@ class GateReachabilityTest extends PostgresTestHarness {
         induction = node(weekOne, "the induction video");
         safetyTest = node(weekOne, "the safety test");
         advanced = node(weekTwo, "the advanced module");
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void leaveNothingForTheNextClass() {
+        emptyEveryTable(dataSource);
     }
 
     @Test

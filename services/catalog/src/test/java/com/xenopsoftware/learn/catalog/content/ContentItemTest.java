@@ -43,7 +43,12 @@ class ContentItemTest extends PostgresTestHarness {
 
     @BeforeEach
     void emptyTheTable() {
-        new JdbcTemplate(dataSource).update("DELETE FROM content_item");
+        emptyEveryTable(dataSource);
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void leaveNothingForTheNextClass() {
+        emptyEveryTable(dataSource);
     }
 
     @Test

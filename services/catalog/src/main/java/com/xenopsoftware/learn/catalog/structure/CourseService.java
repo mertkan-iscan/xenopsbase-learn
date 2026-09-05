@@ -78,10 +78,12 @@ public class CourseService {
 
     @Transactional
     public CourseModule addModule(UUID courseId, String title, UUID afterModuleId) {
-        courses.findById(courseId).orElseThrow(CourseService::notFound);
+        Course course = courses.findById(courseId).orElseThrow(CourseService::notFound);
         List<CourseModule> siblings = modules.findByCourseIdOrderByOrdinalAscIdAsc(courseId);
-        return modules.save(CourseModule.in(courseId, title,
+        CourseModule module = modules.save(CourseModule.in(courseId, title,
             placeAfter(siblings, CourseModule::getId, CourseModule::getOrdinal, afterModuleId)));
+        bump(course);
+        return module;
     }
 
     /**
@@ -99,6 +101,7 @@ public class CourseService {
         List<CourseModule> siblings = modules.findByCourseIdOrderByOrdinalAscIdAsc(module.getCourseId())
             .stream().filter(sibling -> !sibling.getId().equals(moduleId)).toList();
         module.moveTo(placeAfter(siblings, CourseModule::getId, CourseModule::getOrdinal, afterModuleId));
+        courses.findById(module.getCourseId()).ifPresent(this::bump);
         return modules.save(module);
     }
 
@@ -122,8 +125,10 @@ public class CourseService {
                 + "(T-5.1); publish it first, or pick another.");
         }
         List<CourseNode> siblings = nodes.findByModuleIdOrderByOrdinalAscIdAsc(moduleId);
-        return nodes.save(CourseNode.in(moduleId, contentItemId,
+        CourseNode node = nodes.save(CourseNode.in(moduleId, contentItemId,
             placeAfter(siblings, CourseNode::getId, CourseNode::getOrdinal, afterNodeId), required));
+        bumpForModule(moduleId);
+        return node;
     }
 
     /**
@@ -146,6 +151,7 @@ public class CourseService {
         List<CourseNode> siblings = nodes.findByModuleIdOrderByOrdinalAscIdAsc(target).stream()
             .filter(sibling -> !sibling.getId().equals(nodeId)).toList();
         node.moveTo(target, placeAfter(siblings, CourseNode::getId, CourseNode::getOrdinal, afterNodeId));
+        bumpForModule(target);
         return nodes.save(node);
     }
 
@@ -153,6 +159,9 @@ public class CourseService {
     public CourseNode setRequired(UUID nodeId, boolean required) {
         CourseNode node = nodes.findById(nodeId).orElseThrow(CourseService::notFound);
         node.setRequired(required);
+        // Structural: it changes what a learner must actually do to finish the course, which is
+        // exactly what an assignment pinned a version of (T-5.5).
+        bumpForModule(node.getModuleId());
         return nodes.save(node);
     }
 
@@ -223,6 +232,25 @@ public class CourseService {
         BigDecimal before = ordinal.apply(siblings.get(index));
         BigDecimal after = index + 1 < siblings.size() ? ordinal.apply(siblings.get(index + 1)) : null;
         return Ordinals.between(before, after);
+    }
+
+    /**
+     * Records that a course's shape changed (T-5.5).
+     *
+     * <p>Deliberately not called by {@code rename} or by {@code rebalance}: a retitled course is
+     * the same course, and renumbering ordinals preserves the order a learner sees. Bumping on
+     * either would flag every assignment in the tenant as drifted for a change nobody needs to
+     * know about, which is the fastest way to make a drift warning ignored.
+     */
+    private void bump(Course course) {
+        course.structureChanged();
+        courses.save(course);
+    }
+
+    private void bumpForModule(UUID moduleId) {
+        modules.findById(moduleId)
+            .flatMap(module -> courses.findById(module.getCourseId()))
+            .ifPresent(this::bump);
     }
 
     private static ResponseStatusException notFound() {
