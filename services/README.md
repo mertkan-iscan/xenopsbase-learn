@@ -31,15 +31,30 @@ which names neither JDK, nor the correct one sitting on the same disk.
 
 ```
 services/
-├── pom.xml            the parent — versions, plugins, conventions, declared once
-├── platform-common/   what every module shares. No domain code, ever
-└── identity/          the first module
+├── pom.xml                  the parent — versions, plugins, conventions, declared once
+├── platform-common/         what every module shares, on ANY stack. No domain code, ever
+├── platform-common-web/     the servlet half: filters and controllers
+├── identity/                the first module
+├── streaming/
+├── reporting/
+└── catalog/
 ```
 
-The parent is the one place this differs structurally from the stemcell, which gives each of its
-two services an independent pom. With two services duplication is cheaper than indirection; with
-six it is the problem the template exists to prevent — a change to the error shape or the coverage
-floor becomes six edits, five of which get made.
+**Why the shared code is two modules.** `platform-common` used to depend on
+`spring-boot-starter-web`, so every class in it could reach for `HttpServletRequest` and six did. A
+shared library that depends on one web stack is a library only services on that stack can use, and it
+decides for a future gateway — which runs on WebFlux, where none of those filters exist — before
+anyone has had the argument. Each pom bans the stack it must not have, so the split is enforced
+rather than described; a class that needs the servlet API fails the build in `platform-common` with a
+message naming the module it belongs in.
+
+Both keep the `com.xenopsoftware.learn.common` package root, which is why every service's
+`@ComponentScan` is unchanged: a package may span two jars.
+
+This no longer differs from the stemcell. It used to — that repository gave each of its two services
+an independent pom, and this README said so. Its ADR-0017 adopted a parent pom and the same
+neutral/servlet split, so the two are now the same shape, which is the point: this repository is
+meant to be forked into that one.
 
 ## Package convention
 

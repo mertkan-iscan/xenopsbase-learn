@@ -40,6 +40,7 @@
 
     <modules>
         <module>platform-common</module>
+        <module>platform-common-web</module>
         <module>identity</module>
         <module>streaming</module>
         <module>reporting</module>
@@ -128,6 +129,16 @@
             <dependency>
                 <groupId>com.xenopsoftware.learn</groupId>
                 <artifactId>platform-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!--
+                The servlet half. Managed here alongside the neutral half so a
+                service names it without a version, exactly as it always did.
+            -->
+            <dependency>
+                <groupId>com.xenopsoftware.learn</groupId>
+                <artifactId>platform-common-web</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
