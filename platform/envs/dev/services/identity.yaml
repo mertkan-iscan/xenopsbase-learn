@@ -136,6 +136,21 @@ spec:
             - {name: STREAMING_URL, value: http://streaming.learn.svc.cluster.local:8083}
             - {name: REPORTING_URL, value: http://reporting.learn.svc.cluster.local:8084}
 
+            # The broker (stemcell T-9.6, its ADR-0018). EMPTY BY DEFAULT in
+            # application.yml, and that default is what ran here until now: the
+            # outbox filled, the relay drained it, and every message was
+            # delivered nowhere. `Streams` declares the topology at startup, so
+            # the streams this service publishes into are created the first time
+            # it connects rather than by somebody with a CLI.
+            #
+            # The broker lives in the stemcell repository's `messaging`
+            # namespace and is shared with `apps`. NATS has no authorization of
+            # its own -- reaching it at all is granted by its NetworkPolicy, and
+            # what separates the two products' traffic is subject naming: this
+            # repository's streams are `identity.>`, `catalog.>`, `streaming.>`
+            # and `reporting.>`, none of which the stemcell publishes.
+            - {name: NATS_URL, value: "nats://nats.messaging.svc.cluster.local:4222"}
+
             # The bootstrap chain (T-1.5): these people are INVITED into the
             # platform tenant and given its sys-admin role at startup. They are
             # not created with a password — this service never holds a
