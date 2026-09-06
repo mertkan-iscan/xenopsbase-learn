@@ -1,0 +1,181 @@
+# ==============================================================================
+# core — identity + catalog in one process (ADR-0109, T-9.17).
+#
+# WHY THIS FILE RESTATES THE TWO MODULES' CONFIGURATION INSTEAD OF IMPORTING IT.
+#
+# identity and catalog each ship `config/application.yml` inside their own jar.
+# Boot resolves `classpath:/config/application.yml` to the FIRST match on the
+# classpath, which here is this file — so theirs are present and unread. That is
+# deterministic (this module's classes precede its dependencies) but it is not
+# obvious, and a property added to identity's yml will not take effect here.
+#
+# CoreConfigurationIsCompleteTest asserts the module-specific properties are
+# actually bound, so the drift fails a build rather than a feature.
+# ==============================================================================
+server:
+  port: ${SERVER_PORT:8082}
+
+spring:
+  application:
+    name: core
+
+  # Same reasoning as every other module — see identity's application.yml for the
+  # full note. Two databases does not change it: both pools block, and a blocked
+  # virtual thread is the cheap case.
+  threads:
+    virtual:
+      enabled: true
+
+  # ----------------------------------------------------------------------------
+  # ONE `spring.jpa` BLOCK, TWO PERSISTENCE UNITS.
+  #
+  # Both units are built through Boot's EntityManagerFactoryBuilder, so everything
+  # here applies to both — which is what keeps `validate`, the UTC clock and the
+  # tenant discriminator stated once rather than twice and drifting.
+  # ----------------------------------------------------------------------------
+  jpa:
+    hibernate:
+      # validate, never update. An entity that disagrees with its migration
+      # refuses to start; the migration is written first and the entity matches it.
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate.jdbc.time_zone: UTC
+      # The tenant discriminator is the persistence layer's job, not each query's
+      # (T-1.1). Applies to both units, so a forgotten WHERE clause in either
+      # module is a query that was already filtered rather than a data leak.
+      hibernate.tenant_identifier_resolver: com.xenopsoftware.learn.common.tenancy.TenantIdentifierResolver
+
+  data:
+    redis:
+      host: ${VALKEY_HOST:localhost}
+      port: ${VALKEY_PORT:6379}
+      password: ${VALKEY_PASSWORD:}
+      connect-timeout: 250ms
+      timeout: 250ms
+      client-name: core
+      repositories:
+        # Off: Spring Data would otherwise scan every JPA repository as a Redis
+        # repository candidate and log a paragraph about each one at every boot.
+        enabled: false
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OIDC_ISSUER_URI:http://localhost:8081/realms/xenopslearn}
+
+# ==============================================================================
+# THE TWO DATABASES.
+#
+# Separate URLs and separate ROLES. ADR-0109 is explicit that "no module reads
+# another module's schema" is enforced by credentials rather than by convention,
+# and merging the processes does not merge the grants: a cross-module query still
+# fails to connect rather than returning the wrong answer.
+#
+# Bound by CorePersistenceConfiguration, not by `spring.datasource`, because there
+# is no such thing as *the* datasource here.
+# ==============================================================================
+learn:
+  identity:
+    datasource:
+      url: ${IDENTITY_DB_URL:jdbc:postgresql://localhost:5432/identity}
+      username: ${IDENTITY_DB_USER:identity}
+      password: ${IDENTITY_DB_PASSWORD:identity}
+      hikari:
+        # Halved from the 10 each module used standalone, and stated rather than
+        # inherited: two pools in one process against the same Postgres is twice
+        # the connection budget for the same traffic. 10 + 10 was never sized for
+        # a merged process, it was two services' numbers added up by accident.
+        maximum-pool-size: ${IDENTITY_DB_POOL:10}
+        pool-name: identity
+  catalog:
+    datasource:
+      url: ${CATALOG_DB_URL:jdbc:postgresql://localhost:5432/catalog}
+      username: ${CATALOG_DB_USER:catalog}
+      password: ${CATALOG_DB_PASSWORD:catalog}
+      hikari:
+        maximum-pool-size: ${CATALOG_DB_POOL:10}
+        pool-name: catalog
+
+# ==============================================================================
+# ONE SERVICE IDENTITY, AND THIS IS A VISIBLE CHANGE (T-9.11).
+#
+# identity presented `svc-identity` and catalog presented `svc-catalog`. One
+# process can only present one, so calls that used to be attributable to a module
+# are now attributable to `core`. Audit rows and `whoami` say `svc-core`.
+#
+# That is a real loss of resolution and it is the price of the merge rather than
+# an oversight — worth knowing before reading an audit trail that used to name two
+# services and now names one. A KEYCLOAK CLIENT `svc-core` HAS TO EXIST before this
+# starts against a real realm; the two it replaces can be removed with it.
+# ==============================================================================
+platform:
+  service-auth:
+    client-id: ${SERVICE_CLIENT_ID:svc-core}
+    client-secret: ${SERVICE_CLIENT_SECRET:local-development-only-core-secret}
+  services:
+    endpoints:
+      # `core` answers for both of the names below, which is why they point here.
+      # Left as two entries rather than collapsed to one: a caller asking for
+      # "catalog" should keep working across the merge and across a later split.
+      identity: ${CORE_URL:http://localhost:8082}
+      catalog: ${CORE_URL:http://localhost:8082}
+      streaming: ${STREAMING_URL:http://localhost:8083}
+      reporting: ${REPORTING_URL:http://localhost:8084}
+  outbox:
+    # Two outboxes in two databases, one relay each (ModuleMessaging). This flag
+    # turns both on: a merged process that published for one module and not the
+    # other would be worse than one that publishes for neither.
+    enabled: true
+    interval: PT1S
+    batch-size: 100
+  messaging:
+    nats-url: ${NATS_URL:}
+    poll-interval: PT1S
+    batch-size: 50
+  mail:
+    enabled: true
+    from: ${MAIL_FROM:}
+
+identity:
+  platform:
+    administrators: ${PLATFORM_ADMINISTRATORS:platform-admin@xenopslearn.test}
+  invitations:
+    ttl: 7d
+    max-import-rows: 5000
+  sso:
+    domain-verification: ${SSO_DOMAIN_VERIFICATION:trusting}
+    realm-admin:
+      url: ${REALM_ADMIN_URL:}
+      realm: ${REALM_ADMIN_REALM:}
+      client-id: ${REALM_ADMIN_CLIENT_ID:}
+      client-secret: ${REALM_ADMIN_CLIENT_SECRET:}
+  impersonation:
+    max-duration: 30m
+    min-reason: 12
+  authz:
+    cache:
+      enabled: ${AUTHZ_CACHE_ENABLED:true}
+      ttl: 10m
+      cooldown: 10s
+
+catalog:
+  due:
+    send-hour: ${DUE_SEND_HOUR:9}
+    catch-up: ${DUE_CATCH_UP:P2D}
+    interval: ${DUE_INTERVAL:PT15M}
+  home:
+    cache-ttl: ${HOME_CACHE_TTL:PT1M}
+    cache-cooldown: ${HOME_CACHE_COOLDOWN:PT30S}
+
+management:
+  endpoints:
+    web:
+      base-path: /management
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true

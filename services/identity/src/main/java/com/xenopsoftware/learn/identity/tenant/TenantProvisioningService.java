@@ -1,6 +1,6 @@
 package com.xenopsoftware.learn.identity.tenant;
 
-import com.xenopsoftware.learn.common.tenancy.TenantFilter;
+import com.xenopsoftware.learn.common.tenancy.TenantClaims;
 import com.xenopsoftware.learn.identity.audit.AuditLogger;
 import com.xenopsoftware.learn.identity.audit.CurrentUser;
 import com.xenopsoftware.learn.identity.authz.AssignmentScopeType;
@@ -71,7 +71,7 @@ public class TenantProvisioningService {
      * the end must attribute this to a person, and resolving them lazily inside the transaction
      * is what deadlocked T-2.6 the first time.
      */
-    @Transactional
+    @Transactional("identityTransactionManager")
     public ProvisionedTenant provision(String tenantId, String name, String adminEmail,
             String adminDisplayName) {
         UUID actor = currentUser.requireId();
@@ -123,7 +123,7 @@ public class TenantProvisioningService {
     private static void validate(String tenantId, String adminEmail) {
         // Reserved first: __platform does not match the slug shape either, and answering with
         // the shape complaint would send an operator off fixing the wrong thing.
-        if (TenantFilter.PLATFORM_TENANT.equals(tenantId)) {
+        if (TenantClaims.PLATFORM_TENANT.equals(tenantId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                 "That id is reserved for the platform itself");
         }

@@ -2,7 +2,7 @@ package com.xenopsoftware.learn.identity.impersonation;
 
 import com.xenopsoftware.learn.common.tenancy.AccountStatus;
 import com.xenopsoftware.learn.common.tenancy.TenantContext;
-import com.xenopsoftware.learn.common.tenancy.TenantFilter;
+import com.xenopsoftware.learn.common.tenancy.TenantClaims;
 import com.xenopsoftware.learn.identity.audit.AuditLogger;
 import com.xenopsoftware.learn.identity.tenant.EffectiveStatus;
 import jakarta.servlet.FilterChain;
@@ -149,7 +149,7 @@ public class ImpersonationFilter extends OncePerRequestFilter {
         } catch (IllegalArgumentException e) {
             return Optional.empty();
         }
-        if (!TenantFilter.PLATFORM.equals(caller.getClaimAsString(TenantFilter.SIDE_CLAIM))) {
+        if (!TenantClaims.PLATFORM.equals(caller.getClaimAsString(TenantClaims.SIDE_CLAIM))) {
             // Only platform staff impersonate. A tenant-side caller presenting a session id is
             // either confused or probing, and both deserve the same nothing.
             LOG.warn("Tenant-side subject {} presented an impersonation session id", caller.getSubject());
@@ -157,7 +157,7 @@ public class ImpersonationFilter extends OncePerRequestFilter {
         }
         List<UUID> actor = jdbc.queryForList(
             "SELECT id FROM app_user WHERE tenant_id = ? AND idp_sub = ?", UUID.class,
-            TenantFilter.PLATFORM_TENANT, caller.getSubject());
+            TenantClaims.PLATFORM_TENANT, caller.getSubject());
         if (actor.isEmpty()) {
             return Optional.empty();
         }

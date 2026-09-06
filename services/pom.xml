@@ -40,10 +40,13 @@
 
     <modules>
         <module>platform-common</module>
+        <module>platform-common-web</module>
+        <module>gateway</module>
         <module>identity</module>
         <module>streaming</module>
         <module>reporting</module>
         <module>catalog</module>
+        <module>core</module>
     </modules>
 
     <properties>
@@ -128,6 +131,17 @@
             <dependency>
                 <groupId>com.xenopsoftware.learn</groupId>
                 <artifactId>platform-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <!--
+                The servlet half (ADR-0111). Every MVC service depends on THIS
+                one and gets platform-common transitively; the gateway depends
+                on platform-common alone, because this artifact brings Tomcat
+                and Spring Cloud Gateway does not start on a servlet container.
+            -->
+            <dependency>
+                <groupId>com.xenopsoftware.learn</groupId>
+                <artifactId>platform-common-web</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

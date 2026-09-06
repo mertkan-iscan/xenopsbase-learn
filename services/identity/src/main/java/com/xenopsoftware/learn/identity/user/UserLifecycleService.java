@@ -84,7 +84,7 @@ public class UserLifecycleService {
      * Invites somebody, or re-invites somebody who has not accepted yet — which rotates the
      * token rather than issuing a second one.
      */
-    @Transactional
+    @Transactional("identityTransactionManager")
     public Invitation invite(String email, String displayName) {
         Invitation invitation = offer(email, displayName);
         audit.record("user.invite", "user", invitation.userId(),
@@ -102,7 +102,7 @@ public class UserLifecycleService {
      * a <em>verified</em> address that matches the invited one (T-1.5) — needs no token at all
      * and is the one an ordinary employee will use.
      */
-    @Transactional
+    @Transactional("identityTransactionManager")
     public AppUser accept(String token, Jwt caller) {
         if (token == null || token.isBlank()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such invitation");
@@ -140,7 +140,7 @@ public class UserLifecycleService {
     }
 
     /** Out, keeping everything they did. */
-    @Transactional
+    @Transactional("identityTransactionManager")
     public AppUser deactivate(UUID userId) {
         AppUser user = require(userId);
         if (user.getId().equals(currentUser.requireId())) {
@@ -163,7 +163,7 @@ public class UserLifecycleService {
     }
 
     /** Back in, as the same person: same id, same identity link, same everything. */
-    @Transactional
+    @Transactional("identityTransactionManager")
     public AppUser reactivate(UUID userId) {
         AppUser user = require(userId);
         if (user.getStatus() != UserStatus.DEACTIVATED) {
@@ -183,7 +183,7 @@ public class UserLifecycleService {
      * rather than an intention; this reports the collision as a conflict rather than letting the
      * constraint surface as a 500.
      */
-    @Transactional
+    @Transactional("identityTransactionManager")
     public AppUser update(UUID userId, String email, String displayName) {
         AppUser user = require(userId);
         Map<String, Object> changed = new LinkedHashMap<>();
@@ -225,7 +225,7 @@ public class UserLifecycleService {
      * <p>An empty value clears it, which is a real request: it puts them back in the "has not told
      * us" population rather than leaving a stale zone from a country they have left.
      */
-    @Transactional
+    @Transactional("identityTransactionManager")
     public AppUser moveTo(UUID userId, String zoneId) {
         AppUser user = require(userId);
         String before = user.getTimeZone();
@@ -250,7 +250,7 @@ public class UserLifecycleService {
      * the first bad address is an import a customer runs by bisecting their own file, and the
      * five hundredth row's error is the one they find last.
      */
-    @Transactional
+    @Transactional("identityTransactionManager")
     public ImportReport importUsers(String csv, boolean dryRun) {
         List<CsvUsers.Row> rows;
         try {

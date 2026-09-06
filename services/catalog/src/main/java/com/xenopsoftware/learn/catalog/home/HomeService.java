@@ -101,7 +101,7 @@ public class HomeService {
      * instant — a screen where one course went overdue between two calls to {@code now()} is a
      * screen nobody can explain.
      */
-    @Transactional(readOnly = true)
+    @Transactional(value = "catalogTransactionManager", readOnly = true)
     public HomeView forLearner(UUID learnerId, Instant now) {
         String tenantId = TenantContext.require();
         List<AssignmentService.Obligation> obligations = assignments.obligationsOf(learnerId, now);

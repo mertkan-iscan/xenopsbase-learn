@@ -56,7 +56,7 @@ public class CycleService {
      *
      * <p>Empty for an assignment with no deadline: there is nothing to be in a cycle of.
      */
-    @Transactional(readOnly = true)
+    @Transactional(value = "catalogTransactionManager", readOnly = true)
     public Optional<AssignmentCycle> currentCycle(Assignment assignment, Instant now) {
         Deadlines.DueSpec spec = assignment.due();
         if (spec.kind() == DueKind.NONE) {
@@ -116,7 +116,7 @@ public class CycleService {
      * <p>Cycles that are missing or overdue to exist are still opened, one write each, because
      * that is rare — the first read after an assignment is made, and once per period afterwards.
      */
-    @Transactional(readOnly = true)
+    @Transactional(value = "catalogTransactionManager", readOnly = true)
     public Map<UUID, AssignmentCycle> currentCycles(List<Assignment> assignments, Instant now) {
         List<Assignment> dated = assignments.stream()
             .filter(assignment -> assignment.due().kind() != DueKind.NONE)
@@ -155,7 +155,7 @@ public class CycleService {
      * on the foreign key. Nothing is opened for an assignment with no deadline; there is no period
      * to be in a cycle of.
      */
-    @Transactional
+    @Transactional("catalogTransactionManager")
     public Optional<AssignmentCycle> openFirstCycle(Assignment assignment) {
         if (assignment.due().kind() == DueKind.NONE) {
             return Optional.empty();
@@ -164,7 +164,7 @@ public class CycleService {
     }
 
     /** Every cycle this assignment has ever had, oldest first. Nothing here is ever rewritten. */
-    @Transactional(readOnly = true)
+    @Transactional(value = "catalogTransactionManager", readOnly = true)
     public List<AssignmentCycle> historyOf(UUID assignmentId) {
         return cycles.findByAssignmentIdOrderByCycleNumberAsc(assignmentId);
     }

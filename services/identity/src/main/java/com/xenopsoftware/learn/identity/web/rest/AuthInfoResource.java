@@ -1,7 +1,7 @@
 package com.xenopsoftware.learn.identity.web.rest;
 
 import com.xenopsoftware.learn.common.tenancy.TenantContext;
-import com.xenopsoftware.learn.common.tenancy.TenantFilter;
+import com.xenopsoftware.learn.common.tenancy.TenantClaims;
 import java.util.List;
 import java.util.Map;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -27,7 +27,7 @@ public class AuthInfoResource {
             "sub", jwt.getSubject(),
             "username", String.valueOf(jwt.getClaimAsString("preferred_username")),
             "tenant", String.valueOf(TenantContext.get()),
-            "side", String.valueOf(jwt.getClaimAsString(TenantFilter.SIDE_CLAIM)),
+            "side", String.valueOf(jwt.getClaimAsString(TenantClaims.SIDE_CLAIM)),
             "realmRoles", realmRoles(jwt)
         );
     }

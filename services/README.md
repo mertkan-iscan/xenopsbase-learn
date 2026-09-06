@@ -31,10 +31,25 @@ which names neither JDK, nor the correct one sitting on the same disk.
 
 ```
 services/
-├── pom.xml            the parent — versions, plugins, conventions, declared once
-├── platform-common/   what every module shares. No domain code, ever
-└── identity/          the first module
+├── pom.xml                the parent — versions, plugins, conventions, declared once
+├── platform-common/       what every PROCESS shares, whatever web stack it runs
+├── platform-common-web/   the servlet half: filters, the service hop, internal probes
+├── gateway/               the edge. WebFlux, and the only reactive process here
+├── identity/              the first module
+├── catalog/
+├── reporting/
+└── streaming/
 ```
+
+**Why the shared code is two modules and not one** is [ADR-0111](../docs/adr/0111-servlet-modules-and-one-reactive-edge.md).
+The short version: eight modules are Spring MVC on virtual threads, the ninth — `gateway` — is
+Spring Cloud Gateway and can only be WebFlux, and a library carrying `spring-boot-starter-web`
+stops that process from starting. So the contract both stacks agree on lives in `platform-common`
+and the servlet implementation of it lives in `platform-common-web`. A service depends on
+`platform-common-web` and gets the other transitively; the gateway depends on `platform-common`
+alone. Two build rules keep that true — an ArchUnit test for servlet code written in the shared
+module, and a banned-dependencies rule for a servlet JAR arriving without any code at all, which
+is the case that would otherwise fail on a cluster instead of in CI.
 
 The parent is the one place this differs structurally from the stemcell, which gives each of its
 two services an independent pom. With two services duplication is cheaper than indirection; with
@@ -60,8 +75,9 @@ by review:
 - **Controllers live under `web/rest`, never at the package root.** Everything under `/api/**` is
   authenticated by `SecurityConfiguration`; a controller outside that tree has its exposure decided
   by where somebody put the file.
-- **`platform-common` may not depend on any module.** The moment it does, two modules are coupled
-  through a third, which is harder to see than coupling them directly.
+- **`platform-common` may not depend on any module, or on any web stack.** The first rule keeps
+  two modules from being coupled through a third, which is harder to see than coupling them
+  directly. The second is what lets the gateway share it at all (ADR-0111).
 - **Only `TenantFilter` binds the tenant.** It comes from a verified claim, never a header, a query
   parameter or a body. The version of this that gets added is reasonable-looking — a header for
   testing, a parameter for support — so it is a build failure rather than a review comment.

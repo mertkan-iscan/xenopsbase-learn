@@ -42,12 +42,12 @@ public class CourseService {
 
     public record ModuleTree(CourseModule module, List<CourseNode> nodes) {}
 
-    @Transactional
+    @Transactional("catalogTransactionManager")
     public Course create(String title, String description) {
         return courses.save(Course.named(title, description));
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(value = "catalogTransactionManager", readOnly = true)
     public List<Course> all() {
         return courses.findAllByOrderByUpdatedAtDesc();
     }
@@ -58,7 +58,7 @@ public class CourseService {
      * keeps a forty-module course from costing forty-one round trips — the N+1 that a test with
      * two modules cannot see.
      */
-    @Transactional(readOnly = true)
+    @Transactional(value = "catalogTransactionManager", readOnly = true)
     public CourseTree tree(UUID courseId) {
         Course course = courses.findById(courseId).orElseThrow(CourseService::notFound);
         List<CourseModule> ordered = modules.findByCourseIdOrderByOrdinalAscIdAsc(courseId);
@@ -84,7 +84,7 @@ public class CourseService {
      * are simply absent from the result: an assignment can outlive the course it points at, and a
      * screen that threw for one stale row would show nothing at all.
      */
-    @Transactional(readOnly = true)
+    @Transactional(value = "catalogTransactionManager", readOnly = true)
     public Map<UUID, CourseTree> trees(java.util.Collection<UUID> courseIds) {
         if (courseIds.isEmpty()) {
             return Map.of();
@@ -117,7 +117,7 @@ public class CourseService {
         return trees;
     }
 
-    @Transactional
+    @Transactional("catalogTransactionManager")
     public CourseModule addModule(UUID courseId, String title, UUID afterModuleId) {
         Course course = courses.findById(courseId).orElseThrow(CourseService::notFound);
         List<CourseModule> siblings = modules.findByCourseIdOrderByOrdinalAscIdAsc(courseId);
@@ -132,7 +132,7 @@ public class CourseService {
      *
      * @param afterModuleId the module this one now follows, or null to move it to the front
      */
-    @Transactional
+    @Transactional("catalogTransactionManager")
     public CourseModule moveModule(UUID moduleId, UUID afterModuleId) {
         CourseModule module = modules.findById(moduleId).orElseThrow(CourseService::notFound);
         if (moduleId.equals(afterModuleId)) {
@@ -154,7 +154,7 @@ public class CourseService {
      * by definition and an archived item has been withdrawn — putting either into a course means a
      * learner reaching content nobody meant to ship.
      */
-    @Transactional
+    @Transactional("catalogTransactionManager")
     public CourseNode addNode(UUID moduleId, UUID contentItemId, boolean required, UUID afterNodeId) {
         modules.findById(moduleId).orElseThrow(CourseService::notFound);
         ContentItem item = items.findById(contentItemId).orElseThrow(() ->
@@ -178,7 +178,7 @@ public class CourseService {
      * @param moduleId    where it lands; null keeps it where it is
      * @param afterNodeId the node it now follows within that module, or null for the front
      */
-    @Transactional
+    @Transactional("catalogTransactionManager")
     public CourseNode moveNode(UUID nodeId, UUID moduleId, UUID afterNodeId) {
         CourseNode node = nodes.findById(nodeId).orElseThrow(CourseService::notFound);
         if (nodeId.equals(afterNodeId)) {
@@ -196,7 +196,7 @@ public class CourseService {
         return nodes.save(node);
     }
 
-    @Transactional
+    @Transactional("catalogTransactionManager")
     public CourseNode setRequired(UUID nodeId, boolean required) {
         CourseNode node = nodes.findById(nodeId).orElseThrow(CourseService::notFound);
         node.setRequired(required);
@@ -213,13 +213,13 @@ public class CourseService {
      * Three callers each writing {@code .filter(CourseNode::isRequired)} is three places for the
      * rule to drift the day "required" acquires a nuance.
      */
-    @Transactional(readOnly = true)
+    @Transactional(value = "catalogTransactionManager", readOnly = true)
     public List<CourseNode> requiredNodes(UUID courseId) {
         return nodes.findWholeCourse(courseId).stream().filter(CourseNode::isRequired).toList();
     }
 
     /** Which courses point at an item. Asked before withdrawing one. */
-    @Transactional(readOnly = true)
+    @Transactional(value = "catalogTransactionManager", readOnly = true)
     public long referencesTo(UUID contentItemId) {
         return nodes.countByContentItemId(contentItemId);
     }
@@ -233,7 +233,7 @@ public class CourseService {
      * hundred-digit ordinal is correct but unreadable. Deliberate, never automatic: renumbering
      * under a user is the cost this design refuses to pay silently.
      */
-    @Transactional
+    @Transactional("catalogTransactionManager")
     public int rebalance(UUID moduleId) {
         List<CourseNode> ordered = nodes.findByModuleIdOrderByOrdinalAscIdAsc(moduleId);
         List<BigDecimal> fresh = Ordinals.rebalance(ordered.size());
@@ -301,7 +301,7 @@ public class CourseService {
     }
 
     /** Whether an item exists here at all, for callers that only need to know that. */
-    @Transactional(readOnly = true)
+    @Transactional(value = "catalogTransactionManager", readOnly = true)
     public Optional<ContentItem> itemOf(UUID contentItemId) {
         return items.findById(contentItemId);
     }

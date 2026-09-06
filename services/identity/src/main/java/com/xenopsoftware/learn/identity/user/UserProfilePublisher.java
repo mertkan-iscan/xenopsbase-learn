@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -44,7 +45,7 @@ public class UserProfilePublisher {
     private final Outbox outbox;
     private final JsonMapper json = JsonMapper.builder().build();
 
-    public UserProfilePublisher(Outbox outbox) {
+    public UserProfilePublisher(@Qualifier("identityOutbox") Outbox outbox) {
         this.outbox = outbox;
     }
 

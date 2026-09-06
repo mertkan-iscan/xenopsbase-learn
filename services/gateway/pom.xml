@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    The edge (T-9.17, ADR-0111).
+
+    THE ONE REACTIVE PROCESS ON THIS PLATFORM, and the only one that may be.
+    Spring Cloud Gateway exists on WebFlux and nowhere else, so this module is
+    reactive by the routing library's constraint rather than by preference —
+    which is exactly the shape the stemcell has, and exactly why ADR-0111 keeps
+    the other eight modules on Spring MVC.
+
+    NOTE WHAT IS ABSENT: `platform-common-web`. This module depends on
+    `platform-common` alone. That is not an oversight to be corrected the first
+    time somebody wants TenantFilter here — adding the servlet library puts
+    Tomcat on the classpath, Boot resolves the application type as SERVLET, and
+    this process stops starting. GatewayHasNoServletOnItsClasspathTest and the
+    banned-dependencies rule below both fail before that reaches a cluster.
+
+    What it shares with the eight instead is the CONTRACT: TenantClaims,
+    TenantStatusKeys, AccountStatus, Correlation. The filters here are reactive
+    implementations of the same rules, reading the same claim names and the
+    same Valkey key.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.xenopsoftware.learn</groupId>
+        <artifactId>services</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>gateway</artifactId>
+    <name>Gateway</name>
+    <description>Edge routing, sign-in, session, rate limiting and the tenant status gate</description>
+
+    <properties>
+        <start-class>com.xenopsoftware.learn.gateway.GatewayApp</start-class>
+    </properties>
+
+    <dependencies>
+        <!-- The contract, and nothing that names a servlet request. See the header. -->
+        <dependency>
+            <groupId>com.xenopsoftware.learn</groupId>
+            <artifactId>platform-common</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-gateway-server-webflux</artifactId>
+        </dependency>
+
+        <!--
+            Both halves of OAuth2, and the pair is the backend-for-frontend
+            (ADR-0111, T-10.2).
+
+            `oauth2-client` makes this gateway an OIDC RELYING PARTY: it runs
+            the authorization-code flow, holds the resulting tokens in a
+            server-side session, and relays the access token inward. That is
+            what keeps the token out of a browser which also hosts uploaded
+            SCORM packages (ADR-0105) — the risk T-10.2 exists to refuse.
+
+            `oauth2-resource-server` is for callers that are not browsers:
+            an API client presenting its own bearer token must be validated
+            here rather than waved through to be validated four times inward.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+
+        <!--
+            Session storage, and `replicas: 1` is the alternative.
+
+            Spring's default WebSession store is in-memory, which puts the
+            access and refresh tokens in one JVM's heap. A second replica then
+            serves requests that land on the pod without the session and signs
+            people out at random, intermittently, with nothing logged. The
+            stemcell wrote that down after finding it; this inherits the
+            conclusion rather than the discovery.
+
+            Reactive client, because this process is. The MVC services read the
+            same Valkey with the blocking one, which is fine there and would be
+            a stalled event loop here.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis-reactive</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.session</groupId>
+            <artifactId>spring-session-data-redis</artifactId>
+        </dependency>
+
+        <!--
+            Circuit breakers (stemcell T-3.9, corrected by its T-5.10). The
+            configuration in application.yml is TIME_BASED rather than
+            count-based, and that is a measured correction rather than a
+            default: at 1200 req/s a 20-call window is seventeen milliseconds
+            of traffic, and the stemcell measured 293 requests discarded per
+            real failure before the window was changed.
+        -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-circuitbreaker-reactor-resilience4j</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!--
+            Declared rather than inherited, because what needs it is not
+            optional here. This is what carries the correlation id from the
+            Reactor context into MDC around each operator
+            (CorrelationContextConfiguration); without it every log line this
+            process writes renders an EMPTY correlation field rather than
+            failing, which looks like ordinary logs and is the hardest kind of
+            missing feature to notice.
+        -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>context-propagation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- StepVerifier: asserting on a Mono means asserting on its signals, not its value. -->
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5-engine</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!--
+                The mirror of platform-common's rule, from the other side.
+                There it bans a web stack from a library every process shares;
+                here it bans the SERVLET stack from the one process that cannot
+                have it. Stated as a build rule rather than as a comment
+                because the failure it prevents — Boot silently choosing
+                SERVLET because Tomcat is present — produces a startup failure
+                on a cluster and a green build in CI.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>enforce-no-servlet-stack</id>
+                        <goals><goal>enforce</goal></goals>
+                        <configuration>
+                            <rules>
+                                <bannedDependencies>
+                                    <searchTransitive>true</searchTransitive>
+                                    <excludes>
+                                        <exclude>com.xenopsoftware.learn:platform-common-web</exclude>
+                                        <exclude>org.springframework.boot:spring-boot-starter-web</exclude>
+                                        <exclude>org.springframework.boot:spring-boot-starter-webmvc</exclude>
+                                        <exclude>org.springframework.boot:spring-boot-starter-tomcat</exclude>
+                                        <exclude>org.springframework:spring-webmvc</exclude>
+                                        <!--
+                                            NOT BANNED, though it reads like it should be:
+                                            spring-security-web. Its name says servlet and its
+                                            contents do not — org.springframework.security.web.server
+                                            is where reactive security lives, so this module's own
+                                            SecurityWebFilterChain comes out of that jar. Banning it
+                                            bans the gateway's security configuration.
+                                        -->
+                                        <!--
+                                            THE SERVLET CONTAINER, NOT EVERYTHING TOMCAT PUBLISHES.
+
+                                            This was `org.apache.tomcat.embed:*` for about a
+                                            minute, and the build correctly refused: bean
+                                            validation pulls tomcat-embed-EL, which is Tomcat's
+                                            Jakarta Expression Language implementation and
+                                            contains no servlet class at all. Banning it would
+                                            have meant dropping @Valid from this module to
+                                            satisfy a rule about something else.
+
+                                            What actually decides Boot's application type is
+                                            jakarta.servlet.Servlet, which arrives in the API jar
+                                            and in tomcat-embed-core. Those two are the rule.
+                                        -->
+                                        <exclude>org.apache.tomcat.embed:tomcat-embed-core</exclude>
+                                        <exclude>jakarta.servlet:*</exclude>
+                                    </excludes>
+                                    <message>
+                                        The gateway is Spring Cloud Gateway and starts only on a reactive
+                                        server (ADR-0111). A servlet container on this classpath makes Boot
+                                        resolve the application type as SERVLET and this process stops
+                                        starting — with a green build. Whatever needed it has a reactive
+                                        equivalent here; the shared contract is in platform-common.
+                                    </message>
+                                </bannedDependencies>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

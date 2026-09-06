@@ -59,7 +59,7 @@ public class AssignmentService {
         this.escalation = escalation;
     }
 
-    @Transactional
+    @Transactional("identityTransactionManager")
     public RoleAssignment assignToUser(UUID roleId, UUID userId, ScopeGrant scope) {
         statusGuard.requireWritable();
         Role role = requireRole(roleId);
@@ -74,7 +74,7 @@ public class AssignmentService {
         return saved;
     }
 
-    @Transactional
+    @Transactional("identityTransactionManager")
     public RoleAssignment assignToGroup(UUID roleId, UUID groupId, ScopeGrant scope) {
         statusGuard.requireWritable();
         Role role = requireRole(roleId);
@@ -89,7 +89,7 @@ public class AssignmentService {
         return saved;
     }
 
-    @Transactional
+    @Transactional("identityTransactionManager")
     public void revoke(UUID assignmentId) {
         statusGuard.requireWritable();
         RoleAssignment assignment = assignments.findById(assignmentId)

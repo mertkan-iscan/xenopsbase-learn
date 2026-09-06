@@ -4,7 +4,6 @@ import java.util.UUID;
 import javax.sql.DataSource;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.stereotype.Component;
 
 /**
  * How a consumer meets the at-least-once contract (T-9.8's fifth criterion).
@@ -22,7 +21,10 @@ import org.springframework.stereotype.Component;
  * separately would let a handler fail after the mark and never be retried — a message recorded as
  * handled that did nothing, which is worse than handling it twice.
  */
-@Component
+// NOT @Component (ADR-0109). This is bound to ONE database -- the whole point of a
+// transactional dedupe table is that the row is written in the same transaction as the domain
+// change -- and a merged process has two. Each module declares its own; see
+// ModuleMessaging.
 public class ConsumedMessages {
 
     private final JdbcTemplate jdbc;

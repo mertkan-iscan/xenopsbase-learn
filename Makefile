@@ -135,8 +135,17 @@ build: ## Compile and install every service
 test: ## Run every service's tests
 	@JAVA_HOME="$(JAVA_HOME_RESOLVED)" mvn -f services/pom.xml test
 
-run: ## Run one service against the local stack (make run S=identity)
-	@JAVA_HOME="$(JAVA_HOME_RESOLVED)" 		"$(JAVA_HOME_RESOLVED)/bin/java" -jar services/$(or $(S),identity)/target/$(or $(S),identity)-0.0.1-SNAPSHOT.jar
+# `identity` and `catalog` are LIBRARIES now, not applications (ADR-0109): they
+# run inside `core`, so they no longer produce an executable jar and `java -jar`
+# on one fails with "no main manifest attribute". The guard below says that
+# instead, because the bare error names neither the cause nor the fix.
+#
+# Deployables: core, gateway, streaming, reporting.
+LIBRARY_MODULES := identity catalog
+
+run: ## Run one deployable against the local stack (make run S=core)
+	@case " $(LIBRARY_MODULES) " in *" $(or $(S),core) "*) echo "$(or $(S),core) runs inside core (ADR-0109) and builds no executable jar."; echo "  make run S=core   starts identity and catalog together"; echo "  mvn -f services/pom.xml -pl $(or $(S),core) spring-boot:run   starts this module alone"; exit 1;; esac
+	@JAVA_HOME="$(JAVA_HOME_RESOLVED)" "$(JAVA_HOME_RESOLVED)/bin/java" -jar services/$(or $(S),core)/target/$(or $(S),core)-0.0.1-SNAPSHOT.jar
 
 
 # ------------------------------------------------------------------------------

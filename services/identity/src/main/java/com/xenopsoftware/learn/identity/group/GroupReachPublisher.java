@@ -5,6 +5,7 @@ import com.xenopsoftware.learn.common.tenancy.TenantContext;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -42,7 +43,7 @@ public class GroupReachPublisher {
     private final GroupMembershipRepository memberships;
     private final JsonMapper json = JsonMapper.builder().build();
 
-    public GroupReachPublisher(Outbox outbox, GroupHierarchy hierarchy,
+    public GroupReachPublisher(@Qualifier("identityOutbox") Outbox outbox, GroupHierarchy hierarchy,
             GroupMembershipRepository memberships) {
         this.outbox = outbox;
         this.hierarchy = hierarchy;

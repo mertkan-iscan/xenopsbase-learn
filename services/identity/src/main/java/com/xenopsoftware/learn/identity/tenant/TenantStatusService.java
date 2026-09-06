@@ -31,7 +31,7 @@ public class TenantStatusService {
         this.audit = audit;
     }
 
-    @Transactional
+    @Transactional("identityTransactionManager")
     public AccountStatus change(String tenantId, AccountStatus status, String reason) {
         String previous = jdbc.query("SELECT status FROM tenant WHERE tenant_id = ?",
             rows -> rows.next() ? rows.getString(1) : null, tenantId);

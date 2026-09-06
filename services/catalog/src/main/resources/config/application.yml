@@ -8,6 +8,37 @@ spring:
   application:
     name: catalog
 
+  # ---------------------------------------------------------------------------
+  # VIRTUAL THREADS (ADR-0111)
+  #
+  # This service is Spring MVC and blocks on purpose: JPA, JDBC and a
+  # RestClient hop are all blocking, and wrapping them in Reactor would buy the
+  # programming model without the throughput. Virtual threads are what make
+  # that choice scale -- a parked carrier thread costs a few hundred bytes
+  # instead of a megabyte of stack -- and on Java 25 they arrive without the
+  # caveat that used to come with them: JEP 491 removed the pinning that made
+  # a `synchronized` block hold its carrier, which is what Hikari and the
+  # Postgres driver are full of.
+  #
+  # WHAT THIS CHANGES OPERATIONALLY, because it is not nothing. Tomcat's
+  # 200-thread pool was the platform's real admission control, and it is gone:
+  # every accepted request now gets a thread. The queue moves to the
+  # connection pool above, so `maximum-pool-size` is the concurrency limit and
+  # a burst waits there rather than at the connector. That is the better place
+  # to wait -- it is the resource that is actually scarce -- but it means the
+  # pool size is now a capacity decision rather than a database courtesy.
+  #
+  # T-1.1's tenant propagation survives this, and it was checked rather than
+  # assumed: Boot's virtual-thread executor is built by SimpleAsyncTaskExecutor
+  # Builder, which applies the single TaskDecorator bean exactly as the pooled
+  # one did. TenantTaskDecoratorSurvivesVirtualThreadsTest pins it, because the
+  # failure if it ever stops being true is an @Async method running under the
+  # wrong tenant rather than an error.
+  # ---------------------------------------------------------------------------
+  threads:
+    virtual:
+      enabled: true
+
   servlet:
     multipart:
       # OFF. Nothing is uploaded here: a content item POINTS at a video, a
@@ -67,7 +98,27 @@ spring:
 
   flyway:
     enabled: true
-    locations: classpath:db/migration
+    # ---------------------------------------------------------------------------
+    # NAMESPACED BY MODULE, and this is a merge prerequisite rather than tidiness
+    # (ADR-0109, ADR-0111).
+    #
+    # Every module numbered its migrations from V1, which is correct while each
+    # runs in its own process reading its own classpath. It stops being correct
+    # the moment two modules share one: `classpath:db/migration` then resolves
+    # across BOTH jars, Flyway finds two different V1__ files, and refuses to
+    # start with "Found more than one migration with version 1".
+    #
+    # identity and catalog have V1..V8 in common today. ADR-0109 puts them in
+    # one process, so the paths are separated now -- before there is a second
+    # module in the room -- rather than during the merge, where it would look
+    # like part of it.
+    #
+    # SAFE ON AN EXISTING DATABASE: flyway_schema_history keys on version and
+    # description, not on where the file was read from, so a relocated file with
+    # the same name is the same migration. The four databases keep their own
+    # histories regardless; nothing re-runs.
+    # ---------------------------------------------------------------------------
+    locations: classpath:db/migration/catalog
     baseline-on-migrate: false
 
   security:

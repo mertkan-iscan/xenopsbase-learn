@@ -1,6 +1,6 @@
 package com.xenopsoftware.learn.identity.authz;
 
-import com.xenopsoftware.learn.common.tenancy.TenantFilter;
+import com.xenopsoftware.learn.common.tenancy.TenantClaims;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -64,7 +64,7 @@ public class SystemRoleSeeder implements ApplicationRunner {
         // Each side's templates go into the tenant that can hold them: the platform's own, or a
         // customer's. T-2.7 could only do half of this, because a platform-side row had no
         // tenant to be read back under until T-1.5 made one.
-        boolean platformTenant = TenantFilter.PLATFORM_TENANT.equals(tenant);
+        boolean platformTenant = TenantClaims.PLATFORM_TENANT.equals(tenant);
         int changed = 0;
         for (SystemRole template : SystemRole.values()) {
             if ((template.side() == PermissionSide.PLATFORM) != platformTenant) {

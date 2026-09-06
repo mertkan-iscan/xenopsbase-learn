@@ -59,7 +59,7 @@ public class CourseVersionService {
      * removed a node would otherwise move every learner onto it silently, which is the failure this
      * whole task exists to prevent.
      */
-    @Transactional
+    @Transactional("catalogTransactionManager")
     public PublishedVersion publish(UUID courseId, String notes, UUID publishedBy) {
         CourseSnapshot snapshot = draftOf(courseId);
         Optional<PublishedVersion> previous = latest(courseId);
@@ -88,7 +88,7 @@ public class CourseVersionService {
     }
 
     /** Every version of a course, newest first. */
-    @Transactional(readOnly = true)
+    @Transactional(value = "catalogTransactionManager", readOnly = true)
     public List<PublishedVersion> versionsOf(UUID courseId) {
         return jdbc.query("""
             SELECT id, course_id, version, text_only, notes, published_at, published_by
@@ -123,7 +123,7 @@ public class CourseVersionService {
      * reordered, made required or optional, or any gate change, breaks the chain — and the server
      * decides which it was by comparing snapshots.
      */
-    @Transactional(readOnly = true)
+    @Transactional(value = "catalogTransactionManager", readOnly = true)
     public Optional<PublishedVersion> effectiveVersion(UUID courseId, long pinned) {
         List<PublishedVersion> ascending = new ArrayList<>(versionsOf(courseId));
         java.util.Collections.reverse(ascending);
@@ -146,7 +146,7 @@ public class CourseVersionService {
     }
 
     /** What changed between two versions of one course. */
-    @Transactional(readOnly = true)
+    @Transactional(value = "catalogTransactionManager", readOnly = true)
     public CourseDiff diff(UUID courseId, long from, long to) {
         PublishedVersion older = require(courseId, from);
         PublishedVersion newer = require(courseId, to);
@@ -160,7 +160,7 @@ public class CourseVersionService {
      * different decisions and an administrator should be able to make the first without risking the
      * second.
      */
-    @Transactional(readOnly = true)
+    @Transactional(value = "catalogTransactionManager", readOnly = true)
     public List<String> whatMigrationWouldCost(UUID courseId, long from, long to) {
         return diff(courseId, from, to).lostForLearners();
     }
@@ -177,7 +177,7 @@ public class CourseVersionService {
      * under version 3, and rewriting that to say 4 is the history-rewriting this task exists to
      * prevent — the migration changes what they must do NEXT, not what they already did.
      */
-    @Transactional
+    @Transactional("catalogTransactionManager")
     public int migrate(UUID courseId, long from, long to) {
         require(courseId, from);
         require(courseId, to);
@@ -194,7 +194,7 @@ public class CourseVersionService {
     }
 
     /** The snapshot stored on a version row. */
-    @Transactional(readOnly = true)
+    @Transactional(value = "catalogTransactionManager", readOnly = true)
     public CourseSnapshot snapshotOf(UUID versionId) {
         String stored = jdbc.query(
             "SELECT snapshot::text FROM course_version WHERE tenant_id = ? AND id = ?",
@@ -213,7 +213,7 @@ public class CourseVersionService {
      * shape and opposite in every other way, and an earlier draft of this class had both behind
      * one name -- which compiled, and would have published the wrong thing.
      */
-    @Transactional(readOnly = true)
+    @Transactional(value = "catalogTransactionManager", readOnly = true)
     public CourseSnapshot draftOf(UUID courseId) {
         CourseService.CourseTree tree = courses.tree(courseId);
         Map<UUID, CourseSnapshot.Gate> gatesByTarget = gatesOf(courseId);

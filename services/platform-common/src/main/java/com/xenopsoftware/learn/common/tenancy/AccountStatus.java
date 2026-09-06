@@ -48,4 +48,48 @@ public enum AccountStatus {
             case SUSPENDED -> "ACCOUNT_SUSPENDED";
         };
     }
+
+    /**
+     * What a refused caller is told, given whether they were trying to change something.
+     *
+     * <p>Here rather than in the filter because two filters now produce it — the servlet
+     * {@code StatusGateFilter} in every MVC service and the gateway's {@code StatusGateWebFilter}
+     * at the edge (ADR-0111). A learner refused by the edge and a learner refused one hop in must
+     * read the same sentence; two copies of it drift the first time one is reworded, and the
+     * result is a product that describes the same state two ways depending on which process
+     * happened to catch it.
+     */
+    public String messageFor(boolean write) {
+        if (this == SUSPENDED) {
+            return "This account is suspended. Contact your administrator.";
+        }
+        return write
+            ? "This account is read only. You can view and export, but not change anything."
+            : "This account is read only.";
+    }
+
+    /**
+     * The refusal body, byte for byte, for both stacks.
+     *
+     * <p>Machine-readable because a UI has to say something true, and a message alone would make
+     * "suspended" and "read only" indistinguishable without parsing prose. Built by string rather
+     * than by a serialiser deliberately: this is the one response that has to be identical from a
+     * WebFlux process and an MVC one, and going through each stack's own Jackson configuration is
+     * exactly how two identical-looking bodies end up differing in field order or escaping.
+     */
+    public String refusalBody(boolean write) {
+        return "{\"error\":{\"code\":\"" + reasonCode()
+            + "\",\"message\":\"" + messageFor(write) + "\"}}";
+    }
+
+    /** Whether an HTTP method is a change, for the gate. {@code GET}/{@code HEAD}/{@code OPTIONS} are not. */
+    public static boolean isWrite(String httpMethod) {
+        if (httpMethod == null) {
+            return true;
+        }
+        return switch (httpMethod.toUpperCase(java.util.Locale.ROOT)) {
+            case "GET", "HEAD", "OPTIONS" -> false;
+            default -> true;
+        };
+    }
 }

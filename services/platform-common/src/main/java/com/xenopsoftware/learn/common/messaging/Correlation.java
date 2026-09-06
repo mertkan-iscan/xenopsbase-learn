@@ -27,9 +27,52 @@ public final class Correlation {
     /** The MDC key, so a log pattern can name it. */
     public static final String MDC_KEY = "correlationId";
 
+    /**
+     * How long an inbound id may be before it is replaced rather than adopted.
+     *
+     * <p>Sixty-four characters fits a UUID, a hex trace id and anything a proxy is likely to
+     * set, and refuses the values that are only ever sent to see what happens.
+     */
+    public static final int MAX_LENGTH = 64;
+
     private static final ThreadLocal<String> CURRENT = new ThreadLocal<>();
 
     private Correlation() {}
+
+    /**
+     * Whether an inbound header value may be adopted, rather than replaced with a fresh id.
+     *
+     * <p><b>Trusting the header is deliberate; trusting its contents is not.</b> The class
+     * javadoc explains why a forged id is harmless — it grants nothing and reads nothing, and the
+     * worst it does is put two unrelated things in one log query. That reasoning covers the
+     * VALUE being wrong. It does not cover the value being a payload.
+     *
+     * <p>This id is written into the MDC and therefore onto every log line the request produces,
+     * and onto every outbox row it causes. A newline in it writes fabricated log entries that are
+     * indistinguishable from real ones — an attacker choosing what the log says about them is a
+     * worse outcome than an attacker choosing an id. Control characters, an over-long value, or
+     * anything outside {@code [A-Za-z0-9_-]} therefore mean "mint a fresh one", not "reject the
+     * request": refusing would turn a log concern into an availability one for callers whose
+     * proxy sets a format nobody anticipated.
+     *
+     * <p>Shared by both stacks (ADR-0111) for the usual reason — the servlet filter and the
+     * gateway's {@code WebFilter} must agree on what is acceptable, or the edge sanitises and the
+     * services do not, which is the same as not sanitising.
+     */
+    public static boolean isAcceptable(String value) {
+        if (value == null || value.isBlank() || value.length() > MAX_LENGTH) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            boolean allowed = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+                || (c >= '0' && c <= '9') || c == '-' || c == '_';
+            if (!allowed) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     /** The id on this thread, or a fresh one -- never null, so a caller never has to check. */
     public static String current() {

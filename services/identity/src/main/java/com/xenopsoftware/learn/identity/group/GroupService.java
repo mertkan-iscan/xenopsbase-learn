@@ -32,7 +32,7 @@ public class GroupService {
         this.reach = reach;
     }
 
-    @Transactional
+    @Transactional("identityTransactionManager")
     public UserGroup create(String name, UUID parentId) {
         statusGuard.requireWritable();
         if (parentId != null) {
@@ -54,7 +54,7 @@ public class GroupService {
      * ring nothing can reach and no query can leave), and the moved subtree's own height counts
      * toward the depth limit, so a deep branch cannot be tucked under a deep node.
      */
-    @Transactional
+    @Transactional("identityTransactionManager")
     public UserGroup move(UUID groupId, UUID newParentId) {
         statusGuard.requireWritable();
         UserGroup group = require(groupId);
@@ -85,7 +85,7 @@ public class GroupService {
      * orphaning either is not an option, and neither is deciding on the caller's behalf that
      * their people should move.
      */
-    @Transactional
+    @Transactional("identityTransactionManager")
     public void delete(UUID groupId) {
         statusGuard.requireWritable();
         require(groupId);
@@ -103,7 +103,7 @@ public class GroupService {
      * then does it go. A root group's children become roots and its members become unaffiliated
      * — stated here so nobody has to infer it from behaviour.
      */
-    @Transactional
+    @Transactional("identityTransactionManager")
     public void deleteAndRehome(UUID groupId) {
         statusGuard.requireWritable();
         UserGroup group = require(groupId);
@@ -121,7 +121,7 @@ public class GroupService {
         groups.deleteById(groupId);
     }
 
-    @Transactional
+    @Transactional("identityTransactionManager")
     public GroupMembership addMember(UUID groupId, UUID userId) {
         statusGuard.requireWritable();
         require(groupId);
@@ -133,7 +133,7 @@ public class GroupService {
         return membership;
     }
 
-    @Transactional
+    @Transactional("identityTransactionManager")
     public void removeMember(UUID groupId, UUID userId) {
         statusGuard.requireWritable();
         // The group must be one of ours (T-1.6). Without this the endpoint answered 200 to

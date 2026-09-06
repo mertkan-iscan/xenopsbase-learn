@@ -31,15 +31,26 @@ public class OutboxMetrics {
     private final AtomicReference<Double> oldestSeconds = new AtomicReference<>(0.0);
     private final AtomicReference<Double> pending = new AtomicReference<>(0.0);
 
-    public OutboxMetrics(OutboxRelay relay, MeterRegistry meters) {
+    /**
+     * @param module which outbox this is, and it is not optional (ADR-0109).
+     *
+     *     <p>Since identity and catalog share a process, one JVM has TWO outboxes in two
+     *     databases and therefore two relays. Micrometer identifies a meter by name plus tags,
+     *     so without this tag the second registration returns the FIRST gauge and the second
+     *     module's backlog is never published -- a stalled relay that this class exists to
+     *     make visible, made invisible by the class itself.
+     */
+    public OutboxMetrics(OutboxRelay relay, MeterRegistry meters, String module) {
         this.relay = relay;
         Gauge.builder("platform.outbox.oldest.seconds", oldestSeconds, AtomicReference::get)
             .description("Age of the oldest unpublished outbox row. Climbs without limit when the "
                 + "relay has stopped, which is otherwise silent.")
+            .tag("module", module)
             .register(meters);
         Gauge.builder("platform.outbox.pending", pending, AtomicReference::get)
             .description("Unpublished outbox rows. Normal on a busy service; only meaningful "
                 + "beside the age.")
+            .tag("module", module)
             .register(meters);
     }
 

@@ -107,7 +107,11 @@ against 8652Mi of unrequested allocatable. It fits comfortably. This is the calc
 draft did, and it is the wrong one.
 
 **By actual usage** — what the node survives. The stemcell's `core` and `gateway` are the
-equivalent of ours, so they are subtracted rather than added to:
+equivalent of ours, so they are subtracted rather than added to — equivalent in *cost*, which is
+all this arithmetic needs. Whose gateway it is was left ambiguous here and is settled by
+[ADR-0111](0111-servlet-modules-and-one-reactive-edge.md): ours, built in this repository as
+T-9.17, forked from the stemcell's. The 533Mi below is a measurement of that same process, so
+the figure survives the correction; the module table's "exists" did not:
 
 ```
 allocatable                              14306Mi
@@ -143,7 +147,7 @@ deployable called `core`; the other five modules are their own.
 
 | Module | Owns | Separate process at dev sizing? |
 |---|---|---|
-| `gateway` | Edge routing, sign-in, session, rate limiting, tenant status | **yes** — exists |
+| `gateway` | Edge routing, sign-in, session, rate limiting, tenant status | **yes** — ours to build, T-9.17 |
 | `frontend` | Learner app, admin console, authoring, embeddable player | **yes** — static, free |
 | `streaming` | Video assets, upload targets, encode state, playback tokens | **yes** — the learner hot path |
 | `packaging` | Archive extraction, manifest parsing, rasterisation | **yes** — security before capacity: it runs untrusted uploaded code and must not share a heap with a session (ADR-0105) |
@@ -151,6 +155,32 @@ deployable called `core`; the other five modules are their own.
 | `identity` | Tenants, users, groups, roles, permissions | inside `core` |
 | `catalog` | Content items, courses, modules, gates, assignments | inside `core` |
 | `assessment` | Banks, questions, tests, forms, attempts, grading | inside `core` |
+
+### What the merge actually costs, measured
+
+**This ADR priced the merge at nothing, and that was wrong.** The claim above — "the expensive
+part of splitting a service is untangling a schema, and there is nothing to untangle" — is true,
+and it is about *splitting*. Merging costs something different, and none of it is schema work.
+Recorded here from an attempt at it (T-9.17), because the estimate is what the plan rests on:
+
+| Cost | Size | Status |
+|---|---|---|
+| **Migration namespace.** Every module numbers from `V1`, so `classpath:db/migration` in one process resolves across both jars and Flyway refuses to start on duplicate versions. identity and catalog share `V1`–`V8`. | 21 files relocated to `db/migration/<module>` | done |
+| **Two transaction managers.** One process, two databases. An unqualified `@Transactional` binds to whichever is primary, and a repository from the other module then opens its own session *outside* that transaction — no error, no failing test, no atomicity. | 78 annotations qualified; neither manager primary, so the mistake throws | done |
+| **The outbox is per-database.** A transactional outbox only guarantees anything inside one database, so a merged process needs two outboxes, two relays and two sets of backlog gauges. `MessagingConfiguration` injected one `DataSource` and one `PlatformTransactionManager` by type. Its meters were untagged, so the second module's backlog would have registered as the first's and been invisible. | per-module wiring extracted to `ModuleMessaging`; meters tagged | done |
+| **Shared vocabulary collides in bean names.** `identity.authz.AssignmentService` and `catalog.assign.AssignmentService` both want to be `assignmentService`. Same clash as `/api/v1/assignments` at the gateway, one layer down. | `FullyQualifiedAnnotationBeanNameGenerator` | done |
+| **24 `DataSource` injections by type.** Twelve classes in each module take a `DataSource` or build a `JdbcTemplate` from one. With a primary DataSource every one of catalog's would silently read identity's database. | qualification of all 24 | **not done** |
+| **`EntityManagerFactoryBuilder` is unavailable.** Boot's JPA auto-configuration is `@ConditionalOnSingleCandidate(DataSource.class)`, so two DataSources with no primary make it back off entirely — and a primary is what the row above rules out. The builder has to be constructed explicitly, replicating the vendor adapter and naming strategies `HibernateJpaConfiguration` supplies. | explicit construction in `core` | **not done** |
+
+**One service identity, and it is visible.** `identity` presented `svc-identity` and `catalog`
+presented `svc-catalog` (T-9.11). One process presents one, so calls that were attributable to a
+module are attributable to `core`. Audit rows and `whoami` say `svc-core`, and a Keycloak client
+for it has to exist before this starts against a real realm.
+
+**None of this changes the decision** — six processes still fit and eight still do not, and the
+first four rows are done and are improvements whether or not the merge lands. What changes is the
+estimate: this is a multi-session piece of work with two silent-failure modes in it, not a
+packaging change.
 
 ### Data ownership, stated once
 

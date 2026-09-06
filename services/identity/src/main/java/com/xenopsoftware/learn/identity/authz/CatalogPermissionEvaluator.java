@@ -1,6 +1,6 @@
 package com.xenopsoftware.learn.identity.authz;
 
-import com.xenopsoftware.learn.common.tenancy.TenantFilter;
+import com.xenopsoftware.learn.common.tenancy.TenantClaims;
 import java.io.Serializable;
 import org.springframework.security.access.PermissionEvaluator;
 import org.springframework.security.core.Authentication;
@@ -78,7 +78,7 @@ public class CatalogPermissionEvaluator implements PermissionEvaluator {
     private static String callerSide(Jwt jwt) {
         return com.xenopsoftware.learn.identity.impersonation.ImpersonationContext.current()
             .map(session -> PermissionSide.TENANT.name())
-            .orElseGet(() -> jwt.getClaimAsString(TenantFilter.SIDE_CLAIM));
+            .orElseGet(() -> jwt.getClaimAsString(TenantClaims.SIDE_CLAIM));
     }
 
     private static boolean deny(Permission permission) {

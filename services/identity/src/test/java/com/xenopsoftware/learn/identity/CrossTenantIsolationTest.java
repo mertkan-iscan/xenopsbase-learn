@@ -414,7 +414,7 @@ class CrossTenantIsolationTest extends PostgresTestHarness {
      */
     private UUID impersonationSession(String tenant, UUID subject) {
         UUID actor = AuthzFixtures.ensureUser(jdbc,
-            com.xenopsoftware.learn.common.tenancy.TenantFilter.PLATFORM_TENANT, "probe-support");
+            com.xenopsoftware.learn.common.tenancy.TenantClaims.PLATFORM_TENANT, "probe-support");
         UUID session = UUID.randomUUID();
         jdbc.update("""
             INSERT INTO impersonation_session (id, tenant_id, actor_user_id, impersonated_user_id,

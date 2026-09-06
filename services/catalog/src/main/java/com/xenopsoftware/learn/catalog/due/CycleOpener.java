@@ -38,7 +38,7 @@ public class CycleOpener {
      * loser reads what the winner wrote. Cheaper and more honest than a lock somebody has to
      * remember to take.
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional(value = "catalogTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public AssignmentCycle open(Assignment assignment, int number, Instant opensAt) {
         return write(assignment, number, opensAt);
     }
@@ -53,7 +53,7 @@ public class CycleOpener {
      * repository has now met it twice. A new transaction is the right default for the READ path,
      * where the assignment is old news; it is exactly wrong on the write path that made it.
      */
-    @Transactional(propagation = Propagation.REQUIRED)
+    @Transactional(value = "catalogTransactionManager", propagation = Propagation.REQUIRED)
     public AssignmentCycle openBeside(Assignment assignment, int number, Instant opensAt) {
         return write(assignment, number, opensAt);
     }

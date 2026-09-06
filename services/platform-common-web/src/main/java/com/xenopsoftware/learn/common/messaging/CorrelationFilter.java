@@ -30,8 +30,13 @@ public class CorrelationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
             FilterChain chain) throws ServletException, IOException {
         String incoming = request.getHeader(Correlation.HEADER);
-        String correlationId = incoming == null || incoming.isBlank()
-            ? UUID.randomUUID().toString() : incoming.strip();
+        // Adopted only if it looks like an id. This used to be `incoming.strip()`, which trusted
+        // the value as well as the header -- and this id goes into the MDC, so a newline in it
+        // writes fabricated log lines. See Correlation.isAcceptable for why an unacceptable value
+        // is replaced rather than refused. The gateway applies the same rule at the edge; both,
+        // because the edge is not the only way in (T-9.11's service hop is the other).
+        String correlationId = Correlation.isAcceptable(incoming)
+            ? incoming : UUID.randomUUID().toString();
         // Echoed, so a caller can quote it in a support ticket without reading their own logs.
         response.setHeader(Correlation.HEADER, correlationId);
         try {

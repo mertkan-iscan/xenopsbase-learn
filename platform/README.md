@@ -68,8 +68,9 @@ uploads, encode state and playback tokens are simulated. Real delivery needs the
 account that is T-9.14 (#100).
 
 **There is no public entry point.** The three services are cluster-internal with no Ingress, and
-the frontend is not deployed. A session and a gateway in front of them is T-10.2 (#93); until
-then, reaching them means `kubectl port-forward`.
+the frontend is not deployed. The gateway that terminates a session in front of them is T-9.17
+([ADR-0111](../docs/adr/0111-servlet-modules-and-one-reactive-edge.md)) and T-10.2 (#93) is the
+browser half of it; until then, reaching them means `kubectl port-forward`.
 
 ## What is done
 
@@ -77,5 +78,6 @@ then, reaching them means `kubectl port-forward`.
   same commit produces the same image.
 - Tags are the commit SHA plus `main` for humans. **`main` must not appear in a manifest.**
 - Signed keylessly with cosign and verified in the same run, with SLSA provenance attached.
-- `platform-common` publishes nothing: it is a library and its pom says so, so a repository-root
-  `mvn jib:build` does the right thing instead of failing on a missing main class.
+- `platform-common` and `platform-common-web` publish nothing: they are libraries and their poms
+  say so, so a repository-root `mvn jib:build` does the right thing instead of failing on a
+  missing main class.

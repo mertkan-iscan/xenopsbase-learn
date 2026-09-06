@@ -2,7 +2,7 @@ package com.xenopsoftware.learn.identity.impersonation;
 
 import com.xenopsoftware.learn.common.tenancy.AccountStatus;
 import com.xenopsoftware.learn.common.tenancy.TenantContext;
-import com.xenopsoftware.learn.common.tenancy.TenantFilter;
+import com.xenopsoftware.learn.common.tenancy.TenantClaims;
 import com.xenopsoftware.learn.identity.audit.AuditLogger;
 import com.xenopsoftware.learn.identity.audit.CurrentUser;
 import com.xenopsoftware.learn.identity.tenant.EffectiveStatus;
@@ -74,7 +74,7 @@ public class ImpersonationSessions {
      * customer is entitled to see, and recording it only in our own tenant would leave the
      * customer-visible log describing successes only.
      */
-    @Transactional
+    @Transactional("identityTransactionManager")
     public Impersonation start(String tenantId, UUID userId, String reason, boolean writable) {
         ImpersonationContext.current().ifPresent(active -> {
             // Nesting would make "who is acting" a stack, and an audit trail cannot answer a
@@ -82,7 +82,7 @@ public class ImpersonationSessions {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                 "Already impersonating under session " + active.sessionId());
         });
-        if (TenantFilter.PLATFORM_TENANT.equals(tenantId)) {
+        if (TenantClaims.PLATFORM_TENANT.equals(tenantId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                 "The platform tenant is not a customer; impersonating inside it would only "
                 + "disguise one of our own staff as another");
@@ -147,7 +147,7 @@ public class ImpersonationSessions {
     }
 
     /** Ends a session early. Idempotent: ending an ended session changes nothing. */
-    @Transactional
+    @Transactional("identityTransactionManager")
     public void end(UUID sessionId, UUID actorUserId, String endedReason) {
         Map<String, Object> row = row(sessionId);
         if (row == null || !actorUserId.equals(row.get("actor_user_id"))) {

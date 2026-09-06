@@ -33,7 +33,7 @@ public class ContentItemService {
         this.payloads = payloads;
     }
 
-    @Transactional
+    @Transactional("catalogTransactionManager")
     public ContentItem create(String type, String title, String description, JsonNode payload,
             Set<String> tags) {
         types.validate(type, payload);
@@ -48,7 +48,7 @@ public class ContentItemService {
      * silently re-saved under them. Re-validating is also what makes a type's validator the only
      * place its rules live.
      */
-    @Transactional
+    @Transactional("catalogTransactionManager")
     public ContentItem update(UUID id, String title, String description, JsonNode payload,
             Set<String> tags) {
         ContentItem item = require(id);
@@ -73,7 +73,7 @@ public class ContentItemService {
      * the current state of the resource, and is what a UI needs to distinguish in order to say
      * "someone else published this already" rather than "bad request".
      */
-    @Transactional
+    @Transactional("catalogTransactionManager")
     public ContentItem moveTo(UUID id, String state) {
         ContentItem item = require(id);
         ContentState next;
@@ -91,7 +91,7 @@ public class ContentItemService {
         return items.save(item);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(value = "catalogTransactionManager", readOnly = true)
     public ContentItem get(UUID id) {
         return require(id);
     }
@@ -110,7 +110,7 @@ public class ContentItemService {
      * outgrows that, the fix is a native query that names its tenant explicitly and a test that
      * proves it — not a quiet change here.
      */
-    @Transactional(readOnly = true)
+    @Transactional(value = "catalogTransactionManager", readOnly = true)
     public List<ContentItem> search(String type, ContentState state, String text, Set<String> tags) {
         // Empty rather than null: see ContentItemRepository.search on why a null here becomes a
         // bytea in Postgres.
@@ -134,7 +134,7 @@ public class ContentItemService {
      * definition. A caller that asks a repository directly and compares states itself is a caller
      * that will disagree with this one the day ARCHIVED gains a nuance.
      */
-    @Transactional(readOnly = true)
+    @Transactional(value = "catalogTransactionManager", readOnly = true)
     public boolean acceptsNewReferences(UUID id) {
         return items.findById(id).map(item -> item.getState().acceptsNewReferences()).orElse(false);
     }

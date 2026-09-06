@@ -106,7 +106,7 @@ public class AssignmentService {
      * point at one of four tables cannot have one. That check also carries the rule a foreign key
      * could never have expressed: only a PUBLISHED content item accepts a new reference (T-5.1).
      */
-    @Transactional
+    @Transactional("catalogTransactionManager")
     public Assignment assign(Request request, UUID assignedBy) {
         Long pinned = validateAndPin(request.referenceType(), request.referenceId());
         if (request.targetType() != TargetKind.TENANT && request.targetId() == null) {
@@ -165,7 +165,7 @@ public class AssignmentService {
      * <p>One transaction: half-applied bulk assignment is the state nobody can reason about, and
      * the caller cannot tell which half.
      */
-    @Transactional
+    @Transactional("catalogTransactionManager")
     public List<Assignment> assignAll(List<Request> requests, UUID assignedBy) {
         List<Assignment> made = new ArrayList<>();
         for (Request request : requests) {
@@ -174,7 +174,7 @@ public class AssignmentService {
         return made;
     }
 
-    @Transactional
+    @Transactional("catalogTransactionManager")
     public void revoke(UUID assignmentId) {
         Assignment assignment = assignments.findById(assignmentId).orElseThrow(() ->
             new ResponseStatusException(HttpStatus.NOT_FOUND, "No such assignment"));
@@ -192,7 +192,7 @@ public class AssignmentService {
      * earliest assignment wins the date, because the obligation started when the first one did,
      * and both are listed as sources so "why do I have this" is answerable.
      */
-    @Transactional(readOnly = true)
+    @Transactional(value = "catalogTransactionManager", readOnly = true)
     public List<Obligation> obligationsOf(UUID learnerId) {
         return obligationsOf(learnerId, Instant.now());
     }
@@ -205,7 +205,7 @@ public class AssignmentService {
      * the same instant — a list where one row went overdue between two calls to {@code now()} is a
      * list nobody can explain.
      */
-    @Transactional(readOnly = true)
+    @Transactional(value = "catalogTransactionManager", readOnly = true)
     public List<Obligation> obligationsOf(UUID learnerId, Instant now) {
         String tenantId = TenantContext.require();
         List<UUID> groups = reach.of(tenantId, learnerId);
@@ -302,7 +302,7 @@ public class AssignmentService {
             reached.atZone(zone).toLocalDate());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(value = "catalogTransactionManager", readOnly = true)
     public List<Assignment> all() {
         return assignments.findByRevokedAtIsNullOrderByAssignedAtDesc();
     }
@@ -315,7 +315,7 @@ public class AssignmentService {
      * serve the old structure — immutable published versions are T-5.7's, and a column that
      * looked like it guaranteed a snapshot would be worse than none.
      */
-    @Transactional(readOnly = true)
+    @Transactional(value = "catalogTransactionManager", readOnly = true)
     public boolean hasDrifted(Assignment assignment) {
         if (assignment.getPinnedVersion() == null) {
             return false;

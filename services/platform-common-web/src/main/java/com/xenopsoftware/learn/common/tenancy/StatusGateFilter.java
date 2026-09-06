@@ -83,26 +83,14 @@ public class StatusGateFilter extends OncePerRequestFilter {
             request.getMethod(), request.getRequestURI(), tenant, status);
         response.setStatus(403);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        // Machine-readable, because a UI has to say something true. A message alone would make
-        // "suspended" and "read only" indistinguishable without parsing prose.
-        response.getWriter().write("{\"error\":{\"code\":\"" + status.reasonCode()
-            + "\",\"message\":\"" + message(status, write) + "\"}}");
-    }
-
-    private static String message(AccountStatus status, boolean write) {
-        if (status == AccountStatus.SUSPENDED) {
-            return "This account is suspended. Contact your administrator.";
-        }
-        return write
-            ? "This account is read only. You can view and export, but not change anything."
-            : "This account is read only.";
+        // The body comes from AccountStatus so that this filter and the gateway's reactive twin
+        // refuse identically (ADR-0111) -- same code, same sentence, same bytes. It used to be
+        // built here, which was correct while this was the only gate.
+        response.getWriter().write(status.refusalBody(write));
     }
 
     private static boolean isWrite(HttpServletRequest request) {
-        return switch (request.getMethod().toUpperCase()) {
-            case "GET", "HEAD", "OPTIONS" -> false;
-            default -> true;
-        };
+        return AccountStatus.isWrite(request.getMethod());
     }
 
     private static String subjectOf() {

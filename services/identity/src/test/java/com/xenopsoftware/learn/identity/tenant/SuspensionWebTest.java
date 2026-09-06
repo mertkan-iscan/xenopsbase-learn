@@ -145,7 +145,7 @@ class SuspensionWebTest extends PostgresTestHarness {
                     .expiresAt(java.time.Instant.now().plusSeconds(60)).build()));
         try {
             com.xenopsoftware.learn.common.tenancy.TenantContext.callWithUnchecked(
-                com.xenopsoftware.learn.common.tenancy.TenantFilter.PLATFORM_TENANT,
+                com.xenopsoftware.learn.common.tenancy.TenantClaims.PLATFORM_TENANT,
                 () -> status.change(tenantId, wanted, reason));
         } finally {
             org.springframework.security.core.context.SecurityContextHolder.clearContext();

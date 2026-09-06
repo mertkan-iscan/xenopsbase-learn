@@ -1,0 +1,234 @@
+# ==============================================================================
+# The edge (T-9.17, ADR-0111).
+#
+# Forked from xenopsbase-stemcell's gateway and adapted to this product's realm,
+# routes and tenancy. Where a value here looks arbitrary it is usually the
+# stemcell's, and the reasoning for it is in the comment rather than in another
+# repository.
+# ==============================================================================
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: gateway
+
+  # Carries the correlation id from the Reactor context into MDC around each
+  # operator, so %X{correlationId} is populated on lines written from any
+  # scheduler. Without it the field renders empty and the logs simply lack the
+  # id -- which looks like normal logs rather than like a broken feature.
+  # CorrelationContextConfiguration registers the accessor this switch uses.
+  reactor:
+    context-propagation: auto
+
+  # ----------------------------------------------------------------------------
+  # SESSION STORAGE, and `replicas: 1` is the alternative.
+  #
+  # Spring's default WebSession store is in-memory, which puts the access and
+  # refresh tokens in one JVM's heap. A second replica then serves requests that
+  # land on the pod without the session, signing people out at random,
+  # intermittently, with nothing logged. The stemcell found that; this inherits
+  # the conclusion rather than the discovery.
+  # ----------------------------------------------------------------------------
+  session:
+    store-type: redis
+    redis:
+      namespace: learn:gateway:session
+    timeout: ${SESSION_TIMEOUT:PT8H}
+
+  data:
+    redis:
+      host: ${VALKEY_HOST:localhost}
+      port: ${VALKEY_PORT:6379}
+      password: ${VALKEY_PASSWORD:}
+      client-name: gateway
+      # Longer than the 250ms the services use, and deliberately: for them
+      # Valkey is a cache and a slow answer is worse than none, while here it
+      # also holds the SESSION -- timing that out does not degrade a fast path,
+      # it signs somebody out.
+      connect-timeout: 1s
+      timeout: 1s
+
+  security:
+    oauth2:
+      client:
+        provider:
+          keycloak:
+            issuer-uri: ${OIDC_ISSUER_URI:http://localhost:8081/realms/xenopslearn}
+        registration:
+          keycloak:
+            client-id: ${OIDC_CLIENT_ID:web}
+            client-secret: ${OIDC_CLIENT_SECRET:}
+            authorization-grant-type: authorization_code
+            # openid for authentication, profile/email for the display name a
+            # console has to show. Nothing broader: this gateway relays the
+            # token inward, so a scope added here is a scope four services then
+            # receive whether or not they asked for it.
+            scope: openid,profile,email
+      resourceserver:
+        jwt:
+          issuer-uri: ${OIDC_ISSUER_URI:http://localhost:8081/realms/xenopslearn}
+
+  cloud:
+    gateway:
+      server:
+        webflux:
+          # ------------------------------------------------------------------
+          # ROUTES, MOST SPECIFIC FIRST, and the ordering is load-bearing.
+          #
+          # This platform's public API is NOT namespaced by service: /api/v1/me
+          # is identity, /api/v1/me/home is catalog and /api/v1/me/nodes/** is
+          # streaming. Spring Cloud Gateway evaluates routes in declared order
+          # and takes the first match, so a broader pattern listed above a
+          # narrower one silently swallows it.
+          #
+          # RouteTableTest asserts the resolution of every path this table is
+          # meant to distinguish, because "the order is correct" is not a
+          # property anybody can keep true by reading.
+          # ------------------------------------------------------------------
+          routes:
+            # -- streaming ---------------------------------------------------
+            - id: streaming-progress
+              uri: ${STREAMING_URI:http://localhost:8083}
+              predicates:
+                - Path=/api/v1/me/nodes/**
+            - id: streaming-videos
+              uri: ${STREAMING_URI:http://localhost:8083}
+              predicates:
+                - Path=/api/v1/videos/**
+            # The Cloudflare Stream webhook (T-3.1). Anonymous at the edge and
+            # authenticated by signature at the other end -- see
+            # SecurityConfiguration. Not rate limited: throttling a vendor's
+            # callback loses encode-state transitions, and the vendor does not
+            # retry forever.
+            - id: streaming-webhooks
+              uri: ${STREAMING_URI:http://localhost:8083}
+              predicates:
+                - Path=/webhooks/media/**
+
+            # -- catalog -----------------------------------------------------
+            - id: catalog-home
+              uri: ${CATALOG_URI:http://localhost:8085}
+              predicates:
+                - Path=/api/v1/me/home
+            - id: catalog
+              uri: ${CATALOG_URI:http://localhost:8085}
+              predicates:
+                - Path=/api/v1/content-items/**,/api/v1/courses/**,/api/v1/reminders/**
+
+            # -- reporting ---------------------------------------------------
+            - id: reporting
+              uri: ${REPORTING_URI:http://localhost:8084}
+              predicates:
+                - Path=/api/v1/telemetry/**
+
+            # ----------------------------------------------------------------
+            # NOT ROUTED: /api/v1/assignments/**
+            #
+            # It is claimed by BOTH identity (role assignments:
+            # /api/v1/assignments, /api/v1/roles/{id}/assignments) and catalog
+            # (content assignments: /api/v1/assignments/{id}/cycles). Two
+            # services, one public path, two different meanings.
+            #
+            # No route table can resolve that, and guessing would send half the
+            # calls to a service that returns 404 for a resource that exists.
+            # It is left to the fallback below, which says so in the response,
+            # until ADR-0109's `core` merge puts identity and catalog in one
+            # process and Spring resolves both by full path (T-9.17).
+            #
+            # Listed here rather than omitted so that the gap is visible in the
+            # route table itself, next to the routes that do work.
+            # ----------------------------------------------------------------
+            - id: unroutable-assignments
+              uri: forward:/collision
+              predicates:
+                - Path=/api/v1/assignments/**
+
+            # -- identity, last: its paths are the broadest ------------------
+            - id: identity
+              uri: ${IDENTITY_URI:http://localhost:8082}
+              predicates:
+                - Path=/api/v1/users/**,/api/v1/groups/**,/api/v1/roles/**,/api/v1/sso/**,/api/v1/impersonations/**,/api/v1/platform/**,/api/v1/auth/**,/api/v1/auth-info,/api/v1/me,/api/v1/me/reach/**
+
+          # Applied to every route above. TokenRelay is what turns a cookie
+          # session into the bearer token the services expect -- without it the
+          # services see an unauthenticated request and the whole
+          # backend-for-frontend shape silently does not work.
+          default-filters:
+            - TokenRelay=
+            - name: RequestRateLimiter
+              args:
+                key-resolver: '#{@clientKeyResolver}'
+                redis-rate-limiter.replenishRate: ${RATE_LIMIT_REPLENISH:20}
+                redis-rate-limiter.burstCapacity: ${RATE_LIMIT_BURST:40}
+                # False on purpose: a caller this cannot identify is served
+                # rather than refused. A limiter that fails closed turns a bug
+                # in identifying callers into an outage (T-8.7).
+                deny-empty-key: false
+            - name: CircuitBreaker
+              args:
+                name: downstream
+                fallbackUri: forward:/fallback
+
+# ==============================================================================
+# Resilience.
+#
+# A DEFAULT POSTURE, not tuning. Tuning needs the latency distribution of a real
+# downstream, which this does not have yet. What matters is that every value is
+# stated: an unset timeout is not "the default", it is usually no timeout at all.
+# ==============================================================================
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        # ----------------------------------------------------------------------
+        # TIME_BASED, NOT COUNT_BASED, and this is a measured correction rather
+        # than a preference.
+        #
+        # The stemcell ran COUNT_BASED with slidingWindowSize: 20 for a stated
+        # and correct reason -- a time window on a low-traffic service never
+        # accumulates enough calls to decide anything. The reason was right and
+        # the consequence was not: a count window's TIME SPAN varies inversely
+        # with traffic, so the busier the service, the less evidence the breaker
+        # demands. At 1200 req/s, 20 calls is SEVENTEEN MILLISECONDS of traffic.
+        #
+        # What that produced there, measured: 84,350 requests forwarded,
+        # 133,931 short-circuited, and 457 actual failures. 293 requests
+        # discarded per real failure. One GC pause fills a 17ms window, the
+        # failure rate crosses 50%, the breaker opens for 10s -- six hundred
+        # times the span of traffic that made the decision -- and throughput at
+        # 1600 req/s came out BELOW what the stack serves comfortably at 400.
+        #
+        # TIME_BASED makes the decision span constant at every rate. The
+        # low-traffic concern is carried by minimumNumberOfCalls, which is the
+        # setting for it.
+        # ----------------------------------------------------------------------
+        slidingWindowType: TIME_BASED
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 20
+        failureRateThreshold: 50
+        slowCallRateThreshold: 100
+        slowCallDurationThreshold: 5s
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 5
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+  timelimiter:
+    configs:
+      default:
+        # Longer than any endpoint should take and shorter than a browser's
+        # patience. An upload does not pass through here -- tus targets go
+        # straight to the vendor (T-3.2) -- so nothing legitimate is long.
+        timeoutDuration: 10s
+
+management:
+  endpoints:
+    web:
+      base-path: /management
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  pattern:
+    # correlationId, matching what CorrelationFilter puts in the MDC in every
+    # service. Renaming the key here empties the field rather than failing.
+    level: "%5p [%X{correlationId}]"

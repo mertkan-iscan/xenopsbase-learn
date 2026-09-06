@@ -1,6 +1,6 @@
 package com.xenopsoftware.learn.identity.sso;
 
-import com.xenopsoftware.learn.common.tenancy.TenantFilter;
+import com.xenopsoftware.learn.common.tenancy.TenantClaims;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,8 +72,8 @@ public class KeycloakRealmProviders implements RealmProviders {
 
         upsert(token, "/admin/realms/" + admin.realm() + "/identity-provider/instances",
             provider.alias(), representation);
-        mapper(token, provider, TenantFilter.TENANT_CLAIM, provider.tenantId());
-        mapper(token, provider, TenantFilter.SIDE_CLAIM, "TENANT");
+        mapper(token, provider, TenantClaims.TENANT_CLAIM, provider.tenantId());
+        mapper(token, provider, TenantClaims.SIDE_CLAIM, "TENANT");
         LOG.info("Applied identity provider {} for tenant {}", provider.alias(), provider.tenantId());
     }
 

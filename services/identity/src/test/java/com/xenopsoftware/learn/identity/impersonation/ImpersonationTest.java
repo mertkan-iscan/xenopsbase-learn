@@ -2,7 +2,7 @@ package com.xenopsoftware.learn.identity.impersonation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.xenopsoftware.learn.common.tenancy.TenantFilter;
+import com.xenopsoftware.learn.common.tenancy.TenantClaims;
 import com.xenopsoftware.learn.identity.PostgresTestHarness;
 import com.xenopsoftware.learn.identity.StubTokens;
 import com.xenopsoftware.learn.identity.authz.AuthzFixtures;
@@ -66,7 +66,7 @@ class ImpersonationTest extends PostgresTestHarness {
         emptyEverything();
 
         tenant(CUSTOMER, "ACTIVE");
-        tenant(TenantFilter.PLATFORM_TENANT, "ACTIVE");
+        tenant(TenantClaims.PLATFORM_TENANT, "ACTIVE");
         AuthzFixtures.bootstrapAdmin(jdbc, CUSTOMER, "acme-admin");
         learner = AuthzFixtures.ensureUser(jdbc, CUSTOMER, "acme-learner");
 
@@ -336,23 +336,23 @@ class ImpersonationTest extends PostgresTestHarness {
 
     /** A platform-side role holding exactly these permissions, assigned to one engineer. */
     private void platformGrant(String username, Permission... permissions) {
-        UUID userId = AuthzFixtures.ensureUser(jdbc, TenantFilter.PLATFORM_TENANT, username);
+        UUID userId = AuthzFixtures.ensureUser(jdbc, TenantClaims.PLATFORM_TENANT, username);
         UUID roleId = UUID.randomUUID();
         jdbc.update("""
             INSERT INTO app_role (id, tenant_id, name, description, side, system, created_at, updated_at)
             VALUES (?, ?, ?, 'Test grant', 'PLATFORM', false, now(), now())
-            """, roleId, TenantFilter.PLATFORM_TENANT, "Grant " + username);
+            """, roleId, TenantClaims.PLATFORM_TENANT, "Grant " + username);
         for (Permission permission : permissions) {
             assertThat(permission.side()).isEqualTo(PermissionSide.PLATFORM);
             jdbc.update("""
                 INSERT INTO role_permission (id, tenant_id, role_id, permission_code, created_at)
                 VALUES (?, ?, ?, ?, now())
-                """, UUID.randomUUID(), TenantFilter.PLATFORM_TENANT, roleId, permission.code());
+                """, UUID.randomUUID(), TenantClaims.PLATFORM_TENANT, roleId, permission.code());
         }
         jdbc.update("""
             INSERT INTO role_assignment (id, tenant_id, role_id, user_id, scope_type, granted_by, created_at)
             VALUES (?, ?, ?, ?, 'TENANT', ?, now())
-            """, UUID.randomUUID(), TenantFilter.PLATFORM_TENANT, roleId, userId, userId);
+            """, UUID.randomUUID(), TenantClaims.PLATFORM_TENANT, roleId, userId, userId);
     }
 
     private UUID platformUser(String username) {

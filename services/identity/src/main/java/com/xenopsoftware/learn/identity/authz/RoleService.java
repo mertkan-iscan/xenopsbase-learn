@@ -44,7 +44,7 @@ public class RoleService {
         this.escalation = escalation;
     }
 
-    @Transactional
+    @Transactional("identityTransactionManager")
     public Role create(String name, String description, PermissionSide side) {
         if (side == PermissionSide.PLATFORM) {
             // Modelled, not editable: a platform-side row cannot be read back at all until the
@@ -69,7 +69,7 @@ public class RoleService {
      * every other reference point at the id, so there is no identity to update and deliberately
      * no version bump: nobody's effective permissions moved.
      */
-    @Transactional
+    @Transactional("identityTransactionManager")
     public Role rename(UUID roleId, String newName, String newDescription) {
         statusGuard.requireWritable();
         Role role = editable(roleId);
@@ -87,7 +87,7 @@ public class RoleService {
      * two callers each adding one permission to a stale view would otherwise produce a role
      * neither of them chose.
      */
-    @Transactional
+    @Transactional("identityTransactionManager")
     public Role setPermissions(UUID roleId, Set<Permission> permissions) {
         Role role = editable(roleId);
         for (Permission permission : permissions) {
@@ -125,7 +125,7 @@ public class RoleService {
      * cascade: revoking a role from an unknown number of people is a decision with a blast
      * radius, and the caller is the one who should see the number before making it.
      */
-    @Transactional
+    @Transactional("identityTransactionManager")
     public void delete(UUID roleId) {
         statusGuard.requireWritable();
         Role role = editable(roleId);
@@ -146,7 +146,7 @@ public class RoleService {
      * The explicit alternative: the assignments go too, and the audit entry says how many —
      * which is what makes this a cascade somebody chose rather than one that happened.
      */
-    @Transactional
+    @Transactional("identityTransactionManager")
     public void deleteCascading(UUID roleId) {
         Role role = editable(roleId);
         long assignments = usage.assignmentsOf(roleId);
@@ -166,7 +166,7 @@ public class RoleService {
      * unless its owner moves it. A parent pointer would make "what does this customer's admin
      * role contain" a question with two answers.
      */
-    @Transactional
+    @Transactional("identityTransactionManager")
     public Role clone(UUID templateId, String newName) {
         Role template = require(templateId);
         // The escalation T-2.6 does not list and which is the shortest of all: without this,

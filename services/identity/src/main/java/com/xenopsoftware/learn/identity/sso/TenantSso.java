@@ -65,7 +65,7 @@ public class TenantSso {
      * there, which the API reports as unapplied — the other order would leave a realm nobody has
      * a record of, and a login landing in a company whose administrators never configured one.
      */
-    @Transactional
+    @Transactional("identityTransactionManager")
     public TenantProvider register(String alias, ProviderKind kind, String displayName,
             RealmProviders.ProviderSecrets secrets) {
         statusGuard.requireWritable();
@@ -107,7 +107,7 @@ public class TenantSso {
         return new TenantProvider(alias, tenantId, kind, displayName, appliedAt);
     }
 
-    @Transactional
+    @Transactional("identityTransactionManager")
     public void unregister(String alias) {
         statusGuard.requireWritable();
         String tenantId = TenantContext.require();
@@ -133,7 +133,7 @@ public class TenantSso {
      * Claims an email domain for this company. Claiming is not owning: the row is created
      * unverified with a token, and discovery ignores it until a DNS record proves it.
      */
-    @Transactional
+    @Transactional("identityTransactionManager")
     public DomainView claim(String rawDomain) {
         statusGuard.requireWritable();
         String tenantId = TenantContext.require();
@@ -158,7 +158,7 @@ public class TenantSso {
      * <p>The unique index is what arbitrates a race between two companies claiming one domain,
      * and losing it is a 409 rather than a 500: two claims can coexist, two proofs cannot.
      */
-    @Transactional
+    @Transactional("identityTransactionManager")
     public DomainView verify(UUID domainId) {
         statusGuard.requireWritable();
         String tenantId = TenantContext.require();

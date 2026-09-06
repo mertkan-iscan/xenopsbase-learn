@@ -22,7 +22,7 @@
     <dependencies>
         <dependency>
             <groupId>com.xenopsoftware.learn</groupId>
-            <artifactId>platform-common</artifactId>
+            <artifactId>platform-common-web</artifactId>
         </dependency>
 
         <dependency>
@@ -95,13 +95,33 @@
 
     <build>
         <plugins>
+            <!--
+                A LIBRARY NOW, NOT AN APPLICATION (ADR-0109).
+
+                This module runs inside `core`, which depends on it as a jar.
+                spring-boot:repackage would move these classes under BOOT-INF/
+                and make every one of them invisible to that dependency —
+                presenting as "cannot find symbol" for a class that is plainly
+                in the jar. jib is skipped for the matching reason: the image
+                this module used to produce is `core`'s now.
+
+                IdentityApp / CatalogApp are kept: `mvn spring-boot:run` still
+                starts this module alone for local work, and every test in it
+                still uses that class as its @SpringBootConfiguration.
+            -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>com.google.cloud.tools</groupId>
                 <artifactId>jib-maven-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
             </plugin>
         </plugins>
     </build>

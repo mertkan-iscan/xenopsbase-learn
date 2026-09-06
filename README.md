@@ -37,7 +37,7 @@ decided in [ADR-0109](../../issues/86) against measured capacity rather than by 
 
 | Module | Owns | Separate process at dev sizing? |
 |---|---|---|
-| `gateway` | Edge routing, sign-in, session, rate limiting, tenant status gate | yes — exists |
+| `gateway` | Edge routing, sign-in, session, rate limiting, tenant status gate | yes — ours, and the only reactive process here (T-9.17, ADR-0111) |
 | `frontend` | Learner app, admin console, authoring, embeddable player | yes — a static build served from the edge costs the cluster nothing |
 | `streaming` | Video assets, upload targets, encode state, playback tokens | yes — the learner hot path |
 | `packaging` | SCORM and cmi5 archive extraction, manifest parsing, slide rasterisation. No video — that is Cloudflare Stream | yes — it runs untrusted uploaded code and must not share a heap with a session |

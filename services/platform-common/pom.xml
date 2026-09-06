@@ -1,13 +1,35 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-    What every service shares. NOT a place for domain code — nothing in here
-    may know what a course, a video or an attempt is.
+    What every PROCESS shares, whatever web stack it runs (ADR-0111).
 
-    The test for whether something belongs here is whether all six modules would
-    otherwise write it identically: the error shape, the request id, how the
-    tenant is resolved from a token. A helper two modules happen to want is not
-    shared infrastructure, it is a copy waiting to diverge in a place nobody
-    looks.
+    NOT a place for domain code — nothing in here may know what a course, a
+    video or an attempt is. And, since ADR-0111, not a place for a servlet
+    either: this module compiles without jakarta.servlet on the classpath and
+    an ArchUnit rule in its own test source keeps it that way.
+
+    THE REASON THE LINE IS DRAWN HERE, because it is not obvious and it cost a
+    review to find. Eight of our nine processes are Spring MVC on virtual
+    threads. The ninth — `gateway` — is Spring Cloud Gateway, which exists only
+    on WebFlux and cannot be anything else. A library that pulls
+    spring-boot-starter-web brings Tomcat, Boot then resolves the application
+    type as SERVLET, and the gateway does not start. So a single shared library
+    would have had exactly two possible endings: the gateway depends on nothing
+    of ours and re-declares the tenant key, the correlation header and the
+    status enum itself, or the gateway does not start.
+
+    Both endings are worse than a second module. The second is a build failure
+    somebody fixes in an hour; the first is `status:tenant:` written down in two
+    repositories' worth of places, drifting apart silently — which is the exact
+    failure PublishedStatusLookup's own javadoc was written to describe.
+
+    So: this module holds the CONTRACT and everything that does not touch a
+    request — the tenant key, the correlation header, the status enum, the
+    outbox, the bus, mail. `platform-common-web` holds the servlet half, and
+    every MVC service depends on that and gets this transitively.
+
+    The test for whether something belongs here is unchanged, with one clause
+    added: would all nine processes otherwise write it identically, AND can it
+    be written without naming a servlet request?
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -23,52 +45,43 @@
 
     <artifactId>platform-common</artifactId>
     <name>Platform common</name>
+    <description>Web-stack-neutral shared code: the contract every process agrees on</description>
 
     <dependencies>
+        <!--
+            `starter`, deliberately NOT `starter-web`. This is the single line
+            that makes the gateway able to depend on this module, and changing
+            it back is how the split silently stops working: adding starter-web
+            here would not fail any test in this module, it would fail the
+            gateway's startup on a cluster. PlatformCommonIsStackNeutralTest is
+            what turns that into a build failure instead.
+        -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
+            <artifactId>spring-boot-starter</artifactId>
         </dependency>
+
+        <!--
+            Meters for the outbox (T-9.8). The registry itself arrives with
+            whichever actuator starter the including process brings; this is
+            the API the code compiles against, and it carries no web stack.
+        -->
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-security</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-validation</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-actuator</artifactId>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-core</artifactId>
         </dependency>
 
         <!--
             Optional, deliberately: TenantOwned and TenantIdentifierResolver
             exist for the modules that persist tenant-scoped data, and a
-            service without JPA (the gateway) must not inherit Hibernate by
+            process without JPA — the gateway is the live example, not a
+            hypothetical one any more — must not inherit Hibernate by
             depending on this library. Optional means each JPA service brings
             its own persistence starter and these two classes simply resolve.
         -->
         <dependency>
             <groupId>org.hibernate.orm</groupId>
             <artifactId>hibernate-core</artifactId>
-            <optional>true</optional>
-        </dependency>
-
-        <!--
-            Optional, like Hibernate above and for the same reason: the shared
-            status lookup (T-1.4) reads Valkey, but a service that does not
-            need the fast path must not inherit a Redis client by depending on
-            this library. Optional means each service that wants it brings its
-            own starter, and the lookup simply resolves.
-        -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-redis</artifactId>
             <optional>true</optional>
         </dependency>
 
@@ -85,11 +98,11 @@
         </dependency>
 
         <!--
-            The message bus (T-9.8). Optional for the same reason Hibernate and
-            Redis are: a service that neither publishes nor consumes must not
-            inherit a broker client by depending on this library. Each service
-            that joins the bus brings it, and the messaging beans are
-            conditional on it being there.
+            The message bus (T-9.8). Optional for the same reason Hibernate is:
+            a service that neither publishes nor consumes must not inherit a
+            broker client by depending on this library. Each service that joins
+            the bus brings it, and the messaging beans are conditional on it
+            being there.
         -->
         <dependency>
             <groupId>io.nats</groupId>
@@ -115,10 +128,71 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5-engine</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
         <plugins>
+            <!--
+                THE RULE THE SPLIT RESTS ON, ENFORCED WHERE IT CAN ACTUALLY BE
+                BROKEN (ADR-0111).
+
+                An ArchUnit rule catches servlet code written in this module.
+                It does NOT catch the thing that actually breaks the gateway,
+                which is a servlet JAR arriving on this module's classpath
+                without a line of code referencing it: Boot resolves the
+                application type by looking for classes, so Tomcat's mere
+                PRESENCE flips the gateway from reactive to servlet and Spring
+                Cloud Gateway refuses to start. Nothing here would have failed;
+                a deployment would have.
+
+                So the guard is on the dependency tree rather than on the
+                source, it names the transitive case explicitly, and its
+                message says where the servlet half lives so the fix is
+                obvious rather than archaeological.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>enforce-no-web-stack</id>
+                        <goals><goal>enforce</goal></goals>
+                        <configuration>
+                            <rules>
+                                <bannedDependencies>
+                                    <searchTransitive>true</searchTransitive>
+                                    <excludes>
+                                        <exclude>org.springframework.boot:spring-boot-starter-web</exclude>
+                                        <exclude>org.springframework.boot:spring-boot-starter-webmvc</exclude>
+                                        <exclude>org.springframework.boot:spring-boot-starter-webflux</exclude>
+                                        <exclude>org.springframework.boot:spring-boot-starter-tomcat</exclude>
+                                        <exclude>org.springframework:spring-webmvc</exclude>
+                                        <exclude>org.springframework:spring-webflux</exclude>
+                                        <exclude>org.springframework.security:spring-security-web</exclude>
+                                        <exclude>org.apache.tomcat.embed:*</exclude>
+                                        <exclude>jakarta.servlet:*</exclude>
+                                    </excludes>
+                                    <message>
+                                        platform-common must stay free of any web stack: the gateway
+                                        depends on it, and Spring Cloud Gateway does not start once a
+                                        servlet container is on the classpath (ADR-0111). Whatever
+                                        needed this belongs in platform-common-web, which every MVC
+                                        service already depends on.
+                                    </message>
+                                </bannedDependencies>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <!--
                 A library, not an application. Without this, spring-boot:repackage
                 turns the jar into an executable archive whose classes are under

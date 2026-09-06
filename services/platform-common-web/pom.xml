@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    The servlet half of what every MVC service shares (ADR-0111).
+
+    Everything in here names a request: OncePerRequestFilter, HttpServletRequest,
+    SecurityContextHolder, a blocking RestClient hop. None of it is wrong — it is
+    what eight of our nine processes run — and none of it can be on the gateway's
+    classpath, which is why it is a separate artifact rather than a package.
+
+    WHAT DECIDES WHICH MODULE A CLASS GOES IN. Not "is it shared" — both of these
+    are shared. The question is whether the class can be written without naming a
+    servlet request. TenantContext can (a ThreadLocal), so it is next door and the
+    gateway reads its key format. TenantFilter cannot, so it is here, and the
+    gateway has a WebFilter that binds the same value from the same claim.
+
+    The duplication that leaves is deliberate and bounded: two filters, one per
+    stack, agreeing on one constant in one place. The alternative was one filter
+    and a gateway that does not start.
+
+    A service depends on THIS module and gets `platform-common` transitively.
+    Nothing depends on `platform-common` alone except the gateway.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.xenopsoftware.learn</groupId>
+        <artifactId>services</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>platform-common-web</artifactId>
+    <name>Platform common (servlet)</name>
+    <description>The request-scoped half: filters, the service hop, the internal probes</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.xenopsoftware.learn</groupId>
+            <artifactId>platform-common</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!--
+            Optional, like the persistence dependencies next door and for the
+            same reason: the shared status lookup (T-1.4) reads Valkey with the
+            BLOCKING client, and a service that does not need the fast path must
+            not inherit a Redis client by depending on this library. The
+            gateway's own status gate reads the same key reactively and shares
+            only the key format, which lives in `platform-common`.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- A library, not an application. See platform-common's pom for why this is stated. -->
+            <plugin>
+                <groupId>com.google.cloud.tools</groupId>
+                <artifactId>jib-maven-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

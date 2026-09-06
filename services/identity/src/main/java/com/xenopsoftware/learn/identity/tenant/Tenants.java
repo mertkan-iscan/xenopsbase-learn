@@ -1,6 +1,6 @@
 package com.xenopsoftware.learn.identity.tenant;
 
-import com.xenopsoftware.learn.common.tenancy.TenantFilter;
+import com.xenopsoftware.learn.common.tenancy.TenantClaims;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -48,7 +48,7 @@ public class Tenants {
             SELECT tenant_id, name, status, archived_at FROM tenant
              WHERE tenant_id <> ? ORDER BY tenant_id
             """, (rows, index) -> new Tenant(rows.getString(1), rows.getString(2),
-                rows.getString(3), rows.getTimestamp(4) != null), TenantFilter.PLATFORM_TENANT);
+                rows.getString(3), rows.getTimestamp(4) != null), TenantClaims.PLATFORM_TENANT);
     }
 
     /** Creates the row. Participates in the caller's transaction, which is what makes
@@ -62,7 +62,7 @@ public class Tenants {
         jdbc.update("""
             INSERT INTO tenant (tenant_id, name) VALUES (?, 'XenOpsBase (platform)')
             ON CONFLICT (tenant_id) DO NOTHING
-            """, TenantFilter.PLATFORM_TENANT);
+            """, TenantClaims.PLATFORM_TENANT);
     }
 
     public Map<String, Object> statusOf(String tenantId) {

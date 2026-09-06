@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    identity + catalog in one process (ADR-0109).
+
+    AN ASSEMBLY, NOT A REWRITE. This module has three Java files. Everything it
+    runs lives in `identity` and `catalog`, which stay their own modules with
+    their own packages, their own migrations, their own databases and their own
+    tests — and which are now libraries rather than applications, because
+    ADR-0109 says these three modules "start inside one deployable called core".
+
+    THE PART THAT IS EASY TO GET WRONG. spring-boot-maven-plugin:repackage
+    rewrites a jar so its classes sit under BOOT-INF/, which makes them
+    invisible to anything depending on it — the same failure platform-common's
+    pom describes, presenting as "cannot find symbol" for a class that is
+    plainly in the jar. So identity and catalog skip repackage and skip jib, and
+    this module is the one that produces an image.
+
+    `assessment` joins this list when it exists (ADR-0109 puts it here too);
+    the wiring it will need is one more DataSource in
+    CorePersistenceConfiguration and one more package in CoreApp's scan.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.xenopsoftware.learn</groupId>
+        <artifactId>services</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>core</artifactId>
+    <name>Core</name>
+    <description>identity and catalog in one deployable (ADR-0109)</description>
+
+    <properties>
+        <start-class>com.xenopsoftware.learn.core.CoreApp</start-class>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.xenopsoftware.learn</groupId>
+            <artifactId>identity</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.xenopsoftware.learn</groupId>
+            <artifactId>catalog</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5-engine</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>com.google.cloud.tools</groupId>
+                <artifactId>jib-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>

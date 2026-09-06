@@ -56,17 +56,16 @@ public class PublishedStatusLookup implements TenantStatusLookup {
             return AccountStatus.ACTIVE;
         }
         try {
-            String published = valkey.opsForValue().get("status:tenant:" + tenantId);
+            String published = valkey.opsForValue().get(TenantStatusKeys.forTenant(tenantId));
             if (published == null) {
                 return AccountStatus.ACTIVE;
             }
-            for (AccountStatus status : AccountStatus.values()) {
-                if (status.name().equals(published)) {
-                    return status;
-                }
+            AccountStatus status = TenantStatusKeys.parseOrNull(published);
+            if (status == null) {
+                LOG.warn("Unreadable status entry for tenant {}: {}", tenantId, published);
+                return AccountStatus.ACTIVE;
             }
-            LOG.warn("Unreadable status entry for tenant {}: {}", tenantId, published);
-            return AccountStatus.ACTIVE;
+            return status;
         } catch (RuntimeException valkeyDown) {
             LOG.warn("Could not read the status entry for tenant {}; this service is permissive "
                 + "until Valkey returns", tenantId, valkeyDown);

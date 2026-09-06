@@ -1,6 +1,7 @@
 package com.xenopsoftware.learn.identity.tenant;
 
 import com.xenopsoftware.learn.common.tenancy.AccountStatus;
+import com.xenopsoftware.learn.common.tenancy.TenantStatusKeys;
 import com.xenopsoftware.learn.common.tenancy.TenantStatusLookup;
 import java.time.Duration;
 import org.slf4j.Logger;
@@ -71,6 +72,9 @@ public class PublishedTenantStatus implements TenantStatusLookup {
     }
 
     static String key(String tenantId) {
-        return "status:tenant:" + tenantId;
+        // The writer and both readers name the key from one place (ADR-0111): identity here,
+        // every MVC service through PublishedStatusLookup, and the gateway reactively. Three
+        // spellings of one string is how a status gate ends up reading an entry nobody writes.
+        return TenantStatusKeys.forTenant(tenantId);
     }
 }

@@ -1,6 +1,6 @@
 package com.xenopsoftware.learn.identity.tenant;
 
-import com.xenopsoftware.learn.common.tenancy.TenantFilter;
+import com.xenopsoftware.learn.common.tenancy.TenantClaims;
 import com.xenopsoftware.learn.identity.authz.AssignmentScopeType;
 import com.xenopsoftware.learn.identity.authz.SystemRole;
 import com.xenopsoftware.learn.identity.authz.SystemRoleSeeder;
@@ -64,7 +64,7 @@ public class PlatformBootstrap implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         tenants.ensurePlatformTenant();
-        systemRoles.ensureSeededFor(TenantFilter.PLATFORM_TENANT);
+        systemRoles.ensureSeededFor(TenantClaims.PLATFORM_TENANT);
         if (administrators.isEmpty()) {
             // Loud, because an installation with no platform administrator cannot create a
             // single customer: nobody holds tenant:provision and nobody can be given it.
@@ -81,31 +81,31 @@ public class PlatformBootstrap implements ApplicationRunner {
         UUID userId = jdbc.query("""
             SELECT id FROM app_user WHERE tenant_id = ? AND lower(email) = ?
             """, rows -> rows.next() ? rows.getObject(1, UUID.class) : null,
-            TenantFilter.PLATFORM_TENANT, email);
+            TenantClaims.PLATFORM_TENANT, email);
         if (userId == null) {
             userId = UUID.randomUUID();
             jdbc.update("""
                 INSERT INTO app_user (id, tenant_id, email, display_name, status, created_at, updated_at)
                 VALUES (?, ?, ?, ?, 'INVITED', now(), now())
-                """, userId, TenantFilter.PLATFORM_TENANT, email, email);
+                """, userId, TenantClaims.PLATFORM_TENANT, email, email);
             LOG.info("Invited platform administrator {}", email);
         }
         UUID roleId = jdbc.query("""
             SELECT id FROM app_role WHERE tenant_id = ? AND system AND name = ?
             """, rows -> rows.next() ? rows.getObject(1, UUID.class) : null,
-            TenantFilter.PLATFORM_TENANT, SystemRole.SYS_ADMIN.displayName());
+            TenantClaims.PLATFORM_TENANT, SystemRole.SYS_ADMIN.displayName());
         if (roleId == null) {
             throw new IllegalStateException("The platform sys-admin template was not projected");
         }
         Long held = jdbc.queryForObject("""
             SELECT count(*) FROM role_assignment
              WHERE tenant_id = ? AND role_id = ? AND user_id = ? AND scope_type = 'PLATFORM'
-            """, Long.class, TenantFilter.PLATFORM_TENANT, roleId, userId);
+            """, Long.class, TenantClaims.PLATFORM_TENANT, roleId, userId);
         if (held != null && held == 0) {
             jdbc.update("""
                 INSERT INTO role_assignment (id, tenant_id, role_id, user_id, scope_type, granted_by, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, now())
-                """, UUID.randomUUID(), TenantFilter.PLATFORM_TENANT, roleId, userId,
+                """, UUID.randomUUID(), TenantClaims.PLATFORM_TENANT, roleId, userId,
                 AssignmentScopeType.PLATFORM.name(), userId);
             LOG.info("Granted {} the platform {} role", email, SystemRole.SYS_ADMIN.displayName());
         }

@@ -123,7 +123,7 @@ public class UserProvisioningService {
      * same guards: matched inside the tenant by email, never a deactivated account, never a sub
      * that already belongs to someone else.
      */
-    @Transactional
+    @Transactional("identityTransactionManager")
     public AppUser relink(String email, String newIdpSub) {
         AppUser user = repository.findByEmailIgnoreCase(email)
             .orElseThrow(() -> new IllegalArgumentException(

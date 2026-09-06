@@ -29,7 +29,7 @@ public class AppUserCreator {
         this.systemRoles = systemRoles;
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional(value = "identityTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public AppUser create(String email, String displayName, String idpSub) {
         // saveAndFlush so the row is real before this returns -- callers reach it with raw SQL
         // that does not see Hibernate pending inserts, and the constraint violation that

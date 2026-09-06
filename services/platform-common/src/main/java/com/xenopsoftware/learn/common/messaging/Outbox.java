@@ -5,7 +5,6 @@ import java.time.Instant;
 import java.util.UUID;
 import javax.sql.DataSource;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.stereotype.Component;
 
 /**
  * Writes what happened, in the transaction that made it happen (T-9.8).
@@ -29,7 +28,10 @@ import org.springframework.stereotype.Component;
  * Hibernate session, which matters because publishers include code that runs on a startup thread
  * with no tenant bound, and because {@code platform-common} keeps Hibernate optional.
  */
-@Component
+// NOT @Component (ADR-0109). This is bound to ONE database -- the whole point of a
+// transactional outbox is that the row is written in the same transaction as the domain
+// change -- and a merged process has two. Each module declares its own; see
+// ModuleMessaging.
 public class Outbox {
 
     private final JdbcTemplate jdbc;

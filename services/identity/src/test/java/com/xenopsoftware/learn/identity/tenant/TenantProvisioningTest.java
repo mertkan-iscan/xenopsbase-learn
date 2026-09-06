@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.xenopsoftware.learn.common.tenancy.TenantContext;
-import com.xenopsoftware.learn.common.tenancy.TenantFilter;
+import com.xenopsoftware.learn.common.tenancy.TenantClaims;
 import com.xenopsoftware.learn.identity.PostgresTestHarness;
 import com.xenopsoftware.learn.identity.authz.Permission;
 import com.xenopsoftware.learn.identity.authz.Role;
@@ -72,7 +72,7 @@ class TenantProvisioningTest extends PostgresTestHarness {
         platformBootstrap.run(null);
         // The platform administrator signs in for the first time, which claims their invitation.
         actAs("platform-admin", "platform-admin@xenopslearn.test", "PLATFORM");
-        TenantContext.callWithUnchecked(TenantFilter.PLATFORM_TENANT,
+        TenantContext.callWithUnchecked(TenantClaims.PLATFORM_TENANT,
             () -> userProvisioning.provision(callerToken("platform-admin",
                 "platform-admin@xenopslearn.test", "PLATFORM")));
     }
@@ -177,7 +177,7 @@ class TenantProvisioningTest extends PostgresTestHarness {
 
     @Test
     void theReservedPlatformIdAndMalformedIdsAreRefused() {
-        assertThatThrownBy(() -> provisionAsPlatform(TenantFilter.PLATFORM_TENANT, "Sneaky", "a@b.test", "A")).isInstanceOf(ResponseStatusException.class)
+        assertThatThrownBy(() -> provisionAsPlatform(TenantClaims.PLATFORM_TENANT, "Sneaky", "a@b.test", "A")).isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("reserved");
         assertThatThrownBy(() -> provisionAsPlatform("Northwind Inc", "Northwind",
             "a@b.test", "A")).isInstanceOf(ResponseStatusException.class);
@@ -202,16 +202,16 @@ class TenantProvisioningTest extends PostgresTestHarness {
 
         assertThat(jdbc.queryForList(
             "SELECT name FROM app_role WHERE tenant_id = ? AND system", String.class,
-            TenantFilter.PLATFORM_TENANT))
+            TenantClaims.PLATFORM_TENANT))
             .containsExactlyInAnyOrder("Support", "Support (write)", "System administrator");
         assertThat(jdbc.queryForObject("""
             SELECT count(*) FROM role_assignment WHERE tenant_id = ? AND scope_type = 'PLATFORM'
-            """, Long.class, TenantFilter.PLATFORM_TENANT)).isEqualTo(1);
+            """, Long.class, TenantClaims.PLATFORM_TENANT)).isEqualTo(1);
 
         // And it is that grant, and nothing else, that lets a platform administrator create a
         // company at all.
         actAs("platform-admin", "platform-admin@xenopslearn.test", "PLATFORM");
-        TenantContext.callWithUnchecked(TenantFilter.PLATFORM_TENANT, () -> {
+        TenantContext.callWithUnchecked(TenantClaims.PLATFORM_TENANT, () -> {
             assertThat(scopes.reachFor(Permission.TENANT_PROVISION).wholeTenant()).isTrue();
             return null;
         });
@@ -226,7 +226,7 @@ class TenantProvisioningTest extends PostgresTestHarness {
              WHERE tenant_id = ? AND action = 'tenant.provision'
                AND payload @> ('{"tenantId": "northwind"}')::jsonb
                AND actor_user_id IS NOT NULL
-            """, Long.class, TenantFilter.PLATFORM_TENANT);
+            """, Long.class, TenantClaims.PLATFORM_TENANT);
         assertThat(audited).isEqualTo(1);
     }
 
@@ -236,7 +236,7 @@ class TenantProvisioningTest extends PostgresTestHarness {
      */
     private TenantProvisioningService.ProvisionedTenant provisionAsPlatform(String tenantId,
             String name, String adminEmail, String adminName) {
-        return TenantContext.callWithUnchecked(TenantFilter.PLATFORM_TENANT,
+        return TenantContext.callWithUnchecked(TenantClaims.PLATFORM_TENANT,
             () -> provisioning.provision(tenantId, name, adminEmail, adminName));
     }
 
@@ -249,7 +249,7 @@ class TenantProvisioningTest extends PostgresTestHarness {
         jdbc.update("DELETE FROM user_group");
         jdbc.update("DELETE FROM app_user");
         jdbc.update("DELETE FROM idempotency_record");
-        jdbc.update("DELETE FROM tenant WHERE tenant_id <> ?", TenantFilter.PLATFORM_TENANT);
+        jdbc.update("DELETE FROM tenant WHERE tenant_id <> ?", TenantClaims.PLATFORM_TENANT);
     }
 
     private void actAs(String username, String email, String side) {

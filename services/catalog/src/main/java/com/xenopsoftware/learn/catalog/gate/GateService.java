@@ -56,7 +56,7 @@ public class GateService {
      * reason {@code RoleService.setPermissions} gives: a gate's rule is the set, and two authors
      * each adding one requirement to a stale view would produce a rule neither of them chose.
      */
-    @Transactional
+    @Transactional("catalogTransactionManager")
     public GateRule save(UUID courseId, StructurePart targetPart, UUID targetId,
             Combinator combinator, List<RequirementSpec> specs) {
         CourseService.CourseTree tree = courses.tree(courseId);
@@ -90,7 +90,7 @@ public class GateService {
         return new GateRule(targetPart, targetId, combinator, saved);
     }
 
-    @Transactional
+    @Transactional("catalogTransactionManager")
     public void remove(UUID targetId) {
         gates.findByTargetId(targetId).ifPresent(gate -> {
             requirements.deleteByGateId(gate.getId());
@@ -108,7 +108,7 @@ public class GateService {
      * a per-node evaluation is indistinguishable from correct on a course with three nodes and is
      * what makes the learner's first screen slower every time somebody adds a module.
      */
-    @Transactional(readOnly = true)
+    @Transactional(value = "catalogTransactionManager", readOnly = true)
     public List<Reachability> reachability(UUID courseId, UUID learnerId) {
         CourseService.CourseTree tree = courses.tree(courseId);
         List<UUID> nodeIds = tree.modules().stream()
@@ -125,7 +125,7 @@ public class GateService {
      * assigned at once, and asking per course would put this task's own N+1 back into the screen
      * the criterion is about.
      */
-    @Transactional(readOnly = true)
+    @Transactional(value = "catalogTransactionManager", readOnly = true)
     public Map<UUID, GateRule> rulesFor(java.util.Collection<UUID> courseIds) {
         return courseIds.isEmpty() ? Map.of() : rulesOf(gates.findByCourseIdIn(courseIds));
     }
@@ -180,7 +180,7 @@ public class GateService {
     }
 
     /** The rule on one target, if there is one. Used by the API and by the explanation screen. */
-    @Transactional(readOnly = true)
+    @Transactional(value = "catalogTransactionManager", readOnly = true)
     public java.util.Optional<GateRule> ruleOn(UUID targetId) {
         return gates.findByTargetId(targetId)
             .map(gate -> rulesOf(List.of(gate)).get(gate.getTargetId()));

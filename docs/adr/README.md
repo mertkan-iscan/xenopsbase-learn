@@ -37,3 +37,4 @@ work that comes after it, not when it happens to belong to a planning epic:
 | ADR | Decision | Task |
 |---|---|---|
 | 0110 | The embeddable player is an iframe, not a JavaScript module | T-3.5 |
+| 0111 | Eight servlet modules on virtual threads, and one reactive edge | T-9.16 |
