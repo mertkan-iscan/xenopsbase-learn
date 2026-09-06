@@ -42,6 +42,29 @@ env:
   NODE_VERSION: '24'
 
 jobs:
+  # The service list, derived rather than typed (ported from xenopsbase-stemcell).
+  #
+  # It used to be `service: [identity, streaming, reporting]` written into the
+  # publish matrix below. T-5.1 added `catalog` as a module with jib enabled --
+  # a deployable service -- and nobody edited that line, so catalog was compiled
+  # and tested on every run and never published once. Nothing failed: a workflow
+  # that never builds a service is a green workflow.
+  #
+  # services/pom.xml's <modules> is the list Maven itself uses, so it cannot go
+  # stale without the build breaking.
+  modules:
+    name: service list
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.list.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - id: list
+        run: |
+          matrix="$(bash scripts/service-modules.sh --json)"
+          echo "services: ${matrix}"
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
+
   services:
     name: services (Maven)
     runs-on: ubuntu-latest
@@ -192,7 +215,14 @@ jobs:
     # would exist, be pullable, and be indistinguishable from one that passed.
     # And a pull request must not publish at all — an image built from a branch
     # nobody merged is an image somebody can deploy.
-    needs: [services, web, contract]
+    # `modules` is declared here because the matrix below reads
+    # needs.modules.outputs.matrix, and a `needs` context exposes only the jobs a
+    # job declares. Omitting it does not fail the job -- it makes the expression
+    # invalid, and GitHub fails the WHOLE RUN before creating the job, so the run
+    # is red, every job in it is green, and `publish` does not appear in the job
+    # list at all. That exact bug shipped in xenopsbase-stemcell and cost two
+    # merges that pushed no images while reporting success.
+    needs: [modules, services, web, contract]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
@@ -212,9 +242,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The three deployable processes. `platform-common` is a library and
-        # says so in its own pom, where jib is skipped with the reason.
-        service: [identity, streaming, reporting]
+        # Derived from services/pom.xml. `platform-common` is excluded by name,
+        # which is also what its own pom says by skipping jib with the reason.
+        service: ${{ fromJSON(needs.modules.outputs.matrix) }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
