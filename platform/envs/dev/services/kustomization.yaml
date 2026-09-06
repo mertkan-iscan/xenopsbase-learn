@@ -48,7 +48,18 @@ images:
     # rule somebody remembers, and hardcoded tenant_id/side mappers with
     # syncMode FORCE so a customer's provider cannot assert its way into another
     # company. Plus the regenerated client the contract gate demanded.
-    digest: sha256:d91da019845d2921371bf8abe41d23deeff642bd5a6793c6a62b9532fbe353e8
+    #
+    # 2026-09-06 — MOVED TO c21e960, and the reason is T-9.8: the message bus.
+    # Until now `platform.messaging.nats-url` was empty in every environment,
+    # which application.yml calls "the local default rather than the only one" —
+    # so the outbox filled, the relay drained it, and every message went
+    # nowhere. There is a broker now, in the stemcell's `messaging` namespace,
+    # and NATS_URL below points at it. `Streams` declares `identity.>` at
+    # startup, so the stream exists the first time this connects.
+    #
+    # Also carries T-5.6, which is a deadline being a date rather than an
+    # instant, and T-0.9's ADR-0109.
+    digest: sha256:ac86bb45ff672817c2db4c2f14d1eca00a0506f3b9296cafa195c5e3d1c5ef4b
   - name: ghcr.io/mertkan-iscan/xenopsbase-learn/streaming
     # Commit 0747e6c — the MediaProvider port and its fake and Cloudflare
     # adapters (T-3.1), tus upload targets with quota enforced before issuance
@@ -63,7 +74,15 @@ images:
     # the Cloudflare side: the token proved by using it, and the two properties
     # nothing was setting. The provider selected HERE is still the fake one, so
     # that changes what the adapter can do and not what this deployment does.
-    digest: sha256:b71aed62ea5ac333a695cb4be7074730cb0dfd2a99cf372ed8c0e70b2b7454b1
+    #
+    # 2026-09-06 — moved to c21e960. T-3.7 (watched intervals, because a
+    # furthest position is a claim), T-3.10 (playback survives the backend being
+    # down) and T-5.8's share of the learner home. Plus the message bus, and
+    # `streaming.>` with it.
+    #
+    # Still the FAKE media provider, so what changed is the domain and not edge
+    # delivery.
+    digest: sha256:9bae327382dea2e80bff7f9b5c2d33335b47566b2b4d46ca4defd17705526078
   - name: ghcr.io/mertkan-iscan/xenopsbase-learn/reporting
     # Commit 0747e6c — the service and its own database with nothing else
     # reading it (T-9.7), and the playback heartbeat ingest path (T-3.6):
@@ -74,4 +93,11 @@ images:
     # changed between 0747e6c and here; it moves because all three are built
     # from one commit and a deployment naming three different ones is a harder
     # thing to reason about than a rebuild.
-    digest: sha256:0404047229652e9ebfe20b9622b89e884d85e6a38fb7fa7cba983ab31000fa91
+    #
+    # 2026-09-06 — moved to c21e960, and NOTHING IN THIS SERVICE CHANGED.
+    # `services/reporting` has no commit between 6a71d6f and here. It moves
+    # because platform-common does: T-9.8 put the relay, the subscriber and
+    # `Streams` in the shared module, so this image gains a working outbox
+    # without a line of its own changing. That is worth stating rather than
+    # leaving a reader to diff and find nothing.
+    digest: sha256:a6d97c7573518b55a73abc82f04885fa5f9b54112fab62fa8ba9071025f60e37

@@ -136,6 +136,14 @@ spec:
             - {name: STREAMING_URL, value: http://streaming.learn.svc.cluster.local:8083}
             - {name: REPORTING_URL, value: http://reporting.learn.svc.cluster.local:8084}
 
+            # NO NATS_URL, DELIBERATELY. This service neither publishes nor
+            # consumes: it has no outbox migration, no MessageHandler, and no
+            # `platform.outbox` block in its application.yml -- so
+            # MessagingConfiguration's @ConditionalOnProperty does not match and
+            # it opens no broker connection, runs no relay and holds no
+            # scheduled task. Setting the variable here would look like wiring
+            # and change nothing, which is worse than the gap it appears to fill.
+
             # Telemetry ingest (T-3.6). The pool stays at the template's 10:
             # the load test could not distinguish it from 32 on the hardware it
             # ran on, and docs/slos.md records both sets of runs rather than a
