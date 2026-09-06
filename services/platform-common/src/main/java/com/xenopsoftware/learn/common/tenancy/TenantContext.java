@@ -20,7 +20,7 @@ package com.xenopsoftware.learn.common.tenancy;
  *
  * Threads are pooled. Failing to clear leaks one request's tenant into the next request that
  * reuses the thread. That reads as data from the wrong tenant appearing intermittently under load
- * — no error, no pattern, and impossible to reproduce on a quiet machine. {@link TenantFilter}
+ * — no error, no pattern, and impossible to reproduce on a quiet machine. {@code TenantFilter}
  * clears in a {@code finally} for that reason.
  *
  * <p>Thread pools also do not inherit a {@code ThreadLocal}. Anything that hands work to another

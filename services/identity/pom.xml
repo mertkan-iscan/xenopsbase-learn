@@ -22,7 +22,7 @@
     <dependencies>
         <dependency>
             <groupId>com.xenopsoftware.learn</groupId>
-            <artifactId>platform-common</artifactId>
+            <artifactId>platform-common-web</artifactId>
         </dependency>
 
         <dependency>

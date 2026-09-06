@@ -77,5 +77,7 @@ then, reaching them means `kubectl port-forward`.
   same commit produces the same image.
 - Tags are the commit SHA plus `main` for humans. **`main` must not appear in a manifest.**
 - Signed keylessly with cosign and verified in the same run, with SLSA provenance attached.
-- `platform-common` publishes nothing: it is a library and its pom says so, so a repository-root
-  `mvn jib:build` does the right thing instead of failing on a missing main class.
+- `platform-common` and `platform-common-web` publish nothing: both are libraries and both poms say
+  so, so a repository-root `mvn jib:build` does the right thing instead of failing on a missing main
+  class. `scripts/service-modules.sh` excludes them by name, which is what keeps the publish matrix
+  and the reactor from disagreeing.

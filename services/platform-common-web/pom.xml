@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    The servlet half of what every service shares.
+
+    WHY THIS IS A SEPARATE MODULE AND NOT A PACKAGE
+
+    platform-common used to depend on spring-boot-starter-web, so every class in
+    it could reach for HttpServletRequest and several did: a correlation filter,
+    a service-authentication filter, two tenancy filters and two controllers.
+
+    A shared library that depends on one web stack is a library only services on
+    that stack can use. It also decides, silently, for a future gateway — which
+    runs on WebFlux, where none of these filters exist — before anyone has had
+    the argument. Splitting now costs one pom; splitting after a gateway exists
+    costs untangling it under time pressure.
+
+    So: platform-common holds what is true regardless of stack — the outbox, the
+    tenant context, mail, the metrics — and refuses the web stack by enforcer
+    rule. This module holds what is true only on servlets, and refuses WebFlux by
+    the mirror-image rule below.
+
+    Both keep the com.xenopsoftware.learn.common package root, which is what lets
+    the services keep their existing @ComponentScan unchanged: a package may span
+    two jars, and every service already scans the root.
+
+    The shape is xenopsbase-stemcell's ADR-0017.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.xenopsoftware.learn</groupId>
+        <artifactId>services</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>platform-common-web</artifactId>
+    <name>Platform common (servlet)</name>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.xenopsoftware.learn</groupId>
+            <artifactId>platform-common</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!--
+            The web and security stack the services used to inherit from
+            platform-common. It moves here rather than into each service: every
+            service needs it, none of them declared it, and four copies of the
+            same five dependencies is what this module exists to prevent.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!--
+            Optional here for the same reason it is optional in platform-common:
+            StatusGateFilter reads the cached account status when a service has
+            Valkey, and a service without it must not inherit a Redis client.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!--
+                The mirror image of platform-common's rule. That one bans every
+                web stack; this one bans the OTHER stack, so a class that quietly
+                switches to a reactive type fails here instead of dragging both
+                stacks into every service that depends on this.
+
+                Two stacks on one classpath is not a compile error. Spring Boot
+                picks one, and which one it picks depends on classpath order.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>enforce-servlet-only</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <bannedDependencies>
+                                    <excludes>
+                                        <exclude>org.springframework.boot:spring-boot-starter-webflux</exclude>
+                                        <exclude>org.springframework:spring-webflux</exclude>
+                                    </excludes>
+                                    <message>
+                                        platform-common-web is the servlet half. Reactive code belongs
+                                        in the service that needs it, or in a platform-common-webflux
+                                        that does not exist yet.
+                                    </message>
+                                </bannedDependencies>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!--
+                A library, not an application. Without this, spring-boot:repackage
+                turns the jar into an executable archive whose classes are under
+                BOOT-INF/ and therefore invisible to anything depending on it —
+                which presents as "cannot find symbol" for a class that is plainly
+                in the jar.
+            -->
+            <plugin>
+                <groupId>com.google.cloud.tools</groupId>
+                <artifactId>jib-maven-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
