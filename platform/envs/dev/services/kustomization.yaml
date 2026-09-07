@@ -59,7 +59,21 @@ images:
     #
     # Also carries T-5.6, which is a deadline being a date rather than an
     # instant, and T-0.9's ADR-0109.
-    digest: sha256:ac86bb45ff672817c2db4c2f14d1eca00a0506f3b9296cafa195c5e3d1c5ef4b
+    #
+    # 2026-09-07 — moved to 9f6aa7d. Inter-service calls are gated on the
+    # `svc-caller` realm role, not on the `svc` claim alone (T-9.12). The claim
+    # keeps its job -- it says WHICH service is calling -- and the role is the
+    # gate, so revoking it now does something. It did not before: nothing looked.
+    #
+    # THE REALM MUST CARRY THE ROLE BEFORE THIS ROLLS, and it does: xenopslearn
+    # was re-imported at 00:3x with svc-caller and a service account per svc-*
+    # client holding it. Deploying this against a realm without the role refuses
+    # every inter-service call.
+    #
+    # Also carries the platform-common split (#115): the servlet half of the
+    # shared library is its own module now, which changes no behaviour and is
+    # why all three images move together.
+    digest: sha256:70ac8a5d8a3af78f0a5447b649629990a330c7c70f3ad2bf7cb767ec9bfbde47
   - name: ghcr.io/mertkan-iscan/xenopsbase-learn/streaming
     # Commit 0747e6c — the MediaProvider port and its fake and Cloudflare
     # adapters (T-3.1), tus upload targets with quota enforced before issuance
@@ -82,7 +96,10 @@ images:
     #
     # Still the FAKE media provider, so what changed is the domain and not edge
     # delivery.
-    digest: sha256:9bae327382dea2e80bff7f9b5c2d33335b47566b2b4d46ca4defd17705526078
+    #
+    # 2026-09-07 — moved to 9f6aa7d for the svc-caller gate and the
+    # platform-common split. No change of its own; see the note on identity.
+    digest: sha256:909b1a897fbc0842489bc01622ce907f255e282432a84d855a9a42aa038645a1
   - name: ghcr.io/mertkan-iscan/xenopsbase-learn/reporting
     # Commit 0747e6c — the service and its own database with nothing else
     # reading it (T-9.7), and the playback heartbeat ingest path (T-3.6):
@@ -100,4 +117,8 @@ images:
     # `Streams` in the shared module, so this image gains a working outbox
     # without a line of its own changing. That is worth stating rather than
     # leaving a reader to diff and find nothing.
-    digest: sha256:a6d97c7573518b55a73abc82f04885fa5f9b54112fab62fa8ba9071025f60e37
+    #
+    # 2026-09-07 — moved to 9f6aa7d. Reporting neither publishes, consumes, nor
+    # makes service calls, so it gains nothing observable from either change and
+    # moves because the shared modules did.
+    digest: sha256:a39aa396205216ea1c6b6a6bd652c7faf95cea112a42f6f9cce3aee12b61e01b
