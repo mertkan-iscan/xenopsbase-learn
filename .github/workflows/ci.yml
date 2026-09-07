@@ -146,6 +146,15 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
+      # BEFORE the stack starts, because the failure it prevents is opaque once it
+      # does: Keycloak stores a realm role's description in a varchar(255), an
+      # import carrying a longer one crashes rather than truncating, and all the
+      # stack says is "container xenopslearn-keycloak-1 is unhealthy". That cost
+      # a red build on 2026-09-07 and, in the cluster, a deleted realm that could
+      # not be re-imported (T-9.12).
+      - name: Check the realm fits Keycloak's own columns
+        run: python scripts/verify_realm_limits.py
+
       - name: Start the local stack
         run: cp .env.example .env && make up
 

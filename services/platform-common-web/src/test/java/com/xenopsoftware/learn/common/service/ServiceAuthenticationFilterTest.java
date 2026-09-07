@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import jakarta.servlet.FilterChain;
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -75,6 +77,29 @@ class ServiceAuthenticationFilterTest {
     }
 
     @Test
+    void aServiceAccountWithoutTheGrantIsRefused() throws Exception {
+        // THE ASSERTION THE GATE EXISTS FOR (T-9.12).
+        //
+        // This token is a perfectly good service credential by the OLD rule: it verifies, and it
+        // carries `svc: streaming` from the realm's own mapper. What it does not carry is the
+        // svc-caller grant.
+        //
+        // That combination is reachable rather than theoretical -- the claim comes from a mapper
+        // on the client and the role is a separate grant on the service account, so revoking one
+        // does not touch the other. Before this, revoking the role achieved nothing at all and
+        // said nothing about it.
+        Mockito.when(decoder.decode("no-grant")).thenReturn(serviceToken("streaming", false));
+        request.addHeader(ServiceAuthenticationFilter.HEADER, "Bearer no-grant");
+
+        filter.doFilter(request, response, chain);
+
+        assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(filter.refusedCount()).isEqualTo(1);
+        assertThat(request.getAttribute(CallingService.ATTRIBUTE)).isNull();
+        Mockito.verifyNoInteractions(chain);
+    }
+
+    @Test
     void aServiceCarryingAPersonIsDistinguishableFromOneActingForItself() throws Exception {
         Mockito.when(decoder.decode("streaming-token")).thenReturn(serviceToken("streaming"));
         request.addHeader(ServiceAuthenticationFilter.HEADER, "Bearer streaming-token");
@@ -105,8 +130,24 @@ class ServiceAuthenticationFilterTest {
     }
 
     private static Jwt serviceToken(String service) {
-        return Jwt.withTokenValue("svc").header("alg", "none").subject("service-account-svc-" + service)
+        return serviceToken(service, true);
+    }
+
+    /**
+     * @param withRole whether the token holds {@code svc-caller}. A service account that has the
+     *     claim mapper but not the grant is the case the gate exists for, and it is reachable:
+     *     the mapper is a per-client detail and the role is a separate grant, so the two CAN
+     *     disagree, and before T-9.12 the disagreement was invisible.
+     */
+    private static Jwt serviceToken(String service, boolean withRole) {
+        var builder = Jwt.withTokenValue("svc").header("alg", "none")
+            .subject("service-account-svc-" + service)
             .claim("svc", service)
-            .issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(60)).build();
+            .claim("azp", "svc-" + service);
+        if (withRole) {
+            // Keycloak's shape: realm roles nested under realm_access.roles.
+            builder = builder.claim("realm_access", Map.of("roles", List.of(ServiceAuthenticationFilter.SERVICE_ROLE)));
+        }
+        return builder.issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(60)).build();
     }
 }

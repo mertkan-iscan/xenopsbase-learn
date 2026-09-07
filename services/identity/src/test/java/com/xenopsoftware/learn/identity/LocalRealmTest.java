@@ -69,6 +69,18 @@ class LocalRealmTest {
         List<String> broken = new ArrayList<>();
         for (JsonNode user : realm.path("users")) {
             String username = user.path("username").asText("(no username)");
+            if (!user.path("serviceAccountClientId").asText("").isBlank()) {
+                // A SERVICE ACCOUNT IS NOT A PERSON (T-9.12).
+                //
+                // Keycloak represents one as a user, which is why it turns up in this loop, but
+                // it has no email, no side and no tenant, and provisioning never makes an
+                // app_user row for it. Every rule below is about somebody who signs in.
+                //
+                // Skipped rather than given fake attributes: an email on a service account would
+                // satisfy this test and then look, to anyone reading the realm, like a person.
+                // What a service account MUST have is asserted separately, below.
+                continue;
+            }
             if (user.path("email").asText("").isBlank()) {
                 broken.add(username + ": no email");
             }
@@ -87,6 +99,47 @@ class LocalRealmTest {
             }
         }
         assertThat(broken).isEmpty();
+    }
+
+    @Test
+    void everyServiceAccountIsDeclaredWithTheGrantItNeeds() {
+        // The other half of the rule above. Service accounts are exempt from the person checks,
+        // so without this they would be exempt from every check -- which is how a service account
+        // ends up declared with no realm role at all and every inter-service call it makes 401s
+        // against a filter that is working exactly as intended.
+        List<String> broken = new ArrayList<>();
+        int found = 0;
+        for (JsonNode user : realm.path("users")) {
+            String client = user.path("serviceAccountClientId").asText("");
+            if (client.isBlank()) {
+                continue;
+            }
+            found++;
+            String username = user.path("username").asText("(no username)");
+
+            // Keycloak derives this name itself. A declared user whose name does not match is a
+            // SECOND user that shadows nothing, and the real service account keeps no roles.
+            if (!username.equals("service-account-" + client)) {
+                broken.add(username + ": must be named service-account-" + client);
+            }
+            boolean caller = false;
+            for (JsonNode role : user.path("realmRoles")) {
+                caller |= "svc-caller".equals(role.asText());
+            }
+            if (!caller) {
+                broken.add(username + ": does not hold svc-caller");
+            }
+            if (!isUuid(user.path("id").asText(""))) {
+                // Same rule as every other user here, and for the reason T-9.2 recorded: a realm
+                // change is applied by deleting and re-importing, and an account recreated with a
+                // fresh id is a different principal.
+                broken.add(username + ": no explicit id");
+            }
+        }
+        assertThat(broken).isEmpty();
+        // Never pass by finding nothing. A realm with no service accounts declared would satisfy
+        // every assertion above having checked nothing at all.
+        assertThat(found).as("the realm declares a service account per svc-* client").isEqualTo(3);
     }
 
     private static boolean isUuid(String value) {

@@ -20,6 +20,10 @@
       {
         "name": "tenant",
         "description": "Tenant-side principal. Coarse only."
+      },
+      {
+        "name": "svc-caller",
+        "description": "May make inter-service calls. The gate; the `svc` claim says which service (T-9.12)."
       }
     ]
   },
@@ -462,6 +466,33 @@
       ],
       "realmRoles": [
         "tenant"
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-0000000000a1",
+      "username": "service-account-svc-identity",
+      "enabled": true,
+      "serviceAccountClientId": "svc-identity",
+      "realmRoles": [
+        "svc-caller"
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-0000000000a2",
+      "username": "service-account-svc-streaming",
+      "enabled": true,
+      "serviceAccountClientId": "svc-streaming",
+      "realmRoles": [
+        "svc-caller"
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-0000000000a3",
+      "username": "service-account-svc-reporting",
+      "enabled": true,
+      "serviceAccountClientId": "svc-reporting",
+      "realmRoles": [
+        "svc-caller"
       ]
     }
   ],
