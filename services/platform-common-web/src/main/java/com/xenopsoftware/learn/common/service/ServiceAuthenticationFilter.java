@@ -51,6 +51,15 @@ public class ServiceAuthenticationFilter extends OncePerRequestFilter {
 
     public static final String HEADER = "X-Service-Authorization";
 
+    /**
+     * The realm role a client must hold to make an inter-service call at all.
+     *
+     * <p>Same name and same meaning as xenopsbase-stemcell's, deliberately: the two products share
+     * a Keycloak, and a reader who has learned what {@code svc-caller} means in one should not have
+     * to learn a second convention for the other.
+     */
+    public static final String SERVICE_ROLE = "svc-caller";
+
     private static final Logger LOG = LoggerFactory.getLogger(ServiceAuthenticationFilter.class);
 
     private final JwtDecoder decoder;
@@ -93,6 +102,28 @@ public class ServiceAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
+        // THE ROLE IS THE GATE; THE CLAIM IS THE IDENTITY (T-9.12).
+        //
+        // Checking only the `svc` claim made "may this token make service calls" and "which
+        // service is it" the same question, answered by one hardcoded claim mapper. That works
+        // exactly as long as nobody attaches that mapper to a client that should not be calling
+        // anything -- and the mapper is a per-client detail nobody reviews, whereas a realm role
+        // is a grant somebody has to make and can take away.
+        //
+        // xenopsbase-stemcell gates on this same realm role. Two products on one Keycloak now
+        // answer "is this a service credential" the same way.
+        if (!realmRolesOf(serviceToken).contains(SERVICE_ROLE)) {
+            refused.incrementAndGet();
+            LOG.warn("Refused an inter-service call: token for '{}' does not hold {}",
+                serviceToken.getClaimAsString("azp"), SERVICE_ROLE);
+            response.setStatus(401);
+            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            response.getWriter().write(
+                "{\"error\":{\"code\":\"SERVICE_CREDENTIAL_INVALID\","
+                + "\"message\":\"The calling service is not permitted to make service calls.\"}}");
+            return;
+        }
+
         String serviceId = serviceToken.getClaimAsString("svc");
         if (serviceId == null || serviceId.isBlank()) {
             refused.incrementAndGet();
@@ -115,6 +146,22 @@ public class ServiceAuthenticationFilter extends OncePerRequestFilter {
      * Whether this hop carries a person. The user token has already been validated by the
      * resource server, so this reads the outcome rather than the header.
      */
+    /**
+     * The realm roles on a token, or none.
+     *
+     * <p>Keycloak nests them under {@code realm_access.roles}. Absent rather than empty when the
+     * subject holds none, so this cannot assume the key exists.
+     */
+    @SuppressWarnings("unchecked")
+    private static java.util.List<String> realmRolesOf(Jwt token) {
+        Object realmAccess = token.getClaim("realm_access");
+        if (!(realmAccess instanceof java.util.Map<?, ?> map)) {
+            return java.util.List.of();
+        }
+        Object roles = map.get("roles");
+        return roles instanceof java.util.List<?> list ? (java.util.List<String>) list : java.util.List.of();
+    }
+
     private static boolean carriesAUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (!(authentication instanceof JwtAuthenticationToken token)) {
