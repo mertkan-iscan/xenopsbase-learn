@@ -84,7 +84,13 @@ images:
     # A CLIENT-VISIBLE CHANGE, and the only one in this deploy that is. Nothing
     # outside this repository consumes these bodies yet -- the player is the one
     # reader and it moved in the same commit.
-    digest: sha256:b9ffaca29c980c2b6dd1d891fdf1f7c5baec1e6be75688c8cd90141d7c7a3295
+    #
+    # 2026-09-08 — moved to e3d30b5. The problem documents its filters write are
+    # UTF-8 now. The image above answered
+    # `application/problem+json;charset=ISO-8859-1`, because setContentType with
+    # no charset lets Tomcat pick -- found by reading the headers off this very
+    # deployment, with every unit test green.
+    digest: sha256:c0b346dd8a78d513a57da0eb081c35852ef1b8e3551498cb825ec80291b306f2
   - name: ghcr.io/mertkan-iscan/xenopsbase-learn/streaming
     # Commit 0747e6c — the MediaProvider port and its fake and Cloudflare
     # adapters (T-3.1), tus upload targets with quota enforced before issuance
@@ -118,7 +124,10 @@ images:
     #
     # The undisclosed refusal still answers with NO BODY at all: an empty 404 is
     # the same answer a genuinely missing node gives, and that is the point.
-    digest: sha256:2a83d7a34cdf1bd9c22d6851645180ef74e72c72347d19898e5ccbda9cc310bd
+    #
+    # 2026-09-08 — moved to e3d30b5 for the UTF-8 fix in the shared filter path.
+    # No change of its own; see the note on identity.
+    digest: sha256:c510ee360b157e0c99bccc49d2d4bb13d2d3ef1f8dfe4629b51889e73cb9cbb4
   - name: ghcr.io/mertkan-iscan/xenopsbase-learn/reporting
     # Commit 0747e6c — the service and its own database with nothing else
     # reading it (T-9.7), and the playback heartbeat ingest path (T-3.6):
@@ -143,4 +152,6 @@ images:
     #
     # 2026-09-08 — moved to 8d2480d. Its two ingest refusals are problem
     # documents now; MALFORMED_BATCH survives as the code.
-    digest: sha256:4d510d0caed4478644006c810a712cea93ebdc349b90daea9d93422b7032aa3b
+    #
+    # 2026-09-08 — moved to e3d30b5 with the other two, for the same shared fix.
+    digest: sha256:4d084b3b49f236e0233f28066f04c7efd2d4db490893213d66341493c16f95a6
