@@ -53,7 +53,7 @@ public class AssignmentResource {
     }
 
     public record ReachView(String permission, boolean wholeTenant, Set<UUID> groupIds,
-                            Set<UUID> courseIds) {}
+                            Set<UUID> courseIds, Set<UUID> bankIds) {}
 
     @GetMapping("/assignments")
     public List<AssignmentView> all() {
@@ -88,7 +88,8 @@ public class AssignmentResource {
         Permission permission = Permission.byCode(resource + ":" + action)
             .orElseThrow(() -> new RoleException(resource + ":" + action + " is not in the catalog"));
         Reach reach = scopes.reachFor(permission);
-        return new ReachView(permission.code(), reach.wholeTenant(), reach.groupIds(), reach.courseIds());
+        return new ReachView(permission.code(), reach.wholeTenant(), reach.groupIds(),
+            reach.courseIds(), reach.bankIds());
     }
 
     private static ScopeGrant scopeOf(GrantRequest request) {
@@ -96,7 +97,9 @@ public class AssignmentResource {
         try {
             type = AssignmentScopeType.valueOf(request.scopeType());
         } catch (IllegalArgumentException | NullPointerException e) {
-            throw new RoleException("scopeType must be one of TENANT, GROUP, COURSE");
+            // Named rather than derived from values(): PLATFORM is a seeded scope (T-2.7)
+            // and offering it in a validation message reads as an invitation to try it.
+            throw new RoleException("scopeType must be one of TENANT, GROUP, COURSE, BANK");
         }
         if (type.isUnbounded() && request.scopeId() != null) {
             throw new RoleException(type + " scope points at everything; drop scopeId");

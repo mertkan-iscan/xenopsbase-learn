@@ -49,18 +49,23 @@ public class ScopeResolver {
         if (grants.stream().anyMatch(grant -> grant.type().isUnbounded())) {
             // The widest grant wins outright, and short-circuits: no subtree needs walking to
             // answer a question whose answer is "all of it".
-            return new Reach(true, Set.of(), Set.of());
+            return new Reach(true, Set.of(), Set.of(), Set.of());
         }
         Set<UUID> groups = new LinkedHashSet<>();
         Set<UUID> courses = new LinkedHashSet<>();
+        Set<UUID> banks = new LinkedHashSet<>();
         for (ScopeGrant grant : grants) {
             switch (grant.type()) {
                 case GROUP -> groups.addAll(hierarchy.subtreeIds(grant.targetId()));
+                // A course id and a bank id are kept apart rather than pooled: they are ids of
+                // different kinds of thing, owned by different modules, and the only reason they
+                // look alike is that both are UUIDs.
                 case COURSE -> courses.add(grant.targetId());
+                case BANK -> banks.add(grant.targetId());
                 default -> throw new IllegalStateException("Unbounded scope already handled");
             }
         }
-        return new Reach(false, Set.copyOf(groups), Set.copyOf(courses));
+        return new Reach(false, Set.copyOf(groups), Set.copyOf(courses), Set.copyOf(banks));
     }
 
     /** Whether the caller may exercise this permission over this group. */

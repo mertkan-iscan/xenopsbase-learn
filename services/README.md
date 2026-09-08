@@ -37,7 +37,8 @@ services/
 ├── identity/                the first module
 ├── streaming/
 ├── reporting/
-└── catalog/
+├── catalog/
+└── assessment/              banks and vocabularies so far (T-6.1); questions are T-6.2
 ```
 
 **Why the shared code is two modules.** `platform-common` used to depend on

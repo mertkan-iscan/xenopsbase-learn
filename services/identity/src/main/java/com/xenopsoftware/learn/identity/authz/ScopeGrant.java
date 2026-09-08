@@ -19,4 +19,9 @@ public record ScopeGrant(AssignmentScopeType type, UUID targetId) {
     public static ScopeGrant overCourse(UUID courseId) {
         return new ScopeGrant(AssignmentScopeType.COURSE, courseId);
     }
+
+    /** One question bank (T-6.1). Assessment owns the id; nothing here validates it exists. */
+    public static ScopeGrant overBank(UUID bankId) {
+        return new ScopeGrant(AssignmentScopeType.BANK, bankId);
+    }
 }
