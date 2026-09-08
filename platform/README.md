@@ -56,10 +56,16 @@ and never a realm of its own (ADR-0102).
 2. **The image policy has to merge.** Until it does the cluster denies these images — wrong
    registry path and wrong signing identity for the policy that exists. That is why CI signs them
    at all.
-3. **The headroom is unmeasured.** [ADR-0109](../docs/adr/0109-eight-modules-and-how-many-processes.md)
-   measured ~600Mi per Spring Boot process and about six fitting on the dev workers; the stemcell
-   already runs two, and this adds three. `make verify-headroom` there is the check after a first
-   sync, and it is what caught a worker dropping to 87Mi schedulable after a routine rollout.
+3. ~~**The headroom is unmeasured.**~~ **Measured 2026-09-08 (T-9.15), and the answer was not the
+   one this paragraph assumed.** It said ~600Mi per Spring Boot process and about six fitting on
+   the dev workers. Ours use 278Mi cold and 339–370Mi warm; the 600Mi was the stemcell's `core` at
+   a different container limit. What actually binds is that the platform underneath books 7942Mi of
+   the fixed pair's 11806Mi allocatable, so these three services did not fit beside the stemcell's
+   own and two of them landed on an autoscaled node that has not drained since.
+   [`docs/slos.md`](../docs/slos.md) has the readings and
+   [ADR-0109](../docs/adr/0109-eight-modules-six-processes.md) the arithmetic; `make
+   verify-headroom` in the stemcell is still the check after a sync, and it is what caught a worker
+   dropping to 87Mi schedulable after a routine rollout.
 
 ## What will not work even once it syncs, and is not a fault
 

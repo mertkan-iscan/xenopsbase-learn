@@ -750,6 +750,7 @@ export interface components {
             tenantId?: string;
         };
         ReachView: {
+            bankIds?: string[];
             courseIds?: string[];
             groupIds?: string[];
             permission?: string;

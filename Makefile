@@ -135,6 +135,31 @@ build: ## Compile and install every service
 test: ## Run every service's tests
 	@JAVA_HOME="$(JAVA_HOME_RESOLVED)" mvn -f services/pom.xml test
 
+
+# ---------------------------------------------------------------------------
+# Cluster capacity (T-9.15)
+#
+# These read the dev cluster the stemcell builds, so they need ITS kubeconfig --
+# not the KUBECONFIG already in your shell, which on this machine is a leftover
+# local k3d config and will report the cluster as down when it is up.
+#
+#   export KUBECONFIG="<stemcell>/infra/terraform/cluster/kubeconfig"
+#
+# `verify-capacity` alone is static and needs neither.
+# ---------------------------------------------------------------------------
+.PHONY: capacity verify-capacity capacity-load
+
+capacity: ## One capacity reading of the dev cluster (needs the stemcell's KUBECONFIG)
+	@python scripts/capacity_reading.py
+
+verify-capacity: ## Do the manifests still match the measurement ADR-0109 was decided on?
+	@python scripts/verify_capacity.py $(ARGS)
+
+capacity-load: ## Push one service off idle so a floor under load can be read (runs IN the cluster)
+	@kubectl apply -f scripts/capacity-load.job.yaml
+	@echo "  kubectl logs -n learn -f job/capacity-load"
+	@echo "  kubectl delete job -n learn capacity-load    # when you are done"
+
 run: ## Run one service against the local stack (make run S=identity)
 	@JAVA_HOME="$(JAVA_HOME_RESOLVED)" 		"$(JAVA_HOME_RESOLVED)/bin/java" -jar services/$(or $(S),identity)/target/$(or $(S),identity)-0.0.1-SNAPSHOT.jar
 

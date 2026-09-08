@@ -1,0 +1,138 @@
+# assessment — configuration.
+#
+# Values here are the LOCAL STACK's. Anything that differs per environment is an
+# environment variable with this as the development default, so a developer runs
+# `make up` and then the service, with no setup step in between.
+
+spring:
+  application:
+    name: assessment
+
+  servlet:
+    multipart:
+      # OFF. Nothing is uploaded here. Questions carry text and a reference to
+      # media that belongs to streaming; an import of a question bank from a
+      # file (QTI, a spreadsheet) is a feature nobody has asked for, and if it
+      # arrives it arrives through the same upload-target path streaming and
+      # packaging already use rather than by opening a parser on this service.
+      enabled: false
+
+  datasource:
+    url: ${ASSESSMENT_DB_URL:jdbc:postgresql://localhost:5432/assessment}
+    username: ${ASSESSMENT_DB_USER:assessment}
+    password: ${ASSESSMENT_DB_PASSWORD:assessment}
+    hikari:
+      # The template's 10, unmeasured and said so -- catalog's reasoning, and
+      # reporting's load run (docs/slos.md) is the standing reminder that a pool
+      # size changed without a measurement is a guess wearing a measurement's
+      # clothes. Attempts (T-6.5) are the shape that will argue this away from
+      # the default, because an exam's clock is on the server and a queued
+      # connection is time a candidate is charged for.
+      maximum-pool-size: 10
+      pool-name: assessment
+
+  data:
+    jpa:
+      repositories:
+        # Lazy, for identity's reason: repository initialization validates
+        # queries by opening a session on the startup thread, which binds no
+        # tenant, and the T-1.1 resolver rightly refuses one.
+        bootstrap-mode: lazy
+
+    redis:
+      # The tenant status fast path only (T-1.4), which is what StatusGateFilter
+      # reads. A suspended company must not be able to edit its banks either.
+      host: ${VALKEY_HOST:localhost}
+      port: ${VALKEY_PORT:6379}
+      password: ${VALKEY_PASSWORD:}
+      connect-timeout: 250ms
+      timeout: 250ms
+      client-name: assessment
+      repositories:
+        enabled: false
+
+  jpa:
+    hibernate:
+      # validate, never update. The migration is written first and the entity
+      # matches it; `update` would reshape the schema silently and the migration
+      # history would stop describing the database.
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate.jdbc.time_zone: UTC
+      # The tenant discriminator is the persistence layer's job (T-1.1), which
+      # is what makes a forgotten WHERE clause a query that was already filtered
+      # rather than a data leak.
+      hibernate.tenant_identifier_resolver: com.xenopsoftware.learn.common.tenancy.TenantIdentifierResolver
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OIDC_ISSUER_URI:http://localhost:8081/realms/xenopslearn}
+
+# Service-to-service (T-9.11): this service's own credential, rotatable alone.
+platform:
+  service-auth:
+    client-id: ${SERVICE_CLIENT_ID:svc-assessment}
+    client-secret: ${SERVICE_CLIENT_SECRET:local-development-only-assessment-secret}
+  services:
+    endpoints:
+      identity: ${IDENTITY_URL:http://localhost:8082}
+      streaming: ${STREAMING_URL:http://localhost:8083}
+      reporting: ${REPORTING_URL:http://localhost:8084}
+      catalog: ${CATALOG_URL:http://localhost:8085}
+      assessment: ${ASSESSMENT_URL:http://localhost:8086}
+
+  # No outbox and no bus. This module publishes nothing and consumes nothing
+  # yet, and `enabled: false` is what keeps the relay, its scheduled task and
+  # the broker connection out of the process entirely. Grading (T-6.7) is what
+  # turns this on, because a graded attempt is the first thing here another
+  # module has to learn about.
+  outbox:
+    enabled: false
+
+server:
+  port: ${SERVER_PORT:8086}
+
+management:
+  endpoints:
+    web:
+      base-path: /management
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when-authorized
+  health:
+    db:
+      enabled: true
+    redis:
+      # OFF, for identity's and catalog's reason: the stock indicator reports
+      # DOWN when Valkey is unreachable, and DOWN on the aggregate would stop a
+      # rollout for a dependency this service is built to run without.
+      #
+      # This is not a preference. On the dev cluster on 2026-09-08, `streaming`
+      # and `reporting` -- the two services that did NOT set this -- were
+      # answering 503 on /management/health for their whole life, while their
+      # liveness and readiness groups answered 200, so nothing reported it
+      # (T-9.15). A new service copying the wrong one of the four would inherit
+      # that silently.
+      enabled: false
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  writer-with-order-by-keys: true
+  writer-with-default-pretty-printer: true
+
+logging:
+  level:
+    com.xenopsoftware.learn: DEBUG

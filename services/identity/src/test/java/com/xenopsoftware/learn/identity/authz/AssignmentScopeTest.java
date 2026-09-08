@@ -160,7 +160,7 @@ class AssignmentScopeTest extends PostgresTestHarness {
         // answer "no groups" rather than offering the course id as if it were one — a category
         // error that would read as a working answer.
         UUID course = UUID.randomUUID();
-        Reach reach = new Reach(false, Set.of(), Set.of(course));
+        Reach reach = new Reach(false, Set.of(), Set.of(course), Set.of());
 
         assertThat(reach.includesCourse(course)).isTrue();
         assertThat(reach.groupIds()).isEmpty();
