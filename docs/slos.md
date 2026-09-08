@@ -200,16 +200,20 @@ tainted and excluded throughout.
 was taken once and quoted as a constant; it moved 810Mi within the hour. Anything here that came
 from a single sample says so.
 
-| | 18:24Z | 19:09Z |
-|---|---|---|
-| fixed pair, committed | 8149Mi | 8225Mi |
-| **actually free** | 7357Mi | **7281Mi** |
-| **free to schedule into** | 1944Mi | 1944Mi |
-| *the same nodes by `kubectl top`* | *89% and 93%* | *92% and 97%* |
+| | 18:24Z | 19:09Z | 19:54Z |
+|---|---|---|---|
+| fixed pair, committed | 8149Mi | 8225Mi | 8302Mi |
+| **actually free** | 7357Mi | 7281Mi | **7204Mi** |
+| **free to schedule into** | 1944Mi | 1944Mi | 1944Mi |
+| *the same nodes by `kubectl top`* | *89% and 93%* | *92% and 97%* | *91% and 97%* |
+
+**7204Mi is what gets recorded**, being the worst of the three.
 
 The last row is the instrument ADR-0109's earlier drafts ran on, kept as a control. It reads 89–97%
 on nodes that are half full. The booked figure does not move between readings because requests are
-declared; the committed figure moves 76Mi, which is a settled cluster's noise.
+declared; committed drifts up 153Mi across ninety minutes — three points, deliberately not called a
+trend, because the previous measurement called a three-point climb monotonic and a fourth sample a
+minute later disproved it.
 
 **Capacity per fixed worker:** 7753Mi physical, **5903Mi allocatable**. The 1850Mi gap is the
 kubelet's reservations. ADR-0109 recorded 7153Mi allocatable; the stemcell raised the reservations
@@ -277,8 +281,8 @@ traffic, and the 278Mi cold figure is not.
 | booked (sum of requests) | 9862Mi |
 | **free to schedule into** | **1944Mi** |
 | physical | 15506Mi |
-| committed | ~7900Mi |
-| **actually free** | **~7600Mi** |
+| committed, worst of three | 8302Mi |
+| **actually free, worst of three** | **7204Mi** |
 
 The scheduler adds up requests; the machine spends committed memory. Four times more memory is free
 than the scheduler will let anything book, and it is the booking that binds. At the same instant

@@ -103,23 +103,29 @@ Three readings, spread across the evening, because the previous draft learned th
 snapshot: it recorded a single sample as a constant and the quantity moved 810Mi within the hour.
 **The figure this ADR uses is the worst of them.**
 
-| | 18:24Z | 19:09Z |
-|---|---|---|
-| `worker-0`, committed | 4226Mi (55%) | 4220Mi (54%) |
-| `worker-1`, committed | 3922Mi (51%) | 4005Mi (52%) |
-| fixed pair, committed | 8149Mi | 8225Mi |
-| **actually free** | 7357Mi | **7281Mi** |
-| fixed pair, booked | 9862Mi | 9862Mi |
-| **free to schedule into** | 1944Mi | 1944Mi |
-| *the same nodes by `kubectl top`* | *89% and 93%* | *92% and 97%* |
+| | 18:24Z | 19:09Z | 19:54Z |
+|---|---|---|---|
+| `worker-0`, committed | 4226Mi (55%) | 4220Mi (54%) | 4326Mi (56%) |
+| `worker-1`, committed | 3922Mi (51%) | 4005Mi (52%) | 3976Mi (51%) |
+| fixed pair, committed | 8149Mi | 8225Mi | 8302Mi |
+| **actually free** | 7357Mi | 7281Mi | **7204Mi** |
+| fixed pair, booked | 9862Mi | 9862Mi | 9862Mi |
+| **free to schedule into** | 1944Mi | 1944Mi | 1944Mi |
+| *the same nodes by `kubectl top`* | *89% and 93%* | *92% and 97%* | *91% and 97%* |
 
-The last row is the instrument the previous draft ran on, kept here as a control rather than as a
-measurement. It reads 89–97% on nodes that are half full.
+**7204Mi is the figure this ADR uses**, because it is the worst of the three.
+
+The last row is the instrument the previous draft ran on, kept as a control rather than as a
+measurement. It reads 89–97% on nodes that are half full, and it is the row that moves most.
 
 The booked figure does not move at all, because requests are declared and nothing was deployed
-between readings. The committed figure moves by 76Mi, which is what a settled cluster's noise looks
-like — much smaller than the 810Mi the earlier ADR saw, and the difference is that the pod
-responsible for that swing is not the one being measured here.
+between readings. Committed drifts upward by 153Mi across ninety minutes.
+
+**That drift is three points and is not called a trend here**, which is the correction the previous
+draft had to make about itself: it read one pod at 861, 871 and 944Mi, called the climb monotonic,
+and a fourth sample one minute later came back at 901Mi. Three points cannot separate slow growth
+from unhurried garbage collection, and the honest use of them is to take the worst rather than to
+extrapolate the shape.
 
 The control plane is tainted and carries nothing of ours, so it is excluded throughout.
 
@@ -131,10 +137,10 @@ The control plane is tainted and carries nothing of ours, so it is excluded thro
 | booked (requests) | 9862Mi |
 | **free to schedule into** | **1944Mi** |
 | physical | 15506Mi |
-| committed | ~7900Mi |
-| **actually free** | **~7600Mi** |
+| committed, worst of three | 8302Mi |
+| **actually free, worst of three** | **7204Mi** |
 
-**Four times as much memory is free as the scheduler will let anything use.** That single line is
+**Nearly four times as much memory is free as the scheduler will let anything use.** That single line is
 the finding, and it inverts the previous draft: there is no shortage of memory on these workers.
 There is a shortage of *bookable* memory, and booking is something we choose.
 
@@ -260,7 +266,7 @@ for replicas". Raised upstream; ours to account for, not to fix.
 ### Survival: what the machines will actually carry
 
 The same six processes, at their measured 370Mi rather than at whatever they book, are 2220Mi of
-real memory against roughly 7600Mi genuinely free on the fixed pair. **Eight would fit too.** On this
+real memory against 7204Mi genuinely free on the fixed pair. **Eight would fit too.** On this
 axis there is no argument for six over eight, and the previous draft's "56Mi margin" — the figure
 it called decisive — was an artifact of the instrument.
 
