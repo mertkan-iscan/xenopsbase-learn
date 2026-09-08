@@ -56,6 +56,47 @@ public enum Permission {
      */
     CONTENT_VIEW("content:view", PermissionSide.TENANT, PermissionScope.GROUP),
 
+    /**
+     * See a question bank and what is in it (T-6.1).
+     *
+     * <p>RESOURCE floor, which is the first use of it: a grant may point at one bank. That is the
+     * whole reason banks exist as rows — "the whole company" was the only other boundary
+     * available, and an author who writes safety questions has no business reading the compliance
+     * exam.
+     *
+     * <p>Reading the platform's SHARED library needs none of this. A shared bank is offered to
+     * every tenant by definition, so gating the offer behind a per-tenant grant would mean a
+     * customer had to be given permission to see something we are giving them.
+     */
+    BANK_READ("bank:read", PermissionSide.TENANT, PermissionScope.RESOURCE),
+
+    /**
+     * Write questions in a bank (T-6.1, T-6.2).
+     *
+     * <p>The authoring grant, and the one the boundary exists for. Separate from
+     * {@link #BANK_MANAGE} because writing questions and deciding a bank's existence are different
+     * jobs held by different people: a subject-matter expert authors, an administrator organises.
+     * Folded together, every author would also be able to delete the bank they work in.
+     *
+     * <p><b>Not in the seeded {@code author} role, deliberately.</b> A bank-scoped grant is a
+     * CUSTOM role holding only the RESOURCE-floored bank permissions (T-2.2), assigned at BANK
+     * scope. The seeded role could never carry one: it holds {@code content:view}, which is
+     * GROUP-floored, and {@code AssignmentService} refuses an assignment whose scope cannot cover
+     * every permission the role contains. Seeding these into it would therefore have granted
+     * authoring over every bank in the company — the opposite of what T-6.1 exists for — while
+     * still not making the narrow grant expressible.
+     */
+    BANK_AUTHOR("bank:author", PermissionSide.TENANT, PermissionScope.RESOURCE),
+
+    /**
+     * Create, rename and organise banks, and copy from the shared library (T-6.1).
+     *
+     * <p>GROUP floor rather than RESOURCE, and the asymmetry is deliberate: creating a bank is not
+     * an act on a bank, because the bank does not exist yet. A grant scoped to one bank cannot
+     * authorise making another one, so the narrowest scope that can own this is a wider one.
+     */
+    BANK_MANAGE("bank:manage", PermissionSide.TENANT, PermissionScope.GROUP),
+
     /** Create a company (T-1.5). */
     TENANT_PROVISION("tenant:provision", PermissionSide.PLATFORM, PermissionScope.PLATFORM),
 

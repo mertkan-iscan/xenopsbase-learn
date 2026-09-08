@@ -130,23 +130,38 @@ class CatalogCoverageTest extends PostgresTestHarness {
             "shows the caller their OWN reach and nothing about anyone else; there is no wider "
             + "answer to gate, and a caller with no grants sees an empty reach"));
 
+    /** Shared by the three bank permissions, which are all unenforced for one reason. */
+    private static final String BANK_GAP =
+        "T-6.1 shipped the banks and this catalog entry; nothing checks it yet, and the reason is "
+        + "structural rather than an omission. The evaluator lives in THIS service and so do the "
+        + "grants it resolves, while banks live in `assessment` -- a separate process, which "
+        + "cannot ask. ADR-0109's `core` merge is what closes that, and until it lands the "
+        + "endpoints in assessment enforce nothing AND check nothing else instead: a local "
+        + "\"is this person an author\" shortcut would be exactly the special case T-6.1 names.";
+
     /** Catalog entry → the task that will make some code path check it. */
-    private static final Map<Permission, String> NOT_YET_ENFORCED = Map.of(
-        Permission.USER_READ, "grantable since T-2.3, and deliberately not wired yet: the only "
+    // Map.ofEntries rather than Map.of: the latter caps at ten pairs, this map reached exactly ten
+    // when the bank permissions arrived, and discovering that limit through a compile error while
+    // adding an eleventh is a worse way to spend an afternoon than this line is to read.
+    private static final Map<Permission, String> NOT_YET_ENFORCED = Map.ofEntries(
+        Map.entry(Permission.USER_READ, "grantable since T-2.3, and deliberately not wired yet: the only "
             + "endpoint that would check it resolves a display name for any member, and gating "
             + "that locks a learner who holds no grants out of every screen with a person on it. "
-            + "The decision belongs with the surface that needs it (T-5.8/T-10.3)",
-        Permission.GROUP_READ, "T-2.2/T-2.3 -- GroupResource exists; grants to check against do not",
-        Permission.GROUP_MANAGE, "T-2.2/T-2.3 -- GroupResource exists; grants to check against do not",
-        Permission.ROLE_READ, "T-2.3 -- RoleResource exists; grants to check against do not",
-        Permission.ROLE_MANAGE, "T-2.3 -- RoleResource exists; grants to check against do not",
-        Permission.ROLE_ASSIGN, "T-2.6/T-2.7 -- AssignmentResource exists; the no-escalation rule and the seeded first grant do not",
-        Permission.CONTENT_VIEW, "checked, but not HERE: streaming's playback token decision "
+            + "The decision belongs with the surface that needs it (T-5.8/T-10.3)"),
+        Map.entry(Permission.GROUP_READ, "T-2.2/T-2.3 -- GroupResource exists; grants to check against do not"),
+        Map.entry(Permission.GROUP_MANAGE, "T-2.2/T-2.3 -- GroupResource exists; grants to check against do not"),
+        Map.entry(Permission.ROLE_READ, "T-2.3 -- RoleResource exists; grants to check against do not"),
+        Map.entry(Permission.ROLE_MANAGE, "T-2.3 -- RoleResource exists; grants to check against do not"),
+        Map.entry(Permission.ROLE_ASSIGN, "T-2.6/T-2.7 -- AssignmentResource exists; the no-escalation rule and the seeded first grant do not"),
+        Map.entry(Permission.BANK_READ, BANK_GAP),
+        Map.entry(Permission.BANK_AUTHOR, BANK_GAP),
+        Map.entry(Permission.BANK_MANAGE, BANK_GAP),
+        Map.entry(Permission.CONTENT_VIEW, "checked, but not HERE: streaming's playback token decision "
             + "(T-3.4) is what refuses a caller who does not hold it. This test walks identity's "
             + "own handler mappings, so a permission enforced by another service reads to it as "
             + "unenforced -- which is a real gap in the walk rather than a gap in the check. "
             + "Closing it properly means the coverage walk reading every service's api-docs, "
-            + "not this test growing a hand-kept list of other services' endpoints");
+            + "not this test growing a hand-kept list of other services' endpoints"));
 
     @Autowired
     @Qualifier("requestMappingHandlerMapping")
