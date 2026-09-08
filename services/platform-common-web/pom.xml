@@ -75,6 +75,18 @@
         </dependency>
 
         <!--
+            The OpenAPI description is generated here, not only consumed: the
+            error shape is documented once, by a customizer beside the class
+            that writes it (T-9.10, #88). Every service already declared this
+            starter; declaring it here as well is what lets the shared half
+            describe itself.
+        -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-api</artifactId>
+        </dependency>
+
+        <!--
             Optional here for the same reason it is optional in platform-common:
             StatusGateFilter reads the cached account status when a service has
             Valkey, and a service without it must not inherit a Redis client.
