@@ -1,0 +1,138 @@
+# Push one deployed service off idle, so a memory floor UNDER LOAD can be read (T-9.15).
+#
+#   kubectl apply -f scripts/capacity-load.job.yaml
+#   kubectl logs -n learn -f job/capacity-load
+#   kubectl delete job -n learn capacity-load
+#
+# WHY THIS RUNS INSIDE THE CLUSTER RATHER THAN FROM A LAPTOP
+#
+# The first version drove this through a `kubectl port-forward` and measured 1-2
+# requests per second, which was read as "the port-forward is the bottleneck". It was
+# not. Running the same load from a pod in the same namespace produced the same 1-2
+# requests per second -- and that turned a wrong conclusion about a tool into the real
+# finding, which is that the service blocks on an unreachable Valkey on every request.
+#
+# So the port-forward stays out of it. A load driver that cannot distinguish its own
+# transport from the thing it is measuring is not a load driver.
+#
+# WHY THE INGEST PATH
+#
+# It is the one endpoint in this platform that needs no grant: a learner posting what
+# they themselves watched is authorised by the token alone, so there is no permission
+# to seed, no tenant to bootstrap and no assignment to create. TelemetryResource says
+# why in full. The driver stays a driver instead of becoming a fixture.
+#
+# WHY THIS IMAGE AND THIS DIGEST
+#
+# The `learn` namespace is enrolled in policy-controller, and an image matching no
+# policy is denied. This exact curl digest is admitted by the stemcell's
+# `third-party-images-by-digest` -- the same one the wait-for-oidc init container
+# uses. Any other image, or this one at another digest, is refused at admission and
+# the Job sits Pending with nothing wrong in its logs.
+#
+# NOT A THROUGHPUT MEASUREMENT. `IngestLoadTest` measures the ingest path's rate
+# against a Testcontainers Postgres (docs/slos.md). This measures what the process
+# weighs while it is doing work, and it is the wrong tool for anything else.
+#
+# The client secret below is a published development constant from
+# local/keycloak/realm-xenopslearn.json, not a credential. The ACCESS TOKEN it buys is
+# a credential, and it never reaches any process's argv -- curl reads the whole
+# Authorization header from a file, because a failed exec prints its own command line.
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: capacity-load
+  namespace: learn
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: load
+          image: curlimages/curl@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13
+          securityContext:
+            runAsUser: 100
+            runAsGroup: 101
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 500m, memory: 64Mi}
+            limits: {memory: 128Mi}
+          env:
+            - {name: WORKERS, value: "12"}
+            - {name: RUN_FOR, value: "420"}
+          command: [sh, -c]
+          args:
+            - |
+              set -u
+              KC=http://keycloak-service.keycloak.svc.cluster.local:8080
+              RP=http://reporting.learn.svc.cluster.local:8084
+
+              gettoken() {
+                curl -sS -m 20 -X POST "$KC/realms/xenopslearn/protocol/openid-connect/token" \
+                  -d grant_type=password -d client_id=local-tests \
+                  -d client_secret=local-development-only-test-secret \
+                  -d username=acme-learner -d password=acme-learner \
+                  | sed 's/.*"access_token":"\([^"]*\)".*/\1/'
+              }
+
+              # The token never appears in any argv: curl reads the whole header from
+              # a file. A failed exec prints its own command line, and that is how a
+              # live token once ended up in a transcript.
+              writeheader() { echo "Authorization: Bearer $1" > /tmp/authheader.new && mv /tmp/authheader.new /tmp/authheader; }
+
+              T="$(gettoken)"
+              [ -n "$T" ] || { echo "no token"; exit 1; }
+              writeheader "$T"
+              echo "token acquired; $WORKERS workers for ${RUN_FOR}s"
+
+              # The realm issues a five-minute token and this run outlives it. Without
+              # a refresher the second half would be a wall of 401s that still looks
+              # like load.
+              REFRESH_UNTIL=$(( $(date +%s) + RUN_FOR + 30 ))
+              ( while [ "$(date +%s)" -lt "$REFRESH_UNTIL" ]; do
+                  sleep 240
+                  N="$(gettoken)"
+                  [ -n "$N" ] && writeheader "$N"
+                done ) &
+
+              cat > /tmp/body.json <<'JSON'
+              {"nodeId":"3f6b1d2e-1c4a-4a7e-9b3d-2f5c8e7a1b04","playbackToken":"capacity-load","samples":[
+              {"fromSecond":0,"toSecond":10,"rate":1.0,"observedAt":"2026-09-08T18:00:00Z"},
+              {"fromSecond":10,"toSecond":20,"rate":1.0,"observedAt":"2026-09-08T18:00:10Z"},
+              {"fromSecond":20,"toSecond":30,"rate":1.0,"observedAt":"2026-09-08T18:00:20Z"},
+              {"fromSecond":30,"toSecond":40,"rate":1.0,"observedAt":"2026-09-08T18:00:30Z"},
+              {"fromSecond":40,"toSecond":50,"rate":1.0,"observedAt":"2026-09-08T18:00:40Z"},
+              {"fromSecond":50,"toSecond":60,"rate":1.0,"observedAt":"2026-09-08T18:00:50Z"},
+              {"fromSecond":60,"toSecond":70,"rate":1.0,"observedAt":"2026-09-08T18:01:00Z"},
+              {"fromSecond":70,"toSecond":80,"rate":1.0,"observedAt":"2026-09-08T18:01:10Z"},
+              {"fromSecond":80,"toSecond":90,"rate":1.0,"observedAt":"2026-09-08T18:01:20Z"},
+              {"fromSecond":90,"toSecond":100,"rate":1.0,"observedAt":"2026-09-08T18:01:30Z"}]}
+              JSON
+
+              END=$(( $(date +%s) + RUN_FOR ))
+              i=0
+              while [ "$i" -lt "$WORKERS" ]; do
+                i=$(( i + 1 ))
+                ( while [ "$(date +%s)" -lt "$END" ]; do
+                    curl -sS -m 30 -o /dev/null -w '%{http_code}\n' -X POST "$RP/api/v1/telemetry/playback" \
+                      -H 'Content-Type: application/json' \
+                      -H @/tmp/authheader \
+                      --data-binary @/tmp/body.json 2>/dev/null >> /tmp/codes || echo 000 >> /tmp/codes
+                  done ) &
+              done
+              wait
+              echo "=== outcomes ==="
+              sort /tmp/codes | uniq -c
+              echo "total: $(wc -l < /tmp/codes)"
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}
