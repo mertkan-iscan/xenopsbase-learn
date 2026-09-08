@@ -1,8 +1,12 @@
 package com.xenopsoftware.learn.streaming.web.rest;
 
+import com.xenopsoftware.learn.common.web.ProblemDocumentation;
 import com.xenopsoftware.learn.streaming.progress.LearnerProgress;
 import com.xenopsoftware.learn.streaming.progress.ProgressBatch;
 import com.xenopsoftware.learn.streaming.progress.ProgressService;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -48,12 +52,44 @@ public class ProgressResource {
      * what lets the player retry at all (T-3.6).
      */
     @PostMapping("/me/nodes/{id}/progress")
+    // DECLARED, because declaring any response replaces the one springdoc infers from the
+    // return type. Left out, this operation documents four refusals and no success.
+    @ApiResponse(responseCode = "200", description = "The merged coverage after this batch, "
+        + "which is what the player renders.")
+    @ApiResponse(responseCode = "400",
+        description = "Nothing was credited and resending will not change that: "
+            + "`EMPTY_BATCH`, `MALFORMED_INTERVAL`, `IMPLAUSIBLE_RATE` or "
+            + "`MISSING_ATTRIBUTION`.",
+        content = @Content(mediaType = ProblemDocumentation.PROBLEM_JSON,
+            schema = @Schema(ref = ProblemDocumentation.REF)))
+    @ApiResponse(responseCode = "409",
+        description = "`SEEK_NOT_ALLOWED`. The item forbids skipping ahead, and the rule "
+            + "was one the player had already been told about.",
+        content = @Content(mediaType = ProblemDocumentation.PROBLEM_JSON,
+            schema = @Schema(ref = ProblemDocumentation.REF)))
+    @ApiResponse(responseCode = "413",
+        description = "`BATCH_TOO_LARGE`. Split it and post the halves.",
+        content = @Content(mediaType = ProblemDocumentation.PROBLEM_JSON,
+            schema = @Schema(ref = ProblemDocumentation.REF)))
+    @ApiResponse(responseCode = "503",
+        description = "`LEARNER_UNRESOLVED`. Nothing is wrong with the request and nothing "
+            + "has been lost: identity could not name the caller, so keep the samples and "
+            + "post them again. A 5xx rather than a 4xx precisely so a client retries.",
+        content = @Content(mediaType = ProblemDocumentation.PROBLEM_JSON,
+            schema = @Schema(ref = ProblemDocumentation.REF)))
     public LearnerProgress record(@PathVariable UUID id, @RequestBody ProgressBatch batch) {
         return progress.record(id, batch);
     }
 
     /** Where this learner is, before anything has been posted for this session. */
     @GetMapping("/me/nodes/{id}/progress")
+    @ApiResponse(responseCode = "200", description = "Where this learner is, and whether "
+        + "this item allows skipping ahead.")
+    @ApiResponse(responseCode = "503",
+        description = "`LEARNER_UNRESOLVED`. Identity could not name the caller; try "
+            + "again.",
+        content = @Content(mediaType = ProblemDocumentation.PROBLEM_JSON,
+            schema = @Schema(ref = ProblemDocumentation.REF)))
     public LearnerProgress current(@PathVariable UUID id) {
         return progress.current(id);
     }

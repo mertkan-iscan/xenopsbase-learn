@@ -1,7 +1,11 @@
 package com.xenopsoftware.learn.reporting.web.rest;
 
+import com.xenopsoftware.learn.common.web.ProblemDocumentation;
 import com.xenopsoftware.learn.reporting.telemetry.HeartbeatBatch;
 import com.xenopsoftware.learn.reporting.telemetry.HeartbeatIngestService;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -51,6 +55,18 @@ public class TelemetryResource {
 
     @PostMapping("/playback")
     @ResponseStatus(HttpStatus.ACCEPTED)
+    @ApiResponse(responseCode = "400",
+        description = "The batch will never be accepted, so do not resend it. `code` says "
+            + "which rule it broke: `EMPTY_BATCH`, `MALFORMED_INTERVAL`, `IMPLAUSIBLE_RATE`, "
+            + "`MISSING_ATTRIBUTION`, or `MALFORMED_BATCH` when the JSON itself would not "
+            + "parse.",
+        content = @Content(mediaType = ProblemDocumentation.PROBLEM_JSON,
+            schema = @Schema(ref = ProblemDocumentation.REF)))
+    @ApiResponse(responseCode = "413",
+        description = "`BATCH_TOO_LARGE`. Split it and post the halves; nothing was "
+            + "recorded.",
+        content = @Content(mediaType = ProblemDocumentation.PROBLEM_JSON,
+            schema = @Schema(ref = ProblemDocumentation.REF)))
     public AcceptedView playback(@RequestBody HeartbeatBatch batch) {
         return new AcceptedView(ingest.record(batch, subject()));
     }
