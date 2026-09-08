@@ -1,5 +1,7 @@
 package com.xenopsoftware.learn.catalog.web.rest;
 
+import com.xenopsoftware.learn.common.web.Problems;
+import org.springframework.http.ProblemDetail;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -21,20 +23,23 @@ import org.springframework.web.server.ResponseStatusException;
  * at it and a learner may be part-way through it". A 409 without that is a 409 an author cannot
  * act on. Everything else keeps the opaque default.
  *
- * <p>The shape matches the refusals {@code identity} writes from its filters — a machine-readable
- * field beside the sentence — so a client parses one thing across services.
+ * <p>The shape is RFC 9457, like every other refusal on this platform (T-9.13). This comment used
+ * to claim the shape "matches the refusals identity writes from its filters", and it did not match
+ * any of them — there were five shapes across nine places, and this sentence was the only thing
+ * tracking a consistency that did not exist.
  */
 @RestControllerAdvice
 public class RefusalAdvice {
 
     @ExceptionHandler(ResponseStatusException.class)
-    public ResponseEntity<Map<String, Object>> refused(ResponseStatusException refusal) {
-        return ResponseEntity.status(refusal.getStatusCode())
-            .body(Map.of(
-                "status", refusal.getStatusCode().value(),
-                // getReason rather than getMessage: getMessage prefixes the status, so a client
-                // rendering it shows the code twice and an author reads "409 CONFLICT ..." in a
-                // toast that already says Conflict.
-                "message", refusal.getReason() == null ? "" : refusal.getReason()));
+    public ResponseEntity<ProblemDetail> refused(ResponseStatusException refusal) {
+        // getReason rather than getMessage: getMessage prefixes the status, so a client rendering
+        // it shows the code twice and an author reads "409 CONFLICT ..." in a toast that already
+        // says Conflict.
+        //
+        // No `code`: a ResponseStatusException is thrown with a status and a sentence and no
+        // machine-readable identity, so inventing one here would be inventing it. The document
+        // then carries type about:blank, which is what RFC 9457 says an unidentified problem is.
+        return Problems.respond(refusal.getStatusCode(), null, refusal.getReason());
     }
 }

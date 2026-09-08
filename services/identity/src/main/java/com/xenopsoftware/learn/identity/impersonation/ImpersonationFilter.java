@@ -1,5 +1,6 @@
 package com.xenopsoftware.learn.identity.impersonation;
 
+import com.xenopsoftware.learn.common.web.Problems;
 import com.xenopsoftware.learn.common.tenancy.AccountStatus;
 import com.xenopsoftware.learn.common.tenancy.TenantContext;
 import com.xenopsoftware.learn.common.tenancy.TenantFilter;
@@ -194,11 +195,10 @@ public class ImpersonationFilter extends OncePerRequestFilter {
 
     private static void refuse(HttpServletResponse response, String reason, String message)
             throws IOException {
-        response.setStatus(HttpStatus.FORBIDDEN.value());
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        // A machine-readable reason beside the sentence, the shape DeactivatedUserFilter set:
-        // a console can say something true about why it is stuck instead of showing a 403.
-        response.getWriter().write(JSON.writeValueAsString(Map.of("reason", reason, "message", message)));
+        // A machine-readable code beside the sentence, so a console can say something true about
+        // why it is stuck instead of showing a bare 403. RFC 9457 now, like every other refusal on
+        // this platform -- the `reason` field this used to write became `code` (T-9.13).
+        Problems.write(response, HttpStatus.FORBIDDEN, reason, message);
     }
 
     /**

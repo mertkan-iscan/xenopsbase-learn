@@ -1,5 +1,7 @@
 package com.xenopsoftware.learn.streaming.web.rest;
 
+import org.springframework.http.ProblemDetail;
+import com.xenopsoftware.learn.common.web.Problems;
 import com.xenopsoftware.learn.streaming.playback.PlaybackRefusedException;
 import com.xenopsoftware.learn.streaming.playback.RefusalReason;
 import java.util.Map;
@@ -21,7 +23,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class PlaybackRefusedAdvice {
 
     @ExceptionHandler(PlaybackRefusedException.class)
-    public ResponseEntity<Map<String, Object>> refused(PlaybackRefusedException refused) {
+    public ResponseEntity<ProblemDetail> refused(PlaybackRefusedException refused) {
         RefusalReason reason = refused.reason();
         if (!reason.isDisclosed()) {
             // No body at all. An empty 404 is the same answer a genuinely missing node gives,
@@ -33,7 +35,6 @@ public class PlaybackRefusedAdvice {
         String message = reason == RefusalReason.GATED && refused.detail() != null
             ? refused.detail()
             : reason.message();
-        return ResponseEntity.status(reason.status())
-            .body(Map.of("error", Map.of("code", reason.code(), "message", message)));
+        return Problems.respond(reason.status(), reason.code(), message);
     }
 }
