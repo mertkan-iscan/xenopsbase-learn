@@ -65,6 +65,24 @@ jobs:
           echo "services: ${matrix}"
           echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
 
+  # The capacity arithmetic ADR-0109 rests on, checked rather than commented (T-9.15).
+  #
+  # Every previous version of this invariant was a paragraph in a file, including one
+  # in the stemcell's hpa.yaml that said in capitals "IF THE REQUESTS CHANGE, THESE
+  # TARGETS ARE WRONG". The requests changed. The targets were wrong. The paragraph
+  # went on being correct and prominent and read by nobody for weeks.
+  #
+  # Static only: this runs on a checkout with no cluster and no credentials, which is
+  # what lets it be a required check. The half that needs the cluster is
+  # `--cluster`, and it is run by hand because no GitHub-hosted runner reaches this
+  # tailnet -- the same limit the stemcell's T-6.7 records.
+  capacity:
+    name: capacity arithmetic (ADR-0109)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - run: python scripts/verify_capacity.py
+
   services:
     name: services (Maven)
     runs-on: ubuntu-latest

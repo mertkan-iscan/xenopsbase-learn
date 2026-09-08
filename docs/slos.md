@@ -4,7 +4,7 @@ Numbers taken from runs, with the conditions that produced them. **A figure with
 conditions is not a measurement**, so every entry here says what was running, on what, and what
 the number does not mean.
 
-The distinction this file exists to keep is the one [ADR-0109](adr/0109-eight-modules-and-how-many-processes.md)
+The distinction this file exists to keep is the one [ADR-0109](adr/0109-eight-modules-six-processes.md)
 had to learn: a figure derived from configuration is arithmetic, and a figure taken from a running
 system is a measurement. Only the second kind belongs here.
 
@@ -182,10 +182,117 @@ rather than the local stack; recovery after an outage longer than the token's ow
 different property (T-1.9 and T-3.4 already bound that one — a suspended account or revoked
 assignment stops within one token lifetime, and this is the same lifetime working the other way).
 
+## Dev cluster capacity — what a process costs, and what the cluster will book
+
+**Task:** T-9.15 · **Replaces:** [ADR-0109](adr/0109-eight-modules-six-processes.md)'s figures of
+2026-08-27, which were taken on the stemcell's cluster before ours existed and are superseded
+rather than updated — see that ADR for why they could not be corrected one at a time.
+
+**Run it:** `KUBECONFIG=<stemcell>/infra/terraform/cluster/kubeconfig python scripts/capacity_reading.py`
+
+**Conditions.** The Hetzner dev cluster, two fixed cx33 workers plus one autoscaled cx33, carrying
+the stemcell's platform and `apps` alongside our `learn` namespace. Read-only. The control plane is
+tainted and excluded throughout.
+
+### What was measured, 2026-09-08
+
+**Three readings, and the worst of the three is what is written down.** The previous measurement
+was taken once and quoted as a constant; it moved 810Mi within the hour. Anything here that came
+from a single sample says so.
+
+| | 18:24Z | 19:09Z |
+|---|---|---|
+| fixed pair, committed | 8149Mi | 8225Mi |
+| **actually free** | 7357Mi | **7281Mi** |
+| **free to schedule into** | 1944Mi | 1944Mi |
+| *the same nodes by `kubectl top`* | *89% and 93%* | *92% and 97%* |
+
+The last row is the instrument ADR-0109's earlier drafts ran on, kept as a control. It reads 89–97%
+on nodes that are half full. The booked figure does not move between readings because requests are
+declared; the committed figure moves 76Mi, which is a settled cluster's noise.
+
+**Capacity per fixed worker:** 7753Mi physical, **5903Mi allocatable**. The 1850Mi gap is the
+kubelet's reservations. ADR-0109 recorded 7153Mi allocatable; the stemcell raised the reservations
+in its T-2.28 (#367) and nothing here noticed, which is what
+`scripts/verify_capacity.py --cluster` now exists to catch.
+
+### One of our JVMs, measured rather than borrowed
+
+| | `reporting` |
+|---|---|
+| request / limit, as measured on | 640Mi / 896Mi — since right-sized to 512Mi on these figures |
+| cold, seconds after start | **278Mi** |
+| warm, idle | **339Mi** |
+| under load | **367Mi** — but see below, this is not a load figure |
+| worst sample ever taken | **406Mi** |
+
+`identity` and `streaming` idle at **370Mi** and **342Mi**. ADR-0109 previously used **605Mi**,
+measured on the stemcell's `core` — a different service with a 1Gi limit. A JVM sizes its heap from
+the container limit, so "what a Spring Boot process costs" is a property of the limit somebody
+chose and does not transfer between services.
+
+### Under load is not measured, because the service cannot currently serve load
+
+Three runs against the deployed `reporting`, posting real heartbeat batches with a real token:
+16 and 64 concurrent through a `kubectl port-forward`, then **12 concurrent from a pod inside the
+cluster**, which takes the port-forward out of the argument entirely. All three behaved alike.
+
+| | 12 concurrent, in-cluster, 2026-09-08 |
+|---|---|
+| Offered | 436 batches over 420s |
+| Accepted | **436 of 436, `202`, none refused** |
+| Throughput | **~1 request/second** — about 12 seconds per request |
+| Container CPU | **20–60m** against a 100m request |
+| Resident set | 345Mi, climbing steadily to **367Mi** |
+
+**Twenty millicores is not a busy process, it is a blocked one** — and every batch was still
+accepted, which is why nothing downstream noticed either. Every request logs `Could not read
+the status entry for tenant acme; this service is permissive until Valkey returns`, and from a pod
+in the `learn` namespace a TCP connection to `valkey-cache.cache.svc.cluster.local:6379` is
+**refused in 12ms** — while Postgres, NATS and this service's own port all connect from that same
+pod. Valkey has been `Running` for five hours, has never restarted, and its log holds nothing but
+its startup banner.
+
+The failures serialise, so latency grows with concurrency: at 64 concurrent even the liveness probe
+missed its deadline and the kubelet restarted the container. The "permissive until Valkey returns"
+degradation fired and logged on every request; what it did not do was keep the process alive.
+
+**Nothing reported any of it.** `/management/health` answers **503 DOWN** and has done throughout,
+while the `liveness` and `readiness` groups — which exclude the cache — answer 200 in 7ms. So the
+pod is `Ready`, Argo is green, and the permission cache T-2.5 exists for has never been read on this
+cluster once.
+
+Raised as a defect. Until it is fixed there is no honest under-load figure for one of our processes,
+which is why the request was right-sized against **406Mi**, the worst sample ever taken, rather than
+against the 367Mi this run produced.
+
+**A JVM does not give heap back**, so the warm figures are the floor for a process that has served
+traffic, and the 278Mi cold figure is not.
+
+### The two headrooms, at floor
+
+| | fixed pair |
+|---|---|
+| allocatable | 11806Mi |
+| booked (sum of requests) | 9862Mi |
+| **free to schedule into** | **1944Mi** |
+| physical | 15506Mi |
+| committed | ~7900Mi |
+| **actually free** | **~7600Mi** |
+
+The scheduler adds up requests; the machine spends committed memory. Four times more memory is free
+than the scheduler will let anything book, and it is the booking that binds. At the same instant
+`kubectl top` reported these two workers at 90% and 92%, against 53% and 49% of physical memory
+actually committed — the disagreement the stemcell's `check-node-memory.sh` was written for.
+
+### What the platform books before either product is scheduled
+
+7942Mi of the fixed pair's 11806Mi, of which `observability` alone is **3572Mi** — more than every
+application on the cluster put together. This is the term that decides how many processes fit, and
+neither earlier draft of ADR-0109 contained it.
+
 ## Not yet measured
 
-- **Per-service memory under real load** — ADR-0109's process-count arithmetic is derived from
-  declared configuration; T-9.15 (#101) replaces it with measurements.
 - **Ingest under sustained load rather than a ten-second window** — what happens after an hour,
   and what the table's growth does to insert latency, needs the day partitions (T-7.2) to be a
   fair test.

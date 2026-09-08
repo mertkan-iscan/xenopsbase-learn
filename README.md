@@ -46,16 +46,21 @@ decided in [ADR-0109](../../issues/86) against measured capacity rather than by 
 | `catalog` | Content items, courses, modules, gates, assignments | proposed: starts inside `core` |
 | `assessment` | Banks, questions, tests, forms, attempts, grading | proposed: starts inside `core` |
 
-Why the split is not simply eight, measured rather than estimated: a Spring Boot process idles at
-~600Mi (`core` 605Mi, `gateway` 533Mi actual), and on identical sizing the platform underneath
-leaves about 4.7GB for application services. Eight processes need 4696Mi of that. Six need 3486Mi.
+Why the split is not simply eight, measured on our own cluster rather than borrowed from a similar
+one: **the constraint is the node budget, not memory.** One of our processes uses 278Mi cold and
+339–370Mi warm — not the ~600Mi this section used to claim, which was the stemcell's `core` at a
+different container limit and never described ours. What binds is that the platform underneath
+books 7942Mi of the two fixed workers' 11806Mi allocatable before either product is scheduled, so
+dev already runs a third node continuously; the autoscaler pool is capped at two, and the gateway's
+one-replica-per-node rule claims both at its ceiling.
 
-Two traps are worth naming, because the first version of this calculation fell into both.
-**Kubernetes schedules on requests; the node dies on usage** — cluster-wide requests totalled
-7766Mi against 11217Mi actually used, so any headroom figure derived from manifests is ~2.6GB too
-optimistic. And **a capacity reading taken once is a snapshot**: free memory moved 810Mi across
-three readings in an hour on an idle cluster, all of it one Argo CD pod. The figure recorded is the
-worst of the three.
+Three traps are worth naming, because earlier versions of this calculation fell into all of them.
+**Kubernetes schedules on requests; the node dies on committed memory** — and here the two differ by
+four times, in the direction that makes a cluster look full when it is not. **`kubectl top` is not
+the instrument**: it counts reclaimable page cache as spent and divides by an allocatable that
+moves, and it read 90% on a worker that was at 53% of its physical memory. **A reading taken once
+is a snapshot** — free memory moved 810Mi in an hour on an idle cluster, so what gets recorded is
+the worst of three.
 
 Two rules keep the deferral honest rather than a retreat. **No module reads another module's
 schema** — separate schemas, separate migrations, enforced by credentials where the boundary is a
@@ -63,8 +68,10 @@ process and by an ArchUnit rule where it is not. And **every cross-module call g
 published interface**, so extracting one later is a deployment change and a client swap rather than
 a rewrite.
 
-The estimates above are arithmetic over declared configuration. [T-9.15](../../issues/101) replaces
-them with measurements.
+The figures above are measurements with a date, taken by `scripts/capacity_reading.py` and written
+up in [`docs/slos.md`](docs/slos.md). `scripts/verify_capacity.py` fails when the manifests drift
+from them, and `--cluster` fails when the cluster does — which is how the last set went stale
+without appearing in any diff.
 
 ## Decisions
 

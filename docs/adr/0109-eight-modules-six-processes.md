@@ -1,15 +1,23 @@
 # ADR-0109: Eight modules, six processes
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-09-05
+- **Accepted:** 2026-09-08, on the measurement T-9.15 ([#101](https://github.com/mertkan-iscan/xenopsbase-learn/issues/101)) owed it
 - **Task:** T-0.9
 
-**Proposed, not Accepted, and the distinction is load-bearing.** Every figure below was measured on
-the *stemcell's* dev cluster, because ours did not exist when the measurement was taken. What
-transfers from another cluster of identical sizing is what one Spring Boot service costs and what
-the platform underneath consumes; the absolute free figure does not, and is used here as a proxy.
-T-9.15 (#101) re-measures on our own cluster and is what moves this to Accepted. ADRs here are
-append-only, so this one stays editable precisely until then.
+**This was Proposed on borrowed numbers, and accepting it replaced nearly all of them.** The
+decision below is unchanged — eight modules, six processes — and almost every figure that argued
+for it is different, including the one the previous draft called decisive. That is worth saying at
+the top rather than burying: a decision that survives its own re-measurement for new reasons has
+not been confirmed, it has been re-derived, and the old reasoning is not available to quote.
+
+What made the re-measurement possible is that "our cluster" and "the stemcell's dev cluster"
+stopped being different things. T-9.3 put `identity`, `streaming` and `reporting` in a `learn`
+namespace on that cluster, so the free-memory figure this ADR previously had to borrow as a proxy
+is now simply ours to read.
+
+ADRs here are append-only. This one was editable while Proposed and is not any more; what comes
+after this goes in a new ADR that supersedes it.
 
 ## Context
 
@@ -21,120 +29,259 @@ The counter-argument stays on the record rather than being forgotten. Boundaries
 domain is understood tend to be drawn along the wrong lines, and each extra service costs a network
 hop, a contract, a deployment and a failure mode before it returns anything.
 
-Since this decision was first framed the argument has acquired numbers, and then better numbers.
-What changed is not *whether* to draw eight boundaries — it is **how many processes to run them
-in**, and the measured answer is stricter than the estimated one.
+Since this decision was first framed the argument has acquired numbers, then better numbers, and
+then — on the third pass — numbers taken with the right instrument. What never changed is *whether*
+to draw eight boundaries. What changed three times is the reason for running them in six processes.
 
 ## Decision criteria
 
 - Does each module own its data outright, with no other module reading its tables?
 - Does a boundary follow a real difference — scaling profile, availability, untrusted input —
   rather than a noun?
-- Does the process count fit dev's **measured free memory**, not its declared requests, with enough
-  margin that the autoscaler still has somewhere to go?
+- Does the process count fit dev's **measured** capacity — on both of the two constraints below,
+  which are different questions and give different answers?
+- Does it leave the cluster-autoscaler somewhere to go, given that its pool is capped at two nodes
+  and the gateway's one-replica-per-node rule already claims all of them?
 - Can a boundary be enforced without a network hop, which is what makes splitting later cheap?
+
+## The two constraints, which are not the same question
+
+Every draft of this ADR has answered one of these and believed it had answered both.
+
+**Scheduling.** The sum of pod **requests** against **allocatable**. This is the only arithmetic
+the scheduler does. A pod that does not fit here goes `Pending`, and `Pending` is the one signal
+the cluster-autoscaler listens to.
+
+**Survival.** **Committed** memory against **physical** memory. A node that runs out here does not
+go `Pending`, it degrades — which is the stemcell's T-1.12, where a worker filled up, Argo's
+repo-server started failing its probes, and committed changes silently stopped arriving. A fix
+not working, three layers from the cause.
+
+On this cluster they give opposite answers, and by a wide margin. Quoting either alone is how both
+previous drafts went wrong, in opposite directions.
 
 ## The measurement
 
-Taken on the stemcell's running dev cluster, 2026-08-27, across three readings an hour apart.
-Read-only: `get nodes`, `get pods -A`, `top node`, `top pods`.
+Taken on the running dev cluster, **2026-09-08**, by
+[`scripts/capacity_reading.py`](../../scripts/capacity_reading.py). Read-only: `get nodes`,
+`get pods -A`, `top`, and one Prometheus query through the API server's service proxy.
 
-**Capacity.** The control plane is tainted (`allow_scheduling_on_control_plane` deliberately
-unset), so only the workers count: **7153Mi allocatable each, 14306Mi total**.
+### None of the 2026-08-27 figures could be updated in place
 
-**Usage, and it is not a constant.**
+Two were read with the wrong instrument and the third had moved underneath them. Correcting them
+one at a time would have produced a table whose rows came from different methods, so the whole
+measurement was retaken.
 
-| | 22:05Z | ~22:40Z | 23:00Z |
+**1. `kubectl top` was the wrong instrument, and it exaggerates in one direction only.** It counts
+reclaimable page cache as memory spent, and divides by an allocatable that moves. At the instant
+this reading was taken it reported `worker-0` at 90% and `worker-1` at 92%; the same two nodes,
+at the same instant, were at **53%** and **49%** of physical memory actually committed. The
+previous draft's entire argument — "actual usage, worst of three readings, 11217Mi" — is that
+column. The stemcell had already found this and written it down in
+`infra/scripts/check-node-memory.sh` (its T-2.27, #341), where the two denominators disagreed by
+thirty points; this repository went on using the discredited one for two more weeks because
+nothing connected the two.
+
+**2. Allocatable fell by 1250Mi per worker, and nothing here noticed.** This ADR recorded
+**7153Mi** per cx33 worker. It is **5903Mi** — the stemcell raised the kubelet's reservations in
+its T-2.28 (#367). That is 2500Mi off the pair, taken out of the exact quantity every line of the
+old arithmetic divided into. Nothing in this repository was watching, which is why
+[`scripts/verify_capacity.py`](../../scripts/verify_capacity.py) now is.
+
+**3. The per-service floor was `core`'s, and `core` is not one of ours.** 605Mi was measured on the
+stemcell's own service and used here for ours because there was nothing else to use. Ours are
+smaller, and not by accident: a JVM sizes its heap from the container **limit**, and ours is 896Mi
+where `core`'s is 1Gi. A "what a Spring Boot process costs" figure is not a property of Spring
+Boot. It is a property of the limit somebody chose.
+
+### Capacity, and what is actually on it
+
+Per fixed cx33 worker: **7753Mi physical, 5903Mi allocatable**. The 1850Mi difference is the
+kubelet's reservations, and it is the number that moved.
+
+Three readings, spread across the evening, because the previous draft learned that one is a
+snapshot: it recorded a single sample as a constant and the quantity moved 810Mi within the hour.
+**The figure this ADR uses is the worst of them.**
+
+| | 18:24Z | 19:09Z |
+|---|---|---|
+| `worker-0`, committed | 4226Mi (55%) | 4220Mi (54%) |
+| `worker-1`, committed | 3922Mi (51%) | 4005Mi (52%) |
+| fixed pair, committed | 8149Mi | 8225Mi |
+| **actually free** | 7357Mi | **7281Mi** |
+| fixed pair, booked | 9862Mi | 9862Mi |
+| **free to schedule into** | 1944Mi | 1944Mi |
+| *the same nodes by `kubectl top`* | *89% and 93%* | *92% and 97%* |
+
+The last row is the instrument the previous draft ran on, kept here as a control rather than as a
+measurement. It reads 89–97% on nodes that are half full.
+
+The booked figure does not move at all, because requests are declared and nothing was deployed
+between readings. The committed figure moves by 76Mi, which is what a settled cluster's noise looks
+like — much smaller than the 810Mi the earlier ADR saw, and the difference is that the pod
+responsible for that swing is not the one being measured here.
+
+The control plane is tainted and carries nothing of ours, so it is excluded throughout.
+
+### The two headrooms, at floor
+
+| | fixed pair |
+|---|---|
+| allocatable | 11806Mi |
+| booked (requests) | 9862Mi |
+| **free to schedule into** | **1944Mi** |
+| physical | 15506Mi |
+| committed | ~7900Mi |
+| **actually free** | **~7600Mi** |
+
+**Four times as much memory is free as the scheduler will let anything use.** That single line is
+the finding, and it inverts the previous draft: there is no shortage of memory on these workers.
+There is a shortage of *bookable* memory, and booking is something we choose.
+
+### What the platform underneath books
+
+On the two fixed workers, everything that is neither the stemcell's `apps` nor our `learn`:
+
+| namespace | booked |
+|---|---|
+| `observability` | 3572Mi |
+| `argocd` | 1472Mi |
+| `keycloak` | 1346Mi |
+| `database` | 512Mi |
+| `cert-manager` | 240Mi |
+| `cache` | 224Mi |
+| `cnpg-system` | 192Mi |
+| `ingress-nginx` | 192Mi |
+| `cosign-system` | 128Mi |
+| `messaging` | 64Mi |
+| **total** | **7942Mi** |
+
+**Observability alone books more than every application on the cluster put together.** The platform
+takes 67% of the fixed pair's allocatable before the first service of either product is scheduled.
+This is the term that decides the process count, and no previous draft of this ADR contained it —
+both earlier versions reasoned about what a JVM costs, which turns out to be the small number.
+
+### What one of our processes costs
+
+Measured on the deployed pods, not borrowed:
+
+| | `identity` | `streaming` | `reporting` |
 |---|---|---|---|
-| `worker-0` | 5007Mi (70%) | 5837Mi (81%) | 5825Mi (81%) |
-| `worker-1` | 5400Mi (75%) | 5348Mi (74%) | 5392Mi (75%) |
-| **free of allocatable** | **3899Mi** | **3121Mi** | **3089Mi** |
+| request, as measured on | 640Mi | 640Mi | 640Mi |
+| limit | 896Mi | 896Mi | 896Mi |
+| **cold, just started** | — | — | **278Mi** |
+| **warm, idle** | **370Mi** | **342Mi** | **339Mi** |
+| **under load** | — | — | **345 → 367Mi, but see below** |
 
-The middle column is another session's independent re-measurement. It is here because without it a
-single reading would have been written down as a constant, and it is not one.
+**A JVM does not give heap back**, so the warm figures are the honest floor for a process that has
+served traffic, and the 278Mi a freshly started one shows is not.
 
-### A claim that was in an earlier draft and was wrong
+### Under load is NOT measured, and the reason is a defect rather than a shortage of effort
 
-That draft read the Argo CD controller pod at 861, 871 and 944Mi across the hour and called the
-climb monotonic — evidence of growth. A fourth reading taken one minute after the third came back
-at 901Mi. **43Mi of spread inside one minute, against 83Mi across the whole hour**: the "trend" was
-noise the sampling was too sparse to see. A Go RSS wandering between roughly 860 and 950 on an idle
-cluster is what unhurried garbage collection looks like, and four points cannot separate that from
-slow growth.
+The criterion T-9.15 states is "a real per-service floor measured for one JVM at rest and one under
+load". The first half is above. The second half could not be taken, because **this service cannot
+currently serve load on this cluster**, and finding out why was worth more than the number would
+have been.
 
-What survives is not ambiguous, and is worse than the drift would have been:
+Three runs against the deployed `reporting`: 16 and 64 concurrent through a `kubectl port-forward`,
+then 12 concurrent from a pod inside the cluster, which removes the port-forward from the argument
+entirely. All three behaved the same way:
 
-```
-resources: {"requests":{"cpu":"100m","memory":"256Mi"}}
-```
+| | 12 concurrent, in-cluster |
+|---|---|
+| Offered | 436 batches over 420s, **436 accepted, 0 refused** |
+| Throughput | **~1 request/second** — about 12 seconds per request |
+| Container CPU | **20–60m** against a 100m request |
+| Resident set | 345Mi, climbing steadily to **367Mi** |
 
-**No limits at all** on `argo-cd-argocd-application-controller-0` — not too low, absent — against
-860–950Mi of actual use. The scheduler places it at a third of its size and then nothing bounds it.
-Upstream's to fix ([stemcell#306](https://github.com/mertkan-iscan/xenopsbase-stemcell/issues/306));
-ours to account for, because it means the platform overhead under our services has no ceiling.
+**Twenty millicores is not a busy process.** It is a blocked one, and every request was still
+accepted — 436 of 436 — which is why nothing downstream noticed either. Every request logs
+`Could not read the status entry for tenant acme; this service is permissive until Valkey returns`,
+and from a pod in `learn` a TCP connection to `valkey-cache.cache.svc.cluster.local:6379` is
+**refused in 12ms**, while Postgres, NATS and this service's own port all connect from the same pod.
+Valkey itself has been `Running` for five hours, has never restarted, and its log contains nothing
+but its startup banner.
 
-**What that does to every number here.** If one pod's one-minute noise is 43Mi, then 3899 / 3121 /
-3089 are three samples of a moving quantity, and the honest statement is a band rather than a
-figure: **free memory on this sizing sits near 3.1–3.9GB and is not stable.** The arithmetic below
-uses the worst sample, which is a floor rather than a measurement, and any decision resting on a
-margin smaller than the observed spread is resting on nothing.
+So the per-request tenant-status lookup fails on every request, the failures serialise, and latency
+grows with concurrency until — at 64 — even the liveness probe missed its deadline and the kubelet
+restarted the container. The degradation the service was built for did fire and did log; what it did
+not do was keep the process alive.
 
-**What one service costs.** Requests are the scheduling floor; these are what the processes use at
-idle, and they are the figures that transfer:
+Nothing reported any of this. `/management/health` has been answering **503 DOWN** the whole time,
+while the `liveness` and `readiness` groups — which exclude the cache — answer 200 in 7ms, so the
+pod is `Ready`, Argo is green, and the permission cache T-2.5 exists for has never once been read on
+this cluster.
 
-| | request | limit | **actual** |
-|---|---|---|---|
-| `core` | 832Mi | 1Gi | **605Mi** |
-| `gateway` | 640Mi | 768Mi | **533Mi / 525Mi** |
+**What this ADR takes from it:** the 367Mi figure is recorded as "under load" in the loosest sense
+and is not leaned on. The right-sized request below uses **406Mi**, the worst sample ever taken,
+precisely because the honest under-load number does not exist yet. Raised as a defect against the
+platform; this ADR's arithmetic does not depend on its resolution, and the criterion stays open.
 
-## The two things the estimate got wrong
-
-**1. Argo CD is under-requested by roughly 2×.** An earlier estimate put it at ~1024Mi of requests.
-It requests **576Mi** and uses **1090Mi** — 861Mi of that in the application controller alone.
-
-**2. Total actual usage exceeds total requests by 2.6GB.** 7766Mi requested against 10407Mi used.
-Argo CD and Grafana are most of the gap.
-
-That second line changes the decision, and it is invisible to any calculation done from manifests.
-**Kubernetes schedules on requests; the node dies on usage.**
+**We booked 640Mi for a process that uses 370Mi**, and the manifests cited the borrowed 605Mi as
+the reason. Since the scheduler sees only the request, that 270Mi × 3 of over-booking was not
+caution — it was 810Mi of the fixed pair's 1944Mi of bookable memory, spent on nothing. The
+request is now **512Mi**: above every sample ever taken including the 406Mi worst, and below the
+896Mi limit by enough to keep a migration or a burst inside it.
 
 ## What that does to the arithmetic
 
-Two different answers, and only one of them matters.
-
-**By requests** — what the scheduler accepts — six more JVMs at their 832Mi request is 4992Mi
-against 8652Mi of unrequested allocatable. It fits comfortably. This is the calculation the earlier
-draft did, and it is the wrong one.
-
-**By actual usage** — what the node survives. The stemcell's `core` and `gateway` are the
-equivalent of ours, so they are subtracted rather than added to:
+### Scheduling: what will fit on the two fixed workers
 
 ```
-allocatable                              14306Mi
-actual usage, worst of three readings    11217Mi
-                                        ─────────
-free                                      3089Mi
-+ the apps namespace we would replace     1663Mi
-                                        ─────────
-available to our services                 4752Mi
+allocatable, two fixed cx33 workers            11806Mi
+the platform underneath                       - 7942Mi
+the stemcell's own services at their floor    - 2112Mi   gateway 2x640 + core 832
+kept free so an ordinary platform pod can land - 512Mi   256Mi/worker, stemcell #368
+                                              ─────────
+left for us                                     1240Mi
 ```
 
-Against that:
+Against that, six processes is **six pods** — `gateway` at two replicas, plus `core`, `streaming`,
+`packaging` and `reporting`; `frontend` is a static build served from the edge and costs the
+cluster nothing.
 
-| | arithmetic | verdict |
+| | at the 640Mi request this was measured on | at the right-sized 512Mi request |
 |---|---|---|
-| **eight processes** | gateway 2 × 533 + six JVMs × 605 = **4696Mi** | 56Mi margin. **Does not fit.** |
-| **six processes** | gateway 2 × 533 + four JVMs × 605 = **3486Mi** | 1266Mi margin. Workable. |
+| **six processes** | 3840Mi — **short by 2600Mi** | 3072Mi — **short by 1832Mi** |
+| **eight processes** | 5120Mi — short by 3880Mi | 4096Mi — short by 2856Mi |
 
-`frontend` is zero in both rows: a static build served from the edge costs the cluster nothing,
-which makes that particular separation free.
+**Six processes do not fit the two fixed workers, and no achievable request makes them fit.** Even
+a request set exactly at the warm idle figure — 370Mi, which would be an under-request the moment
+the service did any work, and is listed only to bound the argument — leaves six processes 980Mi
+short. Right-sizing to 512Mi closes 768Mi of a 2600Mi gap: worth doing on its own terms, and not
+enough to change the answer. Eight is further out still.
 
-**Eight processes do not fit.** Not "fit tightly" — a 56Mi margin on a cluster whose free memory
-moved 810Mi during the hour it was measured is not a margin at all.
+That is not a hypothetical. `core` and two of our three services are running on an **autoscaled**
+node as this is written, and that node has been up since the cluster was built and cannot drain,
+because it is not empty. Dev is a three-node cluster at floor, today, and the stemcell's
+`dev.tfvars` still describes that pool as one that "is empty and costs nothing until the HPAs ask
+for replicas". Raised upstream; ours to account for, not to fix.
 
-The failure at the far side of that is documented in the stemcell's own `dev.tfvars`: at 93% memory
-Argo's repo-server lost its probes and committed changes silently stopped arriving — a fix not
-working, three layers from the cause. `worker-0` is at 81% today with two services on it.
+### Survival: what the machines will actually carry
+
+The same six processes, at their measured 370Mi rather than at whatever they book, are 2220Mi of
+real memory against roughly 7600Mi genuinely free on the fixed pair. **Eight would fit too.** On this
+axis there is no argument for six over eight, and the previous draft's "56Mi margin" — the figure
+it called decisive — was an artifact of the instrument.
+
+### So the constraint is the node budget, not the memory
+
+Both constraints have now been answered honestly, and neither of them rejects eight processes on
+memory. What rejects it is the third node, and the fact that there is only one more.
+
+The autoscaler pool is `max_nodes = 2`. One of those two is already consumed at floor. The
+gateway's one-replica-per-node anti-affinity means four gateway replicas need four untainted nodes
+— two fixed plus both autoscaled — so at the HPA ceiling the pool is fully claimed with nothing
+left over.
+
+Splitting `identity`, `catalog` and `assessment` into three processes adds two more pods. At the
+measured floor that is ~740Mi, which the *machines* have and the *booking* does not, so it would be
+absorbed by the second autoscaled node — the one the gateway needs. The failure that produces is
+not an out-of-memory: it is a pod stuck `Pending` while the autoscaler asks for a node it is not
+allowed to create, which reads as a scheduling problem and not as a capacity decision made
+eighteen months earlier.
+
+**Six, therefore, because the node budget is spoken for — not because a JVM is expensive.**
 
 ## Decision
 
@@ -152,12 +299,16 @@ deployable called `core`; the other five modules are their own.
 | `catalog` | Content items, courses, modules, gates, assignments | inside `core` |
 | `assessment` | Banks, questions, tests, forms, attempts, grading | inside `core` |
 
+`packaging` and `reporting` are separate for reasons that were never about memory and are not
+affected by any of the above: one runs untrusted uploaded code (ADR-0105), the other must be able
+to fail without stopping playback. Those two would survive a cluster of any size.
+
 ### Data ownership, stated once
 
 **A module owns its tables outright, and no other module reads them.** Not by convention: each
 module has its own database and its own role, so a cross-module query fails to connect rather than
-returning the wrong answer. That is already true in the local stack for the three services that
-exist.
+returning the wrong answer. That is already true in the local stack and on the cluster for the
+three services that exist.
 
 The three modules merged into `core` keep **separate databases and separate migration histories**
 even while sharing a process. This is what makes the deferral a deferral rather than a retreat: the
@@ -220,9 +371,9 @@ where its availability becomes the exam's.
 
 ### What this makes easy
 
-Fitting dev with a margin the autoscaler can move inside. Splitting later: separate databases,
-separate migrations and an enforced boundary mean an extraction is a deployment change and a client
-swap.
+Fitting dev inside a node budget that is already fully claimed at the HPA ceiling. Splitting later:
+separate databases, separate migrations and an enforced boundary mean an extraction is a deployment
+change and a client swap.
 
 ### What this makes hard
 
@@ -235,28 +386,39 @@ radius in the platform.
 Enforcing the boundary while nothing forces it. A merged process makes a shortcut *compile*, which
 is exactly why the ArchUnit rule exists rather than a paragraph asking people not to.
 
+And keeping these numbers honest. Every figure above has a date because every one of them has
+already moved once. `scripts/verify_capacity.py` fails the build when the manifests drift from the
+measurement this decision was made on, and `--cluster` fails when the cluster does — because the
+1250Mi that went missing from allocatable was in no diff, no review and no alert.
+
 ## Alternatives considered
 
-**Eight processes — rejected on measurement, not on principle.** 56Mi of margin against 810Mi of
-observed movement is not a margin. It would have been chosen on the request-vs-request calculation,
-which is the specific error this ADR exists to correct.
+**Eight processes — rejected on the node budget, and no longer on memory.** The previous draft
+rejected it on a 56Mi margin, and that margin was an artifact of `kubectl top`. On measured memory
+eight processes fit comfortably. What they do not fit is `max_nodes = 2` with one autoscaled node
+already consumed at floor and the gateway's anti-affinity claiming both at its ceiling. If that
+budget changes, this alternative comes back, and it comes back as the front-runner rather than as a
+distant second.
 
 **One process for everything — rejected.** `packaging` runs untrusted uploaded code and must not
 share a heap with a session (ADR-0105); `reporting` must be able to fail without stopping playback.
 Both are security or availability boundaries, and neither is negotiable for memory.
 
-**Bigger dev workers (cx33 → cx43) — rejected for now.** It buys 16GB and roughly doubles the hourly
-rate. Since the cluster is destroyed between sessions the real figure is per-day rather than per-
-month, so this stays available; it is simply not needed at six.
+**Bigger dev workers (cx33 → cx43) — still available, and now the cheapest lever.** It buys 16GB
+per worker and roughly doubles the hourly rate. The case for it is stronger than it was: dev is
+already running a third node continuously, which is being paid for anyway, and the binding term is
+the platform's 7942Mi rather than anything of ours. It stays rejected only because the constraint
+is node *count* and not memory, and a bigger node does not create one — the gateway needs four
+nodes for four replicas whatever they are made of.
 
-**Native images, or a non-JVM `packaging` — deferred.** ~600Mi to ~120Mi each is the largest single
-gain here, at the cost of build complexity, reflection configuration and a second toolchain. Worth
-revisiting when the process count is the binding constraint rather than the platform's own
-under-requests.
+**Native images, or a non-JVM `packaging` — deferred.** ~370Mi to ~120Mi each is a real gain, at the
+cost of build complexity, reflection configuration and a second toolchain. The previous draft put
+this at ~600Mi to ~120Mi; the real saving is smaller than it looked, and it is still the largest
+single one available. Worth revisiting when the process count binds on memory, which it does not.
 
-**Fixing the platform's under-requests first** is not an alternative but a prerequisite for any of
-the above being decided on arithmetic: up to ~2600Mi of the numbers here are wrong until it is done.
-It belongs upstream in the stemcell.
+**Right-sizing the requests to the measured floor — done, and it does not change this decision.**
+It returns 810Mi of bookable memory on the fixed pair and makes the manifests say something true.
+It closes 1620Mi of a 2600Mi gap. It is worth doing and it is not an alternative to anything.
 
 ## Revisit if
 
@@ -271,5 +433,7 @@ blast radius.
 Both are falsifiable in both directions, which is the point: a decision that can only be revisited
 in the direction of more services is not a decision.
 
-**Re-measure whenever the platform's own requests change.** Every figure here moves with them, and
-the arithmetic above is only as good as its worst sample.
+**Re-measure whenever the node budget or the platform's own requests change**, which is a narrower
+trigger than the previous draft's and a better one. The platform's 7942Mi is the term that decides
+this; a JVM's 370Mi is not. `scripts/verify_capacity.py --cluster` is what notices, and it is meant
+to be run rather than trusted to have been.

@@ -156,12 +156,28 @@ spec:
             httpGet: {path: /management/health/liveness, port: http}
             periodSeconds: 20
           resources:
-            # ADR-0109 measured a Spring Boot process in this platform idling at
-            # ~600Mi. The request is what the scheduler books; the limit is the
-            # headroom for a migration or a burst. Kubernetes schedules on
-            # requests and the node dies on usage, so under-requesting is how a
-            # worker fills up without anything reporting that it has.
-            requests: {cpu: 100m, memory: 640Mi}
+            # MEASURED ON THESE PODS (T-9.15), not borrowed: 278Mi seconds after
+            # start, 339-370Mi warm and idle, 341Mi under a sustained ingest
+            # load, 406Mi at the worst sample ever taken. 512Mi is above all of
+            # them; docs/slos.md has the run and its conditions.
+            #
+            # It was 640Mi, from ADR-0109's "~600Mi" -- which was the stemcell's
+            # `core` at a 1Gi limit and never described ours, because a JVM sizes
+            # its heap from the container limit. The scheduler sees only the
+            # request, so booking 640Mi for a 370Mi process spent 810Mi of the
+            # two fixed workers' 1944Mi of bookable memory on nothing, on a
+            # cluster that is short of bookable memory and has ~7600Mi free.
+            #
+            # NOT below the measured draw, deliberately. The stemcell's T-5.12:
+            # the kernel shares out a contended CPU in proportion to requests and
+            # the scheduler never sees anything else, so a pod that under-declares
+            # is starved first AND is never Pending -- so no node is added for it
+            # either, and nothing reports that anything is wrong.
+            #
+            # scripts/verify-capacity.py fails when this drifts from the
+            # measurement. The last version of this invariant was a comment, and
+            # a comment is what failed.
+            requests: {cpu: 100m, memory: 512Mi}
             limits: {memory: 896Mi}
           volumeMounts:
             # readOnlyRootFilesystem is on and Tomcat still needs a writable
