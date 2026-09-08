@@ -69,7 +69,11 @@ class ProblemsTest {
         Problems.write(response, HttpStatus.UNAUTHORIZED, "SERVICE_CREDENTIAL_INVALID", "The calling service could not be authenticated.");
 
         assertThat(response.getStatus()).isEqualTo(401);
-        assertThat(response.getContentType()).isEqualTo(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+        // Compared as a media type, not as a string: the header also carries the charset, and an
+        // exact-string assertion here fails the moment somebody sets one -- which is exactly what
+        // happened when the UTF-8 fix below went in.
+        assertThat(MediaType.parseMediaType(response.getContentType()).isCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .isTrue();
         // Hand-written JSON, so this asserts the actual bytes rather than trusting a mapper. Boot 4
         // ships two Jacksons and a filter picking the wrong one produces a body that passes a unit
         // test and fails in the container.
@@ -80,6 +84,28 @@ class ProblemsTest {
                 "\"detail\":\"The calling service could not be authenticated.\"," +
                 "\"code\":\"SERVICE_CREDENTIAL_INVALID\"}"
             );
+    }
+
+    @Test
+    @DisplayName("the filter path declares UTF-8, because the servlet default is not")
+    void theFilterDeclaresUtf8() throws Exception {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        // FOUND ON THE WIRE, NOT HERE. setContentType with no charset leaves the container to
+        // choose, and Tomcat chooses ISO-8859-1 -- the deployed service answered
+        // `application/problem+json;charset=ISO-8859-1` while every unit test passed, because
+        // MockHttpServletResponse does not reproduce that default.
+        //
+        // detail interpolates domain values, so the consequence is a mangled course title on an
+        // error path: found late, and blamed on whatever produced the text.
+        Problems.write(response, HttpStatus.CONFLICT, "GATED", "Le module « Introduction » est verrouillé.");
+
+        assertThat(response.getCharacterEncoding()).isEqualToIgnoringCase("UTF-8");
+        // Round-tripped through the bytes rather than read as a String, which is where an encoding
+        // mistake actually shows.
+        assertThat(new String(response.getContentAsByteArray(), java.nio.charset.StandardCharsets.UTF_8))
+            .contains("« Introduction »")
+            .contains("verrouillé");
     }
 
     @Test

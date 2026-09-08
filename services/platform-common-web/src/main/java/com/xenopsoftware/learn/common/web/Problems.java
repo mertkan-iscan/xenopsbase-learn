@@ -3,6 +3,7 @@ package com.xenopsoftware.learn.common.web;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -100,6 +101,21 @@ public final class Problems {
     public static void write(HttpServletResponse response, HttpStatusCode status, String code, String detail) throws IOException {
         response.setStatus(status.value());
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+        // UTF-8 EXPLICITLY, because the servlet default is not.
+        //
+        // setContentType with no charset leaves the container to pick one, and Tomcat picks
+        // ISO-8859-1. Observed on the wire against the deployed service:
+        //
+        //   Content-Type: application/problem+json;charset=ISO-8859-1
+        //
+        // `detail` interpolates domain values -- a course title, a node name, a person's name --
+        // so that mangles any non-ASCII character, on an error path, where it would be found late
+        // and blamed on whatever produced the text. MockHttpServletResponse does not reproduce the
+        // container's default, which is why the unit tests were happy and the wire was not.
+        //
+        // The @ControllerAdvice path does not need this: Spring's message converters write
+        // ProblemDetail as UTF-8 already. Only a filter writing the response itself has to say so.
+        response.setCharacterEncoding(StandardCharsets.UTF_8);
         response
             .getWriter()
             .write(
