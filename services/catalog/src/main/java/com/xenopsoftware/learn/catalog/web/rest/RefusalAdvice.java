@@ -23,7 +23,7 @@ import org.springframework.web.server.ResponseStatusException;
  * at it and a learner may be part-way through it". A 409 without that is a 409 an author cannot
  * act on. Everything else keeps the opaque default.
  *
- * <p>The shape is RFC 9457, like every other refusal on this platform (T-9.13). This comment used
+ * <p>The shape is RFC 9457, like every other refusal on this platform (T-9.10, #88). This comment used
  * to claim the shape "matches the refusals identity writes from its filters", and it did not match
  * any of them — there were five shapes across nine places, and this sentence was the only thing
  * tracking a consistency that did not exist.

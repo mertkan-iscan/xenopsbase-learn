@@ -151,7 +151,7 @@ jobs:
       # import carrying a longer one crashes rather than truncating, and all the
       # stack says is "container xenopslearn-keycloak-1 is unhealthy". That cost
       # a red build on 2026-09-07 and, in the cluster, a deleted realm that could
-      # not be re-imported (T-9.12).
+      # not be re-imported (T-9.11, #89).
       - name: Check the realm fits Keycloak's own columns
         run: python scripts/verify_realm_limits.py
 

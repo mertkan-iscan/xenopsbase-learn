@@ -61,7 +61,7 @@ images:
     # instant, and T-0.9's ADR-0109.
     #
     # 2026-09-07 — moved to 9f6aa7d. Inter-service calls are gated on the
-    # `svc-caller` realm role, not on the `svc` claim alone (T-9.12). The claim
+    # `svc-caller` realm role, not on the `svc` claim alone (T-9.11, #89). The claim
     # keeps its job -- it says WHICH service is calling -- and the role is the
     # gate, so revoking it now does something. It did not before: nothing looked.
     #
@@ -75,7 +75,7 @@ images:
     # why all three images move together.
     #
     # 2026-09-08 — moved to 8d2480d. ONE ERROR SHAPE, AND IT IS RFC 9457
-    # (T-9.13). This service alone used to write three of the five the platform
+    # (T-9.10, #88). This service alone used to write three of the five the platform
     # had: {"reason","message"} from the impersonation filter, {"message"} from
     # the deactivated-user filter, and an empty body from the access-denied
     # advice. All three are problem documents now, on
@@ -117,7 +117,7 @@ images:
     # 2026-09-07 — moved to 9f6aa7d for the svc-caller gate and the
     # platform-common split. No change of its own; see the note on identity.
     #
-    # 2026-09-08 — moved to 8d2480d for the RFC 9457 error shape (T-9.13). The
+    # 2026-09-08 — moved to 8d2480d for the RFC 9457 error shape (T-9.10, #88). The
     # playback and progress refusals keep their codes -- PLAYBACK_NOT_ENTITLED,
     # LEARNER_UNRESOLVED -- as an extension member beside the standard fields,
     # which is why the player switches on one field rather than parsing a URI.

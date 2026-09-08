@@ -197,7 +197,7 @@ public class ImpersonationFilter extends OncePerRequestFilter {
             throws IOException {
         // A machine-readable code beside the sentence, so a console can say something true about
         // why it is stuck instead of showing a bare 403. RFC 9457 now, like every other refusal on
-        // this platform -- the `reason` field this used to write became `code` (T-9.13).
+        // this platform -- the `reason` field this used to write became `code` (T-9.10, #88).
         Problems.write(response, HttpStatus.FORBIDDEN, reason, message);
     }
 

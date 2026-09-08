@@ -12,7 +12,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 
 /**
- * One error shape for every refusal this platform writes: RFC 9457 (T-9.13).
+ * One error shape for every refusal this platform writes: RFC 9457 (T-9.10, #88).
  *
  * <h2>There were five, and a comment claiming there was one</h2>
  *

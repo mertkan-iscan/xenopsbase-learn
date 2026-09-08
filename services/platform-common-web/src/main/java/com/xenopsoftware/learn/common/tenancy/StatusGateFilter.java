@@ -85,7 +85,7 @@ public class StatusGateFilter extends OncePerRequestFilter {
             request.getMethod(), request.getRequestURI(), tenant, status);
         // Machine-readable, because a UI has to say something true. A detail alone would make
         // "suspended" and "read only" indistinguishable without parsing prose. RFC 9457 now, like
-        // every other refusal on this platform (T-9.13).
+        // every other refusal on this platform (T-9.10, #88).
         Problems.write(response, HttpStatus.FORBIDDEN, status.reasonCode(), message(status, write));
     }
 
