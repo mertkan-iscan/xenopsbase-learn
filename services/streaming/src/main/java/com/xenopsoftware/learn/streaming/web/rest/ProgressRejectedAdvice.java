@@ -1,5 +1,7 @@
 package com.xenopsoftware.learn.streaming.web.rest;
 
+import org.springframework.http.ProblemDetail;
+import com.xenopsoftware.learn.common.web.Problems;
 import com.xenopsoftware.learn.streaming.progress.LearnerUnresolvedException;
 import com.xenopsoftware.learn.streaming.progress.ProgressRejectedException;
 import java.util.Map;
@@ -25,10 +27,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class ProgressRejectedAdvice {
 
     @ExceptionHandler(ProgressRejectedException.class)
-    public ResponseEntity<Map<String, Object>> rejected(ProgressRejectedException rejected) {
-        return ResponseEntity.status(rejected.reason().status())
-            .body(Map.of("error", Map.of("code", rejected.reason().name(),
-                "message", "This batch was not credited.")));
+    public ResponseEntity<ProblemDetail> rejected(ProgressRejectedException rejected) {
+        return Problems.respond(rejected.reason().status(), rejected.reason().name(), "This batch was not credited.");
     }
 
     /**
@@ -39,9 +39,11 @@ public class ProgressRejectedAdvice {
      * what a client does with a 5xx and exactly what it must not do with a 4xx.
      */
     @ExceptionHandler(LearnerUnresolvedException.class)
-    public ResponseEntity<Map<String, Object>> unresolved() {
-        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-            .body(Map.of("error", Map.of("code", "LEARNER_UNRESOLVED",
-                "message", "Progress cannot be recorded right now. Nothing has been lost.")));
+    public ResponseEntity<ProblemDetail> unresolved() {
+        return Problems.respond(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "LEARNER_UNRESOLVED",
+            "Progress cannot be recorded right now. Nothing has been lost."
+        );
     }
 }

@@ -5,6 +5,22 @@ import { expectNoAxeViolations } from '../test/axe.ts';
 import { VideoPlayer } from './VideoPlayer.tsx';
 
 /**
+ * An RFC 9457 problem document, as the services now answer with (T-9.13). Built here rather than
+ * written inline so a change to the shape is one edit, and so a test cannot accidentally assert a
+ * shape no service produces.
+ */
+function problem(status: number, code: string) {
+  return {
+    type: `https://xenopsoftware.com/problems/${code.toLowerCase().replaceAll('_', '-')}`,
+    title: code,
+    status,
+    detail: 'Refused.',
+    code,
+  };
+}
+
+
+/**
  * The player's surface (T-3.5): what a viewer can reach, and what they are told when they cannot
  * watch.
  *
@@ -224,7 +240,7 @@ describe('the player', () => {
   });
 
   it('shows a refusal as an alert, with the reason the service was willing to give', async () => {
-    respond = () => ({ status: 403, body: { error: { code: 'CONTENT_GATED' } } });
+    respond = () => ({ status: 403, body: problem(403, 'CONTENT_GATED') });
 
     render(<VideoPlayer nodeId="node-1" title="Fire safety, part 1" />);
 

@@ -1,5 +1,6 @@
 package com.xenopsoftware.learn.identity.web.filter;
 
+import com.xenopsoftware.learn.common.web.Problems;
 import com.xenopsoftware.learn.common.tenancy.TenantContext;
 import com.xenopsoftware.learn.identity.user.AppUser;
 import com.xenopsoftware.learn.identity.user.AppUserRepository;
@@ -61,11 +62,12 @@ public class DeactivatedUserFilter extends OncePerRequestFilter {
 
         Optional<AppUser> caller = users.findByIdpSub(token.getToken().getSubject());
         if (caller.isPresent() && caller.get().getStatus() == UserStatus.DEACTIVATED) {
-            response.setStatus(HttpStatus.FORBIDDEN.value());
-            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            response.getWriter().write("""
-                {"reason":"USER_DEACTIVATED",\
-                "message":"This account has been deactivated. Ask an administrator to restore it."}""");
+            Problems.write(
+                response,
+                HttpStatus.FORBIDDEN,
+                "USER_DEACTIVATED",
+                "This account has been deactivated. Ask an administrator to restore it."
+            );
             return;
         }
         chain.doFilter(request, response);

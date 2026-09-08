@@ -3,6 +3,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { usePlaybackToken, type TokenState } from './usePlaybackToken.ts';
 
 /**
+ * An RFC 9457 problem document, as the services now answer with (T-9.13). Built here rather than
+ * written inline so a change to the shape is one edit, and so a test cannot accidentally assert a
+ * shape no service produces.
+ */
+function problem(status: number, code: string) {
+  return {
+    type: `https://xenopsoftware.com/problems/${code.toLowerCase().replaceAll('_', '-')}`,
+    title: code,
+    status,
+    detail: 'Refused.',
+    code,
+  };
+}
+
+
+/**
  * The renewal loop (T-3.5), which is the half of T-3.4 that lives in a browser.
  *
  * <p>The server bounds a suspension at one token lifetime only if the player actually comes back
@@ -121,7 +137,7 @@ describe('the playback token renewal loop', () => {
     render(<Probe onState={() => {}} />);
     await waitFor(() => expect(minted).toBe(1));
 
-    respond = () => ({ status: 503, body: { error: { code: 'UNAVAILABLE' } } });
+    respond = () => ({ status: 503, body: problem(503, 'UNAVAILABLE') });
     await advance(THREE_MINUTES);
 
     // Renewing, not refused: there are two minutes of valid playback left and nothing for the
@@ -147,7 +163,7 @@ describe('the playback token renewal loop', () => {
   });
 
   it('does not retry a refusal that will not change', async () => {
-    respond = () => ({ status: 403, body: { error: { code: 'CONTENT_GATED' } } });
+    respond = () => ({ status: 403, body: problem(403, 'CONTENT_GATED') });
     const states: TokenState[] = [];
     render(<Probe onState={(state) => states.push(state)} />);
 

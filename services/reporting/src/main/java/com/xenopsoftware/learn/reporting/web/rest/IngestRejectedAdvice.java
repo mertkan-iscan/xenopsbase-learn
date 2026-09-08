@@ -1,5 +1,8 @@
 package com.xenopsoftware.learn.reporting.web.rest;
 
+import org.springframework.http.ProblemDetail;
+import org.springframework.http.HttpStatus;
+import com.xenopsoftware.learn.common.web.Problems;
 import com.xenopsoftware.learn.reporting.telemetry.BatchRejectedException;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
@@ -24,16 +27,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class IngestRejectedAdvice {
 
     @ExceptionHandler(BatchRejectedException.class)
-    public ResponseEntity<Map<String, Object>> rejected(BatchRejectedException rejected) {
-        return ResponseEntity.status(rejected.reason().status())
-            .body(Map.of("error", Map.of("code", rejected.reason().name(),
-                "message", "This batch was not recorded.")));
+    public ResponseEntity<ProblemDetail> rejected(BatchRejectedException rejected) {
+        return Problems.respond(rejected.reason().status(), rejected.reason().name(), "This batch was not recorded.");
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<Map<String, Object>> unreadable() {
-        return ResponseEntity.badRequest()
-            .body(Map.of("error", Map.of("code", "MALFORMED_BATCH",
-                "message", "This batch could not be read.")));
+    public ResponseEntity<ProblemDetail> unreadable() {
+        return Problems.respond(HttpStatus.BAD_REQUEST, "MALFORMED_BATCH", "This batch could not be read.");
     }
 }

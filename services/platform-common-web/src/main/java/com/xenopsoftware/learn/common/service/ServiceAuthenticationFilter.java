@@ -1,5 +1,6 @@
 package com.xenopsoftware.learn.common.service;
 
+import com.xenopsoftware.learn.common.web.Problems;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -10,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -94,11 +96,8 @@ public class ServiceAuthenticationFilter extends OncePerRequestFilter {
             refused.incrementAndGet();
             LOG.warn("Refused an inter-service call: the service credential did not verify ({})",
                 invalid.getMessage());
-            response.setStatus(401);
-            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            response.getWriter().write(
-                "{\"error\":{\"code\":\"SERVICE_CREDENTIAL_INVALID\","
-                + "\"message\":\"The calling service could not be authenticated.\"}}");
+            Problems.write(response, HttpStatus.UNAUTHORIZED, "SERVICE_CREDENTIAL_INVALID",
+                "The calling service could not be authenticated.");
             return;
         }
 
@@ -116,11 +115,8 @@ public class ServiceAuthenticationFilter extends OncePerRequestFilter {
             refused.incrementAndGet();
             LOG.warn("Refused an inter-service call: token for '{}' does not hold {}",
                 serviceToken.getClaimAsString("azp"), SERVICE_ROLE);
-            response.setStatus(401);
-            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            response.getWriter().write(
-                "{\"error\":{\"code\":\"SERVICE_CREDENTIAL_INVALID\","
-                + "\"message\":\"The calling service is not permitted to make service calls.\"}}");
+            Problems.write(response, HttpStatus.UNAUTHORIZED, "SERVICE_CREDENTIAL_INVALID",
+                "The calling service is not permitted to make service calls.");
             return;
         }
 
@@ -129,11 +125,8 @@ public class ServiceAuthenticationFilter extends OncePerRequestFilter {
             refused.incrementAndGet();
             LOG.warn("Refused an inter-service call: a verified token with no svc claim, so the "
                 + "caller cannot be identified. A user token is not a service credential.");
-            response.setStatus(401);
-            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            response.getWriter().write(
-                "{\"error\":{\"code\":\"SERVICE_CREDENTIAL_INVALID\","
-                + "\"message\":\"The calling service could not be identified.\"}}");
+            Problems.write(response, HttpStatus.UNAUTHORIZED, "SERVICE_CREDENTIAL_INVALID",
+                "The calling service could not be identified.");
             return;
         }
 

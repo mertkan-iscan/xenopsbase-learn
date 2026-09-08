@@ -1,5 +1,6 @@
 package com.xenopsoftware.learn.common.tenancy;
 
+import com.xenopsoftware.learn.common.web.Problems;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -9,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -81,12 +83,10 @@ public class StatusGateFilter extends OncePerRequestFilter {
 
         LOG.info("Refusing {} {} for tenant {}: account is {}",
             request.getMethod(), request.getRequestURI(), tenant, status);
-        response.setStatus(403);
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        // Machine-readable, because a UI has to say something true. A message alone would make
-        // "suspended" and "read only" indistinguishable without parsing prose.
-        response.getWriter().write("{\"error\":{\"code\":\"" + status.reasonCode()
-            + "\",\"message\":\"" + message(status, write) + "\"}}");
+        // Machine-readable, because a UI has to say something true. A detail alone would make
+        // "suspended" and "read only" indistinguishable without parsing prose. RFC 9457 now, like
+        // every other refusal on this platform (T-9.13).
+        Problems.write(response, HttpStatus.FORBIDDEN, status.reasonCode(), message(status, write));
     }
 
     private static String message(AccountStatus status, boolean write) {

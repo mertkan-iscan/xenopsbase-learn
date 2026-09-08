@@ -88,7 +88,17 @@ function isTerminal(status: number): boolean {
   return status === 401 || status === 403 || status === 404;
 }
 
-type Body = { error?: { code?: string; message?: string } };
+/**
+ * An RFC 9457 problem document (T-9.13).
+ *
+ * `code` is an extension member the platform adds beside the standard fields. The RFC's
+ * machine-readable identifier is `type`, a URI — but switching on a URI invites prefix-matching and
+ * string surgery, so the services carry the short token too and this reads that.
+ *
+ * This was `{ error: { code } }` until the platform settled on one error shape across all of its
+ * services and the stemcell it deploys into.
+ */
+type Problem = { type?: string; title?: string; status?: number; detail?: string; code?: string };
 
 export function usePlaybackToken(nodeId: string): TokenState {
   const [state, setState] = useState<TokenState>({ status: 'loading' });
@@ -120,7 +130,7 @@ export function usePlaybackToken(nodeId: string): TokenState {
         }
 
         const status = response?.status ?? 0;
-        const code = (error as Body | undefined)?.error?.code;
+        const code = (error as Problem | undefined)?.code;
         const held = current.current;
         // A refusal while a valid token is still in hand: the video keeps playing to the end of
         // that token, and the learner is told only if it runs out. Anything else would interrupt
