@@ -73,7 +73,18 @@ images:
     # Also carries the platform-common split (#115): the servlet half of the
     # shared library is its own module now, which changes no behaviour and is
     # why all three images move together.
-    digest: sha256:70ac8a5d8a3af78f0a5447b649629990a330c7c70f3ad2bf7cb767ec9bfbde47
+    #
+    # 2026-09-08 — moved to 8d2480d. ONE ERROR SHAPE, AND IT IS RFC 9457
+    # (T-9.13). This service alone used to write three of the five the platform
+    # had: {"reason","message"} from the impersonation filter, {"message"} from
+    # the deactivated-user filter, and an empty body from the access-denied
+    # advice. All three are problem documents now, on
+    # application/problem+json, and the `reason` field became `code`.
+    #
+    # A CLIENT-VISIBLE CHANGE, and the only one in this deploy that is. Nothing
+    # outside this repository consumes these bodies yet -- the player is the one
+    # reader and it moved in the same commit.
+    digest: sha256:b9ffaca29c980c2b6dd1d891fdf1f7c5baec1e6be75688c8cd90141d7c7a3295
   - name: ghcr.io/mertkan-iscan/xenopsbase-learn/streaming
     # Commit 0747e6c — the MediaProvider port and its fake and Cloudflare
     # adapters (T-3.1), tus upload targets with quota enforced before issuance
@@ -99,7 +110,15 @@ images:
     #
     # 2026-09-07 — moved to 9f6aa7d for the svc-caller gate and the
     # platform-common split. No change of its own; see the note on identity.
-    digest: sha256:909b1a897fbc0842489bc01622ce907f255e282432a84d855a9a42aa038645a1
+    #
+    # 2026-09-08 — moved to 8d2480d for the RFC 9457 error shape (T-9.13). The
+    # playback and progress refusals keep their codes -- PLAYBACK_NOT_ENTITLED,
+    # LEARNER_UNRESOLVED -- as an extension member beside the standard fields,
+    # which is why the player switches on one field rather than parsing a URI.
+    #
+    # The undisclosed refusal still answers with NO BODY at all: an empty 404 is
+    # the same answer a genuinely missing node gives, and that is the point.
+    digest: sha256:2a83d7a34cdf1bd9c22d6851645180ef74e72c72347d19898e5ccbda9cc310bd
   - name: ghcr.io/mertkan-iscan/xenopsbase-learn/reporting
     # Commit 0747e6c — the service and its own database with nothing else
     # reading it (T-9.7), and the playback heartbeat ingest path (T-3.6):
@@ -121,4 +140,7 @@ images:
     # 2026-09-07 — moved to 9f6aa7d. Reporting neither publishes, consumes, nor
     # makes service calls, so it gains nothing observable from either change and
     # moves because the shared modules did.
-    digest: sha256:a39aa396205216ea1c6b6a6bd652c7faf95cea112a42f6f9cce3aee12b61e01b
+    #
+    # 2026-09-08 — moved to 8d2480d. Its two ingest refusals are problem
+    # documents now; MALFORMED_BATCH survives as the code.
+    digest: sha256:4d510d0caed4478644006c810a712cea93ebdc349b90daea9d93422b7032aa3b
