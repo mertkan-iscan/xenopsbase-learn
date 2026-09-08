@@ -1,5 +1,6 @@
 package com.xenopsoftware.learn.identity.config;
 
+import com.xenopsoftware.learn.common.cache.DegradableCaches;
 import com.xenopsoftware.learn.identity.authz.AuthzVersion;
 import com.xenopsoftware.learn.identity.authz.CachedPermissions;
 import com.xenopsoftware.learn.identity.authz.PermissionCacheProperties;
@@ -37,8 +38,8 @@ public class PermissionCacheConfiguration {
     @ConditionalOnProperty(prefix = "identity.authz.cache", name = "enabled",
         havingValue = "true", matchIfMissing = true)
     CachedPermissions permissionCache(StringRedisTemplate valkey, AuthzVersion versions,
-            PermissionCacheProperties properties, MeterRegistry meters) {
-        return new ValkeyPermissions(valkey, versions, properties, meters);
+            PermissionCacheProperties properties, MeterRegistry meters, DegradableCaches caches) {
+        return new ValkeyPermissions(valkey, versions, properties, meters, caches);
     }
 
     @Bean

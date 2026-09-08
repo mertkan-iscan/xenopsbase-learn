@@ -1,5 +1,7 @@
 package com.xenopsoftware.learn.common.tenancy;
 
+import com.xenopsoftware.learn.common.cache.DegradableCache;
+import com.xenopsoftware.learn.common.cache.DegradableCaches;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -33,6 +35,17 @@ import org.springframework.stereotype.Component;
  * <p>Missing or unreadable means ACTIVE, deliberately. A cache outage that suspended every
  * customer at once would be a worse failure than one that briefly lets a suspended customer
  * read, and the writes that matter are refused by the module that owns the rows.
+ *
+ * <h2>The cooldown, which this failed for want of</h2>
+ *
+ * <p>This read is on the path of <em>every</em> request in every service but identity, so
+ * "permissive until Valkey returns" is only cheap if reaching an absent Valkey is cheap, and it
+ * is not: Lettuce shares one connection and callers queue behind one that cannot be established.
+ * With the dev cluster's network policy missing this namespace, {@code reporting} served about
+ * one request per second at 20–60m of CPU and was eventually restarted by its own liveness
+ * probe — an entirely correct fail-open turned into an outage by paying for it once per request.
+ * {@link DegradableCache} bounds that to once per cooldown window, and puts the fact on
+ * {@code /management/health} where the per-request log line was not being read.
  */
 @Component
 public class PublishedStatusLookup implements TenantStatusLookup {
@@ -40,19 +53,25 @@ public class PublishedStatusLookup implements TenantStatusLookup {
     private static final Logger LOG = LoggerFactory.getLogger(PublishedStatusLookup.class);
 
     private final StringRedisTemplate valkey;
+    private final DegradableCache cache;
 
-    public PublishedStatusLookup(ObjectProvider<StringRedisTemplate> valkey) {
+    public PublishedStatusLookup(ObjectProvider<StringRedisTemplate> valkey,
+            DegradableCaches caches) {
         this.valkey = valkey.getIfAvailable();
         if (this.valkey == null) {
             LOG.warn("No Valkey template, so this service cannot read the published tenant "
                 + "status and treats every account as active (T-1.4). Only the module owning "
                 + "the rows enforces status here.");
+            this.cache = caches.absent("tenant-status",
+                "no Valkey is configured, so every account is treated as active");
+        } else {
+            this.cache = caches.register("tenant-status");
         }
     }
 
     @Override
     public AccountStatus statusOf(String tenantId, String idpSub) {
-        if (valkey == null) {
+        if (cache.quiet()) {
             return AccountStatus.ACTIVE;
         }
         try {
@@ -68,8 +87,7 @@ public class PublishedStatusLookup implements TenantStatusLookup {
             LOG.warn("Unreadable status entry for tenant {}: {}", tenantId, published);
             return AccountStatus.ACTIVE;
         } catch (RuntimeException valkeyDown) {
-            LOG.warn("Could not read the status entry for tenant {}; this service is permissive "
-                + "until Valkey returns", tenantId, valkeyDown);
+            cache.failed("read", valkeyDown);
             return AccountStatus.ACTIVE;
         }
     }

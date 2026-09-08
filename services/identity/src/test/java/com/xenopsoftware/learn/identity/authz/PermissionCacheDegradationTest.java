@@ -2,6 +2,8 @@ package com.xenopsoftware.learn.identity.authz;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.xenopsoftware.learn.common.cache.DegradableCache;
+import com.xenopsoftware.learn.common.cache.DegradableCaches;
 import com.xenopsoftware.learn.common.tenancy.TenantContext;
 import com.xenopsoftware.learn.identity.PostgresTestHarness;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -72,6 +74,9 @@ class PermissionCacheDegradationTest {
 
     @Autowired
     private MeterRegistry meters;
+
+    @Autowired
+    private DegradableCaches caches;
 
     @Autowired
     private Environment environment;
@@ -187,7 +192,18 @@ class PermissionCacheDegradationTest {
             .isEqualTo(Status.UP);
         assertThat(((HealthIndicator) cache).health().getDetails())
             .as("and an operator can still see that it is not caching")
-            .containsEntry("mode", "database (cache degraded)");
+            .containsEntry("mode", "degraded")
+            .containsEntry("lastFailure", "read: RedisConnectionFailureException");
+
+        // The same fact under the indicator that names every degradable cache in the service,
+        // because that is the one an operator reads when they do not already know which cache to
+        // suspect -- which is the position everybody was in on 2026-09-08 (#126).
+        assertThat(caches.all()).extracting(DegradableCache::name).contains("permissions");
+        assertThat(caches.all())
+            .filteredOn(registered -> registered.name().equals("permissions"))
+            .singleElement()
+            .satisfies(permissions -> assertThat(permissions.report())
+                .containsEntry("mode", "degraded"));
 
         assertThat(get("/management/health")).contains("\"status\":\"UP\"");
         assertThat(get("/management/health/readiness"))

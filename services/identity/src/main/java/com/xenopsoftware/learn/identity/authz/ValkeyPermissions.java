@@ -2,13 +2,14 @@ package com.xenopsoftware.learn.identity.authz;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xenopsoftware.learn.common.cache.DegradableCache;
+import com.xenopsoftware.learn.common.cache.DegradableCaches;
 import com.xenopsoftware.learn.common.tenancy.TenantContext;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import java.time.Duration;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.Map;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,7 +64,6 @@ public class ValkeyPermissions implements CachedPermissions, HealthIndicator {
     private final StringRedisTemplate valkey;
     private final AuthzVersion versions;
     private final Duration ttl;
-    private final Duration cooldown;
     private final ObjectMapper json;
     private final Timer fromDatabase;
     private final Counter hits;
@@ -71,15 +71,16 @@ public class ValkeyPermissions implements CachedPermissions, HealthIndicator {
     private final Counter unreadable;
     private final Counter unreachable;
     private final Counter bypassed;
-    private final AtomicLong quietUntil = new AtomicLong();
-    private final AtomicReference<String> lastFailure = new AtomicReference<>();
+    private final DegradableCache cache;
 
     public ValkeyPermissions(StringRedisTemplate valkey, AuthzVersion versions,
-            PermissionCacheProperties properties, MeterRegistry meters) {
+            PermissionCacheProperties properties, MeterRegistry meters,
+            DegradableCaches caches) {
         this.valkey = valkey;
         this.versions = versions;
         this.ttl = properties.ttl();
-        this.cooldown = properties.cooldown();
+        this.cache = caches.register("permissions", properties.cooldown(),
+            Map.of("schema", SCHEMA, "ttl", properties.ttl().toString()));
         // Its own mapper, like AuditLogger's and for the same reason: this JSON is read by
         // versions of this service that have not been written yet, so its behaviour must not
         // change because somebody tuned the API's serialisation. Unknown properties are ignored
@@ -97,7 +98,7 @@ public class ValkeyPermissions implements CachedPermissions, HealthIndicator {
 
     @Override
     public GrantedPermissions resolve(Jwt caller, Supplier<GrantedPermissions> fromDatabase) {
-        if (quiet()) {
+        if (cache.quiet()) {
             bypassed.increment();
             return this.fromDatabase.record(fromDatabase);
         }
@@ -139,15 +140,15 @@ public class ValkeyPermissions implements CachedPermissions, HealthIndicator {
      * for a dependency it is built to survive. The detail is what an operator needs — a cache
      * that has quietly stopped serving is otherwise invisible, which is what this and the meters
      * exist for.
+     *
+     * <p>The same document {@code caches} publishes for this cache, deliberately: this indicator
+     * exists because its bean name answers "is this installation caching at all" (see
+     * {@code PermissionCacheConfiguration}), and two indicators describing one cache in two
+     * vocabularies would be worse than one sentence written twice.
      */
     @Override
     public Health health() {
-        Health.Builder health = Health.up()
-            .withDetail("mode", quiet() ? "database (cache degraded)" : "valkey")
-            .withDetail("schema", SCHEMA)
-            .withDetail("ttl", ttl.toString());
-        String failure = lastFailure.get();
-        return failure == null ? health.build() : health.withDetail("lastFailure", failure).build();
+        return Health.up().withDetails(cache.report()).build();
     }
 
     /** {@code authz:v<schema>:<tenant>:<caller>:<authz_version>}. */
@@ -178,14 +179,7 @@ public class ValkeyPermissions implements CachedPermissions, HealthIndicator {
 
     private void degrade(String operation, Exception failure) {
         unreachable.increment();
-        lastFailure.set(operation + ": " + failure.getClass().getSimpleName());
-        quietUntil.set(System.currentTimeMillis() + cooldown.toMillis());
-        LOG.warn("Permission cache {} failed; serving from the database for the next {}",
-            operation, cooldown, failure);
-    }
-
-    private boolean quiet() {
-        return System.currentTimeMillis() < quietUntil.get();
+        cache.failed(operation, failure);
     }
 
     static Timer resolutionTimer(MeterRegistry meters) {

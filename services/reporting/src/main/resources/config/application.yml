@@ -103,6 +103,27 @@ management:
   health:
     db:
       enabled: true
+    redis:
+      # OFF, and this service is why the setting is worth a paragraph. `identity`
+      # and `catalog` turned it off deliberately -- DOWN on the aggregate would
+      # stop a rollout for a dependency the service is built to run without --
+      # and this one did not, which read like the safer half of the
+      # disagreement. It was not.
+      #
+      # On the dev cluster on 2026-09-08 no service in `learn` could open a
+      # connection to Valkey for five hours. This service's aggregate
+      # /management/health answered 503 for its whole life on that cluster,
+      # and nothing looked at it: the kubelet probes the liveness and readiness
+      # groups, which exclude the cache by design and answered 200 in 7ms, and
+      # Argo reads pod readiness. A signal that is technically present and read
+      # by nobody is not a signal, and it cost the ONE thing an indicator here
+      # could have been: consistency, so that a new service copying an existing
+      # one cannot inherit the wrong half of a four-way disagreement.
+      #
+      # What replaces it is `caches` (CacheHealth), which reports every cache
+      # this service will run without, stays UP while it does, and says which
+      # ones are currently being skipped.
+      enabled: false
 
 springdoc:
   api-docs:
