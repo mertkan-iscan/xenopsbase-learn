@@ -10,7 +10,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.mock.web.MockHttpServletResponse;
 
 /**
- * The one error shape, asserted (T-9.13).
+ * The one error shape, asserted (T-9.10, #88).
  *
  * <p>This is the sort of thing that drifts without anybody noticing, which is how the platform came
  * to have five shapes and a comment claiming it had one. A shape nothing asserts is a convention,

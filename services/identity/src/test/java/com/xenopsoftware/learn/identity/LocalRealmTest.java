@@ -70,7 +70,7 @@ class LocalRealmTest {
         for (JsonNode user : realm.path("users")) {
             String username = user.path("username").asText("(no username)");
             if (!user.path("serviceAccountClientId").asText("").isBlank()) {
-                // A SERVICE ACCOUNT IS NOT A PERSON (T-9.12).
+                // A SERVICE ACCOUNT IS NOT A PERSON (T-9.11, #89).
                 //
                 // Keycloak represents one as a user, which is why it turns up in this loop, but
                 // it has no email, no side and no tenant, and provisioning never makes an

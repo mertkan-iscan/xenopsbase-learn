@@ -11,8 +11,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
  * Renders a refused entitlement decision (T-3.4) in the envelope the platform already uses —
- * the same {@code {"error":{"code","message"}}} shape {@code StatusGateFilter} writes, so a
- * client has one thing to parse whether the refusal came from the edge or from the decision.
+ * RFC 9457, the same shape {@code StatusGateFilter} writes, so a client has one thing to parse
+ * whether the refusal came from the edge or from the decision (T-9.10, #88).
+ *
+ * <p>This sentence named the old {@code {"error":{"code","message"}}} envelope for a while after
+ * the shape had stopped being that, which is the failure the one-shape work was written about:
+ * a comment asserting a consistency is the only thing tracking it, and it goes stale in silence.
  *
  * <p>The disclosure rule lives in {@link RefusalReason}, not here: a reason either names itself
  * to the caller or answers a bare 404, and this only renders what the reason permits. Keeping

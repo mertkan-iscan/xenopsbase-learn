@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { usePlaybackToken, type TokenState } from './usePlaybackToken.ts';
 
 /**
- * An RFC 9457 problem document, as the services now answer with (T-9.13). Built here rather than
+ * An RFC 9457 problem document, as the services now answer with (T-9.10, #88). Built here rather than
  * written inline so a change to the shape is one edit, and so a test cannot accidentally assert a
  * shape no service produces.
  */

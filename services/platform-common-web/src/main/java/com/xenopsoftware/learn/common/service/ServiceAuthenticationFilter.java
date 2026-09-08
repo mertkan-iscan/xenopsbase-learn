@@ -101,7 +101,7 @@ public class ServiceAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        // THE ROLE IS THE GATE; THE CLAIM IS THE IDENTITY (T-9.12).
+        // THE ROLE IS THE GATE; THE CLAIM IS THE IDENTITY (T-9.11, #89).
         //
         // Checking only the `svc` claim made "may this token make service calls" and "which
         // service is it" the same question, answered by one hardcoded claim mapper. That works

@@ -78,7 +78,7 @@ class ServiceAuthenticationFilterTest {
 
     @Test
     void aServiceAccountWithoutTheGrantIsRefused() throws Exception {
-        // THE ASSERTION THE GATE EXISTS FOR (T-9.12).
+        // THE ASSERTION THE GATE EXISTS FOR (T-9.11, #89).
         //
         // This token is a perfectly good service credential by the OLD rule: it verifies, and it
         // carries `svc: streaming` from the realm's own mapper. What it does not carry is the
@@ -137,7 +137,7 @@ class ServiceAuthenticationFilterTest {
      * @param withRole whether the token holds {@code svc-caller}. A service account that has the
      *     claim mapper but not the grant is the case the gate exists for, and it is reachable:
      *     the mapper is a per-client detail and the role is a separate grant, so the two CAN
-     *     disagree, and before T-9.12 the disagreement was invisible.
+     *     disagree, and before the gate landed (T-9.11, #89) the disagreement was invisible.
      */
     private static Jwt serviceToken(String service, boolean withRole) {
         var builder = Jwt.withTokenValue("svc").header("alg", "none")

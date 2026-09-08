@@ -89,7 +89,7 @@ function isTerminal(status: number): boolean {
 }
 
 /**
- * An RFC 9457 problem document (T-9.13).
+ * An RFC 9457 problem document (T-9.10, #88).
  *
  * `code` is an extension member the platform adds beside the standard fields. The RFC's
  * machine-readable identifier is `type`, a URI — but switching on a URI invites prefix-matching and

@@ -23,7 +23,7 @@
       },
       {
         "name": "svc-caller",
-        "description": "May make inter-service calls. The gate; the `svc` claim says which service (T-9.12)."
+        "description": "May make inter-service calls. The gate; the `svc` claim says which service (T-9.11, #89)."
       }
     ]
   },
