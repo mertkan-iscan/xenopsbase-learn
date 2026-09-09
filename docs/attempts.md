@@ -119,4 +119,5 @@ stale by the time it acted.
 - **`attempt_event`** — done, in T-6.8 (#67) and [`integrity-signals.md`](integrity-signals.md).
   Behavioural data about a person, on its own retention clock (ninety days, deleted while the
   attempt survives), and structurally unreachable from the grading path.
-- **Review.** T-6.9 (#68) renders from the form (T-6.5) under a policy.
+- **Review** — done, in T-6.9 (#68) and [`review.md`](review.md). Rendered from the form under a
+  per-test policy whose default shows the score and nothing else.

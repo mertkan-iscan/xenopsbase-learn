@@ -91,6 +91,26 @@ public class TestService {
         return tests.save(test);
     }
 
+    /**
+     * What a learner may see back, and when (T-6.9).
+     *
+     * <p>The attempt limit is read here and passed in, because "after all attempts" on a test with
+     * no limit means never — and the entity is the one place that refusal belongs, beside the other
+     * things a policy cannot mean.
+     */
+    public TestDefinition reviewedAs(UUID id,
+            com.xenopsoftware.learn.assessment.review.ReviewVisibility visibility,
+            com.xenopsoftware.learn.assessment.review.ReviewTiming timing,
+            java.time.Instant after) {
+        TestDefinition test = get(id);
+        try {
+            test.reviewedAs(visibility, timing, after, test.getAttemptsAllowed());
+        } catch (IllegalArgumentException notALegalPolicy) {
+            throw refused(notALegalPolicy.getMessage());
+        }
+        return tests.save(test);
+    }
+
     public void delete(UUID id) {
         tests.delete(get(id));
     }

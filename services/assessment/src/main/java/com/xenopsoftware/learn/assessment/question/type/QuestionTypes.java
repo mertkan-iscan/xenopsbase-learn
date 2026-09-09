@@ -81,6 +81,7 @@ public class QuestionTypes {
         QuestionTypeDefinition definition = typeOf(body);
         Shapes.text(body, "stem", "A question");
         validateMedia(body);
+        validateFeedback(body);
         try {
             definition.validateAsked(body.get("options"), body.get("answerKey"));
         } catch (IllegalArgumentException refused) {
@@ -125,6 +126,30 @@ public class QuestionTypes {
      * of getting it wrong is silent: a URL works until the asset moves, and then every question
      * that embedded one renders a broken image with no way to find them but a text search.
      */
+    /**
+     * The author's explanation, shown after the test when the review policy permits it (T-6.9).
+     *
+     * <p><b>Inside the version, and that is the criterion.</b> "Per-question feedback authored on
+     * the question version, so it stays correct across edits" is satisfied by the body being frozen
+     * once served (ADR-0106): an author who improves the wording writes a new version, and the
+     * learner who already read the old one still sees what they were shown. Feedback in a table
+     * keyed by question would be feedback that could be rewritten after somebody read it.
+     *
+     * <p>Optional, because most questions do not need one, and text, because it is prose a person
+     * reads. Never validated for content: an explanation is the author's to write.
+     */
+    private static void validateFeedback(JsonNode body) {
+        JsonNode feedback = body.get("feedback");
+        if (feedback == null || feedback.isNull()) {
+            return;
+        }
+        if (!feedback.isTextual() || feedback.asString().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "A question's 'feedback' is the explanation a learner reads afterwards, as text. "
+                + "Leave it out rather than sending an empty one.");
+        }
+    }
+
     private static void validateMedia(JsonNode body) {
         JsonNode media = body.get("media");
         if (media == null || media.isNull()) {

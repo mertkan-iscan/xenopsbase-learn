@@ -1,5 +1,7 @@
 package com.xenopsoftware.learn.assessment.exam;
 
+import com.xenopsoftware.learn.assessment.review.ReviewTiming;
+import com.xenopsoftware.learn.assessment.review.ReviewVisibility;
 import com.xenopsoftware.learn.assessment.scoring.QuestionScoring;
 import com.xenopsoftware.learn.assessment.scoring.ScoringMode;
 import com.xenopsoftware.learn.common.tenancy.TenantOwned;
@@ -84,6 +86,31 @@ public class TestDefinition extends TenantOwned {
     @Column(name = "time_limit_seconds")
     private Integer timeLimitSeconds;
 
+    /**
+     * How much of their own paper a learner may see back (T-6.9).
+     *
+     * <p>{@code SCORE_ONLY} by default. Opening it up is a deliberate act, and this is the axis
+     * that carries the risk: showing full answers on a certification exam drawn from a bank hands
+     * the bank to anybody willing to sit it once.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "review_visibility", nullable = false, length = 24)
+    private ReviewVisibility reviewVisibility;
+
+    /**
+     * When what the visibility permits actually opens.
+     *
+     * <p>{@code IMMEDIATELY} by default, and that is not a relaxation: under {@code SCORE_ONLY}
+     * there is nothing to gate, and a learner seeing their own score the moment they finish
+     * discloses nothing.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "review_timing", nullable = false, length = 24)
+    private ReviewTiming reviewTiming;
+
+    @Column(name = "review_after")
+    private Instant reviewAfter;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -104,6 +131,8 @@ public class TestDefinition extends TenantOwned {
         test.defaultPoints = BigDecimal.ONE;
         test.defaultMode = ScoringMode.ALL_OR_NOTHING;
         test.penaltyPoints = BigDecimal.ZERO;
+        test.reviewVisibility = ReviewVisibility.SCORE_ONLY;
+        test.reviewTiming = ReviewTiming.IMMEDIATELY;
         test.createdAt = Instant.now();
         test.updatedAt = test.createdAt;
         return test;
@@ -178,6 +207,55 @@ public class TestDefinition extends TenantOwned {
     /** The limit as a duration, or null when this test is untimed. */
     public Duration getTimeLimit() {
         return timeLimitSeconds == null ? null : Duration.ofSeconds(timeLimitSeconds);
+    }
+
+    /**
+     * What a learner may see back, and when (T-6.9).
+     *
+     * <p>One method for both, because they are one decision: a timing without a visibility gates
+     * nothing, and a visibility without a timing is a visibility that is always open.
+     *
+     * @throws IllegalArgumentException when the pairing cannot mean anything — see the two refusals
+     */
+    public void reviewedAs(ReviewVisibility visibility, ReviewTiming timing, Instant after,
+            Integer attemptsAllowedNow) {
+        if (visibility == null || timing == null) {
+            throw new IllegalArgumentException("A review policy is a visibility and a timing.");
+        }
+        if (timing == ReviewTiming.AFTER_DATE && after == null) {
+            throw new IllegalArgumentException(
+                "A review that opens after a date needs the date. Without one it opens at "
+                + "whichever moment a null comparison happens to fall.");
+        }
+        if (timing != ReviewTiming.AFTER_DATE && after != null) {
+            throw new IllegalArgumentException(
+                "Only a review timed to a date has a date. Leaving one on another timing is a "
+                + "value nothing reads, which is the kind that is later believed.");
+        }
+        if (timing == ReviewTiming.AFTER_ALL_ATTEMPTS && attemptsAllowedNow == null) {
+            // The trap this refusal exists for: on a test anybody may sit any number of times,
+            // "after all attempts" means never, and the learner who can never see their paper is
+            // the one who finds out.
+            throw new IllegalArgumentException(
+                "This test has no attempt limit, so \"after all attempts\" would mean never. Set "
+                + "a limit, or choose another timing.");
+        }
+        this.reviewVisibility = visibility;
+        this.reviewTiming = timing;
+        this.reviewAfter = after;
+        touch();
+    }
+
+    public ReviewVisibility getReviewVisibility() {
+        return reviewVisibility;
+    }
+
+    public ReviewTiming getReviewTiming() {
+        return reviewTiming;
+    }
+
+    public Instant getReviewAfter() {
+        return reviewAfter;
     }
 
     /** What a question in this test is worth unless a section says otherwise (T-6.5). */

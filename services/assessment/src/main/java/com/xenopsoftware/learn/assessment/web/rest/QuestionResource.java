@@ -167,6 +167,27 @@ public class QuestionResource {
         return new DescriptionView(questions.get(id).getDifficultyId(), questions.tagsOf(id));
     }
 
+    /**
+     * The version as an AUTHOR needs it: the whole body, answer key and feedback included.
+     *
+     * <p>Its own path so that the key is not in the payload of every ordinary read, and so that
+     * there is <b>one</b> place for {@code content:author} to be enforced when grants travel
+     * between services (T-9.11). Today nothing enforces it and every authenticated member of the
+     * company can call this — which is the module's standing gap, stated here rather than papered
+     * over, and the reason T-6.9's last criterion is not fully met.
+     */
+    @GetMapping("/questions/{id}/versions/{versionId}/authoring")
+    @ApiResponse(responseCode = "200",
+        description = "The version in full, including the answer key. The endpoint a permission "
+            + "goes on; until grants travel between services, nothing checks one.")
+    @ApiResponse(responseCode = "404", description = "No such question or version",
+        content = @Content)
+    public VersionView authoring(@PathVariable UUID id, @PathVariable UUID versionId) {
+        QuestionVersion asked = questions.version(id, versionId);
+        return new VersionView(asked.getId(), asked.getVersion(), bodies.read(asked.getBody()),
+            asked.getFirstServedAt(), asked.getCreatedAt());
+    }
+
     @PutMapping("/questions/{id}/description")
     @ApiResponse(responseCode = "200", description = "The question's draw attributes as they now are")
     @ApiResponse(responseCode = "400",
@@ -213,8 +234,40 @@ public class QuestionResource {
             question.getCreatedAt(), question.getUpdatedAt());
     }
 
+    /**
+     * A version, <b>with the answer key removed</b> (T-6.9).
+     *
+     * <p>The key is the one thing on this platform that a learner must never be handed, and until
+     * this change every read here carried it: fetch a question by id and the correct answer was in
+     * the payload, in the browser's network tab, and in whatever cached it on the way — without
+     * anybody trying.
+     *
+     * <p><b>This is not an authorization check and must not be mistaken for one.</b> Nothing here
+     * can tell an author from a learner: identity owns the grants and does not expose them to
+     * another process (T-9.11, ADR-0109), and a local "is this person an author" shortcut is
+     * exactly the special case ADR-0103 refuses. A determined learner can still call
+     * {@link #authoring} below.
+     *
+     * <p>What it does buy is real and worth having on its own: the key stops travelling by
+     * accident, and there is now exactly ONE endpoint for a permission to land on when grants
+     * arrive, instead of four.
+     */
     private VersionView view(QuestionVersion asked) {
-        return new VersionView(asked.getId(), asked.getVersion(), bodies.read(asked.getBody()),
+        return new VersionView(asked.getId(), asked.getVersion(),
+            withoutTheAnswerKey(bodies.read(asked.getBody())),
             asked.getFirstServedAt(), asked.getCreatedAt());
+    }
+
+    private static JsonNode withoutTheAnswerKey(JsonNode body) {
+        if (!body.isObject()) {
+            return body;
+        }
+        tools.jackson.databind.node.ObjectNode redacted =
+            (tools.jackson.databind.node.ObjectNode) body.deepCopy();
+        redacted.remove("answerKey");
+        // Feedback goes too. It is written to be read AFTER the test, under a review policy
+        // (T-6.9), and an explanation of why 'b' is right is an answer key in prose.
+        redacted.remove("feedback");
+        return redacted;
     }
 }

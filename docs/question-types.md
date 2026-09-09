@@ -99,5 +99,8 @@ Two things to get right, both of which this repository has paid for:
   `validateResponse` now has its caller, and it validates against the version the learner was
   *served* rather than the question as it is now: a version edited since is a different question.
   `grade` still waits for T-6.7 (#66) to call it.
+- **Feedback** is a field of the body now (T-6.9): optional text, validated here, shown after
+  the test when the review policy permits it. Inside the version because the version is frozen once
+  served, which is what "stays correct across edits" means.
 - **Reporting.** T-6.3's last criterion asks for fixtures exercised "from authoring to scoring to
   reporting". Authoring and scoring are covered end to end; item analysis is T-7.7 (#75).

@@ -121,6 +121,6 @@ certification is exactly the circumstance in which somebody looks.
   an insufficient pool leaves no attempt behind that could never be sat. `test_form.attempt_id`
   still carries no foreign key: adding one is a small migration T-6.7 or a follow-up can make now
   that `attempt` exists.
-- **A review screen.** T-6.9 (#68) reconstructs what was served from the form, under a policy. The
-  form already holds everything it needs.
+- **A review screen** — done, in T-6.9 (#68) and [`review.md`](review.md). It reconstructs what
+  was served from the form, option order included, under a per-test policy.
 - **Item analysis.** T-7.7 (#75) counts responses per served version; the form is the join it walks.
