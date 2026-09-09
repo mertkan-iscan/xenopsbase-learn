@@ -48,6 +48,26 @@ const services = [
     spec: join(root, 'api', 'reporting-openapi.json'),
     types: join(root, 'src', 'shared', 'api', 'reporting.d.ts'),
   },
+  {
+    // What training exists, who it reaches, and what is pinned inside a video (E5). Reached
+    // through the gateway rather than directly -- which is true of assessment below as well, and
+    // is why neither has a URL a browser ever sees. The generator still talks to the service
+    // itself, because what it is checking is the SERVICE's description of itself; routing is the
+    // gateway's contract and UpstreamsTest is where that is asserted.
+    name: 'catalog',
+    url: process.env.CATALOG_URL ?? 'http://localhost:8085',
+    spec: join(root, 'api', 'catalog-openapi.json'),
+    types: join(root, 'src', 'shared', 'api', 'catalog.d.ts'),
+  },
+  {
+    // Banks, questions, tests, attempts and marking (E6). The largest surface here by some way,
+    // and the one where a drifted client would be least obvious: an admin console that cannot
+    // build a question is broken loudly, and one that builds a subtly wrong one is not.
+    name: 'assessment',
+    url: process.env.ASSESSMENT_URL ?? 'http://localhost:8086',
+    spec: join(root, 'api', 'assessment-openapi.json'),
+    types: join(root, 'src', 'shared', 'api', 'assessment.d.ts'),
+  },
 ];
 
 const mode = process.argv[2];

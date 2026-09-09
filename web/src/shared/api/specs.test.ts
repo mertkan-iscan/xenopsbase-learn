@@ -22,7 +22,9 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const apiDir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'api');
-const services = ['identity', 'streaming', 'reporting'] as const;
+// All five that publish a contract. Catalog and assessment joined when the gateway learned to
+// route to them: a structural check applied to three of five is a check for three.
+const services = ['identity', 'streaming', 'reporting', 'catalog', 'assessment'] as const;
 
 type Response = { content?: Record<string, { schema?: { $ref?: string } }> };
 type Operation = { responses?: Record<string, Response> };
