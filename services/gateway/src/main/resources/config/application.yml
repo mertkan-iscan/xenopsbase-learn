@@ -1,0 +1,97 @@
+# The gateway: the one origin a browser talks to (T-10.2, ADR-0109).
+#
+# It owns no database. Everything it keeps -- the session, and the tokens inside
+# it -- lives in Valkey, because ADR-0109 runs this at two replicas and a session
+# in a heap is a session that belongs to whichever pod the ingress picked.
+
+spring:
+  application:
+    name: gateway
+
+  data:
+    redis:
+      host: ${VALKEY_HOST:localhost}
+      port: ${VALKEY_PORT:6379}
+      password: ${VALKEY_PASSWORD:}
+
+  session:
+    redis:
+      # Namespaced, because the same Valkey holds T-2.5's permission cache, the
+      # published tenant status (T-1.4) and the playback mint limits (T-3.4). A
+      # shared keyspace with no prefix is a shared keyspace until somebody runs
+      # the wrong FLUSHALL.
+      namespace: gateway:session
+    timeout: ${GATEWAY_SESSION_TIMEOUT:PT8H}
+
+  security:
+    oauth2:
+      client:
+        provider:
+          oidc:
+            issuer-uri: ${OIDC_ISSUER_URI:http://localhost:8081/realms/xenopslearn}
+        registration:
+          oidc:
+            client-id: ${GATEWAY_CLIENT_ID:gateway}
+            client-secret: ${GATEWAY_CLIENT_SECRET:}
+            authorization-grant-type: authorization_code
+            # THE APP'S ORIGIN, NOT THIS PROCESS'S. Spring's default builds the redirect from
+            # the request it saw, which behind a proxy is the gateway's own address -- so a
+            # developer signing in on :5173 would be sent to :8080 and leave the one origin
+            # halfway through sign-in. In the cluster the ingress makes them the same host and
+            # the default would be right; setting it explicitly makes both cases the same.
+            redirect-uri: ${OIDC_REDIRECT_URI:http://localhost:5173/login/oauth2/code/oidc}
+            # openid and profile to know who is here; OFFLINE ACCESS IS NOT
+            # REQUESTED. A refresh token that outlives the SSO session would
+            # mean an administrator ending somebody's session at the issuer does
+            # not end their access here, which is the one thing sign-out has to
+            # be able to promise.
+            scope: openid,profile,email
+
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    session:
+      cookie:
+        name: LEARNSESSION
+        # http-only, because the whole design is that no script can read the
+        # credential -- including one running in an uploaded SCORM package.
+        http-only: true
+        # lax rather than strict: strict would drop the cookie on the way back
+        # from Keycloak and turn every sign-in into a loop that looks like a
+        # broken identity provider.
+        same-site: lax
+        secure: ${SESSION_COOKIE_SECURE:false}
+
+# Where the relay sends things. Same three services the dev server's vite proxy
+# names, in the same order, for the same reason -- see Upstreams.
+gateway:
+  identity: ${IDENTITY_URL:http://localhost:8082}
+  streaming: ${STREAMING_URL:http://localhost:8083}
+  reporting: ${REPORTING_URL:http://localhost:8084}
+  app-url: ${APP_URL:http://localhost:5173}
+
+management:
+  endpoints:
+    web:
+      base-path: /management
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when-authorized
+  health:
+    redis:
+      # OFF, like every other service in this repository (#126) -- with one
+      # difference worth stating: here Valkey is NOT optional. It holds the
+      # sessions, so losing it signs everybody out rather than degrading
+      # quietly. The indicator is still off because DOWN on the aggregate stops
+      # a rollout, and `caches` is where a person looks; what this service owes
+      # is that the failure is loud in the only way that matters, which is that
+      # nobody can sign in.
+      enabled: false
+
+logging:
+  level:
+    org.springframework.security: ${SECURITY_LOG_LEVEL:INFO}
