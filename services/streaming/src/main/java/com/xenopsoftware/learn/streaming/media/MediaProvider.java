@@ -51,4 +51,18 @@ public interface MediaProvider {
 
     /** Deleting a video must delete the bytes (T-3.8). Idempotent: a second delete is a no-op. */
     void delete(String providerRef);
+
+    /**
+     * One page of every ref this provider is holding for us (T-3.8).
+     *
+     * <p>For the other direction of the same problem: an asset at the provider with no row here is
+     * storage nobody knows we are paying for, and there is no way to find one except by asking what
+     * exists. {@code OrphanReconciler} reports what it finds and deletes nothing.
+     *
+     * <p>Paginated because the answer grows with the customer and a sweep that had to hold every
+     * ref in memory would be a sweep that stops running at exactly the scale it matters.
+     *
+     * @param cursor null for the first page, otherwise a cursor from a previous result
+     */
+    ProviderAssetPage list(String cursor);
 }

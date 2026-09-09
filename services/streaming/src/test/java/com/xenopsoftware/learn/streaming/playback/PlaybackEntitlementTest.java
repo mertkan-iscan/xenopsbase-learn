@@ -305,6 +305,38 @@ class PlaybackEntitlementTest extends PostgresTestHarness {
         assertThat(refusals()).containsExactly(RefusalReason.NOT_PLAYABLE.name());
     }
 
+    /**
+     * A deleted video is not a video that will be ready later (T-3.8).
+     *
+     * <p>NOT_PLAYABLE says "not ready to play yet", which invites waiting — and a learner
+     * mid-course would refresh forever for a video nobody is going to encode. 410 with its own
+     * code is the answer that lets them stop. It is not a 404 because this learner is entitled:
+     * they passed status, permission, assignment and gate, so the disclosure rule has nothing
+     * left to protect.
+     */
+    @Test
+    void anEntitledLearnerIsToldWhenTheVideoHasBeenRemoved() throws Exception {
+        jdbc.update("UPDATE video_asset SET state = 'DELETED' WHERE id = ?", asset);
+
+        assertThat(mint(node, LEARNER).statusCode()).isEqualTo(410);
+        assertThat(mint(node, LEARNER).body()).contains("CONTENT_REMOVED");
+        assertThat(refusals())
+            .containsExactly(RefusalReason.CONTENT_REMOVED.name(),
+                RefusalReason.CONTENT_REMOVED.name());
+    }
+
+    /**
+     * And from the moment of the request, not from whenever the provider answers: the customer's
+     * deletion is honoured on their clock rather than the vendor's.
+     */
+    @Test
+    void aVideoStopsPlayingWhileItsDeletionIsStillInFlight() throws Exception {
+        jdbc.update("UPDATE video_asset SET state = 'DELETING' WHERE id = ?", asset);
+
+        assertThat(mint(node, LEARNER).statusCode()).isEqualTo(410);
+        assertThat(refusals()).containsExactly(RefusalReason.CONTENT_REMOVED.name());
+    }
+
     @Test
     void aCatalogAnswerNamingAnotherCompanysAssetSignsNothing() throws Exception {
         UUID foreign = readyVideo("globex", Duration.ofHours(1));

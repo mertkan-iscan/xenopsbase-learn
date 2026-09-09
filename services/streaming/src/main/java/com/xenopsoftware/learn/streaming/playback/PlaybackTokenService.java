@@ -165,6 +165,15 @@ public class PlaybackTokenService {
         VideoAsset asset = videoAssets.findById(node.videoAssetId())
             .orElseThrow(() -> new PlaybackRefusedException(RefusalReason.NOT_PLAYABLE,
                 "no such video asset in this tenant: " + node.videoAssetId()));
+        if (asset.isBeingRemoved()) {
+            // Before the READY check, and with its own reason: a deleted video is not a video that
+            // will be ready later, and NOT_PLAYABLE's "not ready yet" would have a learner
+            // refreshing a course page forever (T-3.8). DELETING counts, because the customer's
+            // deletion is honoured from the moment they ask rather than from whenever the provider
+            // answers.
+            throw new PlaybackRefusedException(RefusalReason.CONTENT_REMOVED,
+                "the video is " + asset.getState());
+        }
         if (asset.getState() != VideoAssetState.READY) {
             throw new PlaybackRefusedException(RefusalReason.NOT_PLAYABLE,
                 "the video is " + asset.getState());

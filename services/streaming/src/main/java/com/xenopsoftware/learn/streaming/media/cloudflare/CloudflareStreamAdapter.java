@@ -15,11 +15,12 @@ import com.xenopsoftware.learn.streaming.media.MediaAssetStatus;
 import com.xenopsoftware.learn.streaming.media.MediaProvider;
 import com.xenopsoftware.learn.streaming.media.PlaybackGrant;
 import com.xenopsoftware.learn.streaming.media.PlaybackToken;
+import com.xenopsoftware.learn.streaming.media.ProviderAssetPage;
 import com.xenopsoftware.learn.streaming.media.ProviderEvent;
 import com.xenopsoftware.learn.streaming.media.UploadRequest;
 import com.xenopsoftware.learn.streaming.media.UploadTarget;
-import java.net.URI;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.text.ParseException;
@@ -28,7 +29,9 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -56,6 +59,15 @@ public class CloudflareStreamAdapter implements MediaProvider {
     private static final Logger LOG = LoggerFactory.getLogger(CloudflareStreamAdapter.class);
 
     private static final ObjectMapper JSON = new ObjectMapper();
+
+    /**
+     * How many videos to ask for per page of the orphan sweep (T-3.8).
+     *
+     * <p>A round number rather than the API's maximum: this runs on a schedule with nothing
+     * waiting on it, and a smaller page is a shorter transaction against somebody else's rate
+     * limit.
+     */
+    private static final int PAGE_SIZE = 100;
 
     private final RestClient api;
     private final String webhookSecret;
@@ -205,6 +217,45 @@ public class CloudflareStreamAdapter implements MediaProvider {
         }
     }
 
+    /**
+     * One page of the account's videos, oldest first (T-3.8).
+     *
+     * <p>Paginated by TIME rather than by an offset, because that is what this API offers: the
+     * cursor is the {@code created} timestamp of the last video on the previous page, passed back
+     * as {@code start}. An offset would drift while the list is being written to; a timestamp
+     * cannot skip a video, and the cost of it is a duplicate at each boundary, which a sweep
+     * comparing against a table does not care about.
+     *
+     * <p>UNVERIFIED AGAINST THE LIVE API, like every other method on this adapter: the real
+     * Cloudflare account is real spend per run and is exercised only by T-9.14's
+     * workflow_dispatch job (#100). What is tested here is the fake, and what is tested there is
+     * whether this is right.
+     */
+    @Override
+    public ProviderAssetPage list(String cursor) {
+        VideoListEnvelope envelope = api.get()
+            .uri(uri -> {
+                uri.path("/stream").queryParam("limit", PAGE_SIZE).queryParam("asc", "true");
+                if (cursor != null && !cursor.isBlank()) {
+                    uri.queryParam("start", cursor);
+                }
+                return uri.build();
+            })
+            .retrieve()
+            .body(VideoListEnvelope.class);
+
+        List<VideoResult> page = envelope == null || envelope.result() == null
+            ? List.of() : envelope.result();
+        List<String> refs = page.stream().map(VideoResult::uid).filter(Objects::nonNull).toList();
+
+        // A short page is the last page. Asking for one more to be sure would double the number of
+        // requests to learn something the next run finds out for free.
+        if (page.size() < PAGE_SIZE) {
+            return ProviderAssetPage.last(refs);
+        }
+        return new ProviderAssetPage(refs, page.get(page.size() - 1).created());
+    }
+
     /** Five minutes each way: enough for clock skew, not enough to replay yesterday. */
     private static boolean fresh(String time) {
         try {
@@ -271,7 +322,10 @@ public class CloudflareStreamAdapter implements MediaProvider {
     record VideoEnvelope(boolean success, VideoResult result) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record VideoResult(String uid, VideoStatus status, Double duration) {}
+    record VideoResult(String uid, VideoStatus status, Double duration, String created) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record VideoListEnvelope(boolean success, java.util.List<VideoResult> result) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record VideoStatus(String state, String errorReasonText) {}
