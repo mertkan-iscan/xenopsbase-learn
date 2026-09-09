@@ -16,27 +16,23 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
-    // The browser talks to ONE origin, in development as in production. In production that is
-    // the gateway, which serves the app and relays to the services behind it (T-9.11, T-10.2);
-    // here the dev server stands in for it. The alternative -- calling http://localhost:8082
-    // directly -- would mean opening CORS on every service to a development origin, which is a
-    // production-shaped hole cut for a development convenience.
-    // ORDER MATTERS HERE, and it is the one thing about this block worth reading twice.
+    // ONE ORIGIN, AND NOW ONE ROUTER BEHIND IT (T-10.2).
     //
-    // Two services answer under `/api/v1/me`: identity owns `/me` and `/me/reach/...`, and
-    // streaming owns `/me/nodes/{id}/playback-token` (T-3.4). A prefix router cannot split those
-    // by prefix alone, so the more specific rules are listed FIRST -- Vite tests proxy keys in
-    // insertion order and takes the first match. Put `/api` first and every playback token
-    // request goes to identity and 404s, which looks exactly like an entitlement refusal.
+    // This block used to carry a copy of the service routing table, with a warning that its order
+    // mattered: two services answer under `/api/v1/me`, so a general `/api` rule listed first sent
+    // every playback token to identity. That table now lives in the gateway's `Upstreams`, in one
+    // place, and everything here goes to the gateway -- which is exactly what happens in the
+    // cluster, so a developer's browser and a customer's take the same path through the same code.
     //
-    // In production the gateway does this routing (T-10.2) and it will need the same care; this
-    // block is where the collision is documented until then.
+    // What this costs is that `npm run dev` now needs the gateway running as well as the services.
+    // What it buys is that sign-in, session cookies, CSRF and relaying are exercised in
+    // development rather than first meeting reality in a cluster.
     proxy: {
-      '/api/v1/telemetry': { target: process.env.REPORTING_URL ?? 'http://localhost:8084', changeOrigin: true },
-      '/api/v1/me/nodes': { target: process.env.STREAMING_URL ?? 'http://localhost:8083', changeOrigin: true },
-      '/api/v1/videos': { target: process.env.STREAMING_URL ?? 'http://localhost:8083', changeOrigin: true },
-      '/api': { target: process.env.IDENTITY_URL ?? 'http://localhost:8082', changeOrigin: true },
-      '/v3/api-docs': { target: process.env.IDENTITY_URL ?? 'http://localhost:8082', changeOrigin: true },
+      '/api': { target: process.env.GATEWAY_URL ?? 'http://localhost:8080', changeOrigin: false },
+      '/auth': { target: process.env.GATEWAY_URL ?? 'http://localhost:8080', changeOrigin: false },
+      // The two paths sign-in itself travels: out to the issuer, and back with the code.
+      '/oauth2': { target: process.env.GATEWAY_URL ?? 'http://localhost:8080', changeOrigin: false },
+      '/login/oauth2': { target: process.env.GATEWAY_URL ?? 'http://localhost:8080', changeOrigin: false },
     },
   },
   build: {

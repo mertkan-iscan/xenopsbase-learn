@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.xenopsoftware.learn</groupId>
+        <artifactId>services</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>gateway</artifactId>
+    <name>Gateway</name>
+    <description>The one origin a browser talks to: sign-in, session, and the relay inward</description>
+
+    <properties>
+        <start-class>com.xenopsoftware.learn.gateway.GatewayApp</start-class>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.xenopsoftware.learn</groupId>
+            <artifactId>platform-common-web</artifactId>
+        </dependency>
+
+        <!--
+            THE OAUTH2 CLIENT, WHICH IS THE WHOLE POINT OF THIS MODULE.
+
+            Every other service in this repository is a resource SERVER: it
+            receives a token and verifies it. This one is the client that
+            obtains it, on behalf of a person, and keeps it where their browser
+            cannot reach (T-10.2). That difference is the reason this module
+            exists at all rather than being a route in identity.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-client</artifactId>
+        </dependency>
+
+        <!--
+            SESSIONS IN VALKEY, NOT IN THIS PROCESS'S HEAP.
+
+            ADR-0109 runs this at two replicas, and an in-memory session would
+            mean a person is signed in to whichever pod the ingress happened to
+            pick and signed out of the other: a bug that looks like a flaky
+            login and is really a missing decision. It also means a rolling
+            deploy signs everybody out, which is the same failure once a
+            quarter instead of every request.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-session-data-redis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5-engine</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>com.google.cloud.tools</groupId>
+                <artifactId>jib-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>

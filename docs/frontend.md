@@ -106,18 +106,38 @@ written next to it**: jsdom has no layout, so axe cannot measure contrast and re
 either way. Leaving it on would make the suite look like it checks something it does not. Contrast
 belongs to a browser-based check when there are screens worth running one against (T-10.8).
 
+## Sign-in, and why there is no token here (T-10.2)
+
+**The browser holds an opaque session cookie and nothing else.** The gateway holds the access and
+refresh tokens, renews them before they expire, and attaches one to every call it relays inward.
+
+The usual answer — the authorization-code flow in the SPA, access token in `localStorage` or in a
+variable — is wrong for *this* product rather than in general. This application will render
+uploaded SCORM packages (T-4.1) and third-party embeds, so "any script that reaches the page can
+read the token" stops being a caution and becomes a path: a package a customer uploaded, running on
+this origin, reading a bearer token for their whole company. Keeping the token out of the browser
+makes that path not exist rather than defended. The full argument is in the gateway's
+`SecurityConfiguration`, next to the code that enforces it.
+
+What follows from it, and is worth knowing before writing a screen:
+
+- **There is no refresh logic in this application, and there must not be.** No expiry timer, no
+  retry-on-401-because-the-token-expired. The gateway renews five minutes before expiry, so a
+  request simply carries a fresh token.
+- **A write needs the CSRF header.** The credential is a cookie now, so every write behind the
+  gateway is reachable from any page a person has open. `shared/api/client.ts` adds the header;
+  anything calling `fetch` directly has to as well.
+- **A 401 means the session ended, not that you may not.** The gateway sends `SESSION_ENDED`, and
+  the difference decides whether a screen preserves work or discards it.
+- **Work that must survive re-authentication goes through `shared/auth/recovery.ts`.** Signing in
+  again is a full navigation, so anything in memory is gone. The exam case is the reason it exists:
+  park the answers, sign in, replay.
+- **`npm run dev` now needs the gateway running** as well as the services, because the dev proxy
+  sends everything to it. That is the point: sign-in, cookies, CSRF and relaying are exercised in
+  development instead of first meeting reality in a cluster.
+
 ## What is deliberately not here yet
 
-- **A second service to talk to.** `streaming` joined `identity` with T-3.5: both are generated
-  into typed clients by `npm run api:generate` and both are drift-checked. They share one origin,
-  which makes the dev proxy's rule ORDER load-bearing — `identity` owns `/api/v1/me` and
-  `streaming` owns `/api/v1/me/nodes/{id}/playback-token`, so the specific rules come first.
-  `vite.config.ts` says so where the rules are; in production the gateway will need the same care
-  (T-10.2).
-- **Sign-in.** T-10.2 owns it: the gateway holds the session, and this application never sees a
-  password or a refresh token. Until then a token from `make token U=acme-admin` goes in
-  `.env.local` as `VITE_DEV_TOKEN`, which is named so that the day it appears in a production
-  build it is obvious in a diff.
 - **A design system.** It arrives with the screens it has to serve (T-10.3, T-10.4). What exists
   is visible focus, landmarks and a skip link — the parts that are structural rather than
   decorative.

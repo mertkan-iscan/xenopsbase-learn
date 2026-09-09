@@ -46,6 +46,7 @@
         <module>reporting</module>
         <module>catalog</module>
         <module>assessment</module>
+        <module>gateway</module>
     </modules>
 
     <properties>
