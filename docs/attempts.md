@@ -116,6 +116,7 @@ stale by the time it acted.
   transition, whether the learner made it or the reaper did, and it runs inside the submitting
   transaction. `AWAITING_GRADING` turned out to be a second column rather than a fifth state, for
   the same reason `EXPIRED` and `ABANDONED` are two: an attempt can be both.
-- **`attempt_event`.** T-6.8 (#67) — behavioural data about a person, with its own retention story,
-  which is a reason to keep it out of this table rather than a reason to defer it.
+- **`attempt_event`** — done, in T-6.8 (#67) and [`integrity-signals.md`](integrity-signals.md).
+  Behavioural data about a person, on its own retention clock (ninety days, deleted while the
+  attempt survives), and structurally unreachable from the grading path.
 - **Review.** T-6.9 (#68) renders from the form (T-6.5) under a policy.

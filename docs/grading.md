@@ -110,6 +110,13 @@ special case ADR-0103 refuses, and it would be the thing an endpoint later trust
 
 The shape is right and the check is absent, deliberately and visibly.
 
+## Integrity signals are not part of this
+
+`attempt_event` (T-6.8) is **structurally unreachable** from here: an ArchUnit rule fails the build
+if `grading` or `scoring` depends on the `integrity` package. No signal can fail a learner, reduce a
+mark or end an attempt, and the only version of that promise worth having is one the compiler keeps.
+See [`integrity-signals.md`](integrity-signals.md).
+
 ## What is not here yet
 
 - **A permission on the queue**, above.

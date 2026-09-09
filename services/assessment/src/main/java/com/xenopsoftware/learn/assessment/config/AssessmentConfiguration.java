@@ -1,6 +1,7 @@
 package com.xenopsoftware.learn.assessment.config;
 
 import com.xenopsoftware.learn.assessment.attempt.AttemptProperties;
+import com.xenopsoftware.learn.assessment.integrity.IntegrityProperties;
 import java.time.Clock;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -17,7 +18,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  */
 @Configuration(proxyBeanMethods = false)
 @EnableScheduling
-@EnableConfigurationProperties(AttemptProperties.class)
+@EnableConfigurationProperties({AttemptProperties.class, IntegrityProperties.class})
 public class AssessmentConfiguration {
 
     /**

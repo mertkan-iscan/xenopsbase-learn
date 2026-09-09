@@ -77,4 +77,31 @@ class TechnicalStructureTest {
         .resideInAPackage("com.xenopsoftware.learn.assessment..")
         .because("modules merged into one process (ADR-0109) must stay separable")
         .allowEmptyShould(true);
+
+    /**
+     * NO SIGNAL CAN EVER FAIL ANYBODY, AND THIS IS WHAT MAKES THAT STRUCTURAL (T-6.8).
+     *
+     * <p>The criterion is "no automatic failure, score reduction or termination from any signal".
+     * That is a promise, and a promise living in a comment is one somebody keeps until the week
+     * they are asked to catch a cheat — at which point the change that breaks it is a single import
+     * in a service that already computes scores.
+     *
+     * <p>So the grading and scoring packages may not reach the integrity package at all. Not
+     * "should not read it carefully": cannot see it. A build that wanted to auto-fail on a focus
+     * loss would have to delete this rule first, which is a thing a reviewer can notice.
+     *
+     * <p>The reverse direction is deliberately allowed: {@code integrity} reads an attempt to check
+     * it belongs to the caller and is still in progress. Telemetry may know about an exam; an exam
+     * may not know about telemetry.
+     */
+    @ArchTest
+    static final ArchRule gradingCannotSeeIntegritySignals = noClasses()
+        .that()
+        .resideInAnyPackage("com.xenopsoftware.learn.assessment.grading..",
+                            "com.xenopsoftware.learn.assessment.scoring..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAPackage("com.xenopsoftware.learn.assessment.integrity..")
+        .because("T-6.8: integrity signals are recorded and never used to auto-fail, and the only "
+            + "version of that promise worth having is one the compiler keeps");
 }
