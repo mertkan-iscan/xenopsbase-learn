@@ -1,9 +1,9 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# The three application services. Everything they run ON — Postgres, Keycloak,
-# Valkey, the ingress — is the stemcell's, deliberately: this product does not
-# operate a second copy of the platform, it is a tenant of the one that exists.
+# The application services. Everything they run ON — Postgres, Keycloak, Valkey,
+# the ingress — is the stemcell's, deliberately: this product does not operate a
+# second copy of the platform, it is a tenant of the one that exists.
 resources:
   # The issuer every service reads, and which they all wait for before starting.
   # Listed first because nothing below starts without it.
@@ -11,6 +11,18 @@ resources:
   - identity.yaml
   - streaming.yaml
   - reporting.yaml
+
+  # CATALOG AND ASSESSMENT, which had been building, testing and publishing
+  # images for weeks with no Deployment. Nothing reported it: a service nobody
+  # deploys is a green build. They arrive together with the routing that made
+  # them reachable (#143).
+  #
+  # THEIR DATABASE ROLES AND SECRETS MUST EXIST FIRST
+  # (xenopsbase-stemcell#452). A pod that starts before its role does is a
+  # CrashLoopBackOff with a five-minute backoff, and the fix is then waiting
+  # rather than acting.
+  - catalog.yaml
+  - assessment.yaml
 
   # THE PUBLIC HALF (T-10.2), added together because none of the three is any
   # use without the other two: the ingress needs both backends to exist, and a
@@ -38,6 +50,24 @@ resources:
 # resolve a digest to know which build this is — per image, because they do not
 # move together.
 images:
+  - name: ghcr.io/mertkan-iscan/xenopsbase-learn/catalog
+    # Commit 2f93663, and the first image this service has ever run.
+    #
+    # Courses, gates, assignments, due dates, the learner home screen, and the
+    # interstitials pinned inside a video's timeline. It both publishes and
+    # consumes on the bus: streaming's derived completions and assessment's
+    # graded attempts become node_completion rows here, which is what lets a
+    # gate be ONE query against catalog's own table.
+    digest: sha256:2a910ab7894478affb0a239ba750d9d6e53181a9db9e9c0cb8177d7b3772fcd5
+  - name: ghcr.io/mertkan-iscan/xenopsbase-learn/assessment
+    # Commit 2f93663, and the first one.
+    #
+    # The largest surface in the product: banks, questions, tests, forms,
+    # attempts, marking, integrity signals and review. It publishes
+    # assessment.attempt.graded, which is how a passed test opens the gate
+    # behind it -- without which a learner can pass a certification exam and
+    # stay locked out of the course, with nothing reporting a fault.
+    digest: sha256:eeb44b47d5f691eb3d8477f72a0c45b95114c943c3f7259875f7df91d450005b
   - name: ghcr.io/mertkan-iscan/xenopsbase-learn/gateway
     # Commit d04d4b6, and the first image this service has ever had (T-10.2).
     #
@@ -53,7 +83,25 @@ images:
     #     https://learn-dev.xenopsoftware.com/login/oauth2/code/oidc
     #   - learn-gateway-client must exist in this namespace
     #     (xenopsbase-stemcell#451)
-    digest: sha256:48a59559e8c57101eb6ac9141761bc42f156ddafb5f065e60cf74d884045e845
+    #
+    # 2026-09-10 — MOVED TO 2f93663, AND THIS IS THE MOVE THAT MAKES THE TWO
+    # SERVICES BELOW REACHABLE. The image above is d04d4b6, whose `Upstreams`
+    # does not contain the string "catalog" anywhere: its routing table knows
+    # identity, streaming and reporting, so 70 of the platform's 151 operations
+    # answered 404 at the door no matter what was running behind it (T-9.11,
+    # #143).
+    #
+    # Deploying catalog and assessment without this would have been the same
+    # bug in a more expensive form -- two healthy pods, a green Argo sync, and
+    # every call to either still refused by the router in front of them.
+    #
+    # The table is ordered and the order is load-bearing: two services answer
+    # under /api/v1/me, so `/api/v1/me/nodes/*/interstitials` is listed before
+    # the general streaming rule or a learner's interstitials go to the wrong
+    # service. `Route.matches` is segment-wise now rather than a prefix test,
+    # which is what makes the wildcard mean one segment instead of "anything
+    # after here".
+    digest: sha256:c3fd162b9cdd0d1675989aefefcaf6aad233ac1ca8ac84f4a2fcfd3e86e3e846
   - name: ghcr.io/mertkan-iscan/xenopsbase-learn/frontend
     # Commit d04d4b6, and the first one. nginx and the Vite build -- no Node in
     # any request path, which is what lets a learner's page load when none of
@@ -191,7 +239,18 @@ images:
     # Also carries the OpenAPI error schemas (T-9.10, #123): the playback and
     # progress refusals are documented, and the undisclosed 404 is declared with
     # an empty content so the spec stops claiming it returns a token.
-    digest: sha256:d47bbc739afab98ae1202488520223daa75bf1b7dc2acacce20a27c7e468d600
+    #
+    # 2026-09-10 — moved to 2f93663, and it is the interstitial hold that makes
+    # this worth taking now rather than later. `ProgressService` clips a claimed
+    # interval at the frontier catalog reports and refuses the batch with
+    # INTERSTITIAL_UNANSWERED only when the whole of it is past that second
+    # (T-5.4) -- which is a conversation with a service that does not exist on
+    # this cluster until the digests below land. Rolling the two together keeps
+    # the caller and the callee at one commit.
+    #
+    # The frontier is re-read only when a batch crosses the cached value, so a
+    # video with no pinned questions costs no calls at all.
+    digest: sha256:2e38a5a9e68112e5dbeb3228c11859130afbae9c420e7ffece05a385d846e731
   - name: ghcr.io/mertkan-iscan/xenopsbase-learn/reporting
     # Commit 0747e6c — the service and its own database with nothing else
     # reading it (T-9.7), and the playback heartbeat ingest path (T-3.6):

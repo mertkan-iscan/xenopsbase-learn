@@ -1,0 +1,209 @@
+# assessment: banks, questions, tests, attempts and marking.
+#
+# The largest surface in the product: ten question types (T-6.3), scoring modes
+# (T-6.4), sections that draw randomly and the form recording what was drawn
+# (T-6.5), the attempt lifecycle with the clock on the server (T-6.6), grading
+# and the manual queue (T-6.7), integrity signals (T-6.8) and review (T-6.9).
+#
+# ITS OWN DATABASE OUTRIGHT, and nothing else reads it (ADR-0109). What it holds
+# is the reason that matters more here than anywhere: a question version is
+# immutable once served and a form is the record of what one learner was asked
+# (ADR-0106, T-6.5). Both are enforced by triggers in ITS database, which is
+# only a guarantee while no other role can write to it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: assessment
+  namespace: learn
+  labels: {app.kubernetes.io/name: assessment, app.kubernetes.io/part-of: xenopslearn}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: assessment}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: assessment, app.kubernetes.io/part-of: xenopslearn}
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+
+      # WAIT FOR THE OIDC ISSUER RATHER THAN DYING ON IT.
+      #
+      # Inherited from the stemcell's T-3.24 rather than rediscovered. Spring
+      # resolves the issuer's discovery document while building beans, with one
+      # HTTP GET and no retry, and that GET decides whether the context starts.
+      # On a cold cluster the order is postgres, then keycloak, then the apps —
+      # and the apps lose that race every time.
+      #
+      # Losing it is not a delay, it is a crash: the context fails, the
+      # container exits, and the kubelet backs off up to five minutes. The
+      # service then stays down long after Keycloak is healthy, and only a
+      # manual rollout restart recovers it.
+      #
+      # This waits indefinitely and the pod sits in Init, deliberately: exiting
+      # non-zero would rebuild the same CrashLoopBackOff one layer up.
+      initContainers:
+        - name: wait-for-oidc
+          # Pinned by digest like every other off-the-shelf image, and chosen
+          # over the service's own because eclipse-temurin — what jib builds on
+          # — ships neither curl nor wget.
+          #
+          # THIS EXACT DIGEST IS WHAT THE CLUSTER ADMITS. The `learn` namespace
+          # is enrolled in policy-controller, where an image matching no policy
+          # is denied -- and learn's own ClusterImagePolicy covers only
+          # ghcr.io/mertkan-iscan/xenopsbase-learn/**. What lets this through is
+          # the stemcell's `third-party-images-by-digest`, which passes this
+          # digest and nothing else. Bumping curl here without bumping it there
+          # is refused at admission, and the symptom is three pods stuck in Init
+          # with nothing wrong in their logs.
+          image: curlimages/curl@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13  # 8.21.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 100
+            runAsGroup: 101
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          env:
+            - name: OIDC_ISSUER_URI
+              valueFrom: {configMapKeyRef: {name: learn-oidc, key: OIDC_ISSUER_URI}}
+          command: [sh, -c]
+          args:
+            - |
+              set -u
+              url="${OIDC_ISSUER_URI}/.well-known/openid-configuration"
+              echo "waiting for OIDC discovery before starting: $url"
+              start=$(date +%s)
+              while :; do
+                code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "$url" 2>/dev/null || true)
+                [ -n "$code" ] || code=000
+                elapsed=$(( $(date +%s) - start ))
+                if [ "$code" = "200" ]; then
+                  echo "OIDC discovery answered 200 after ${elapsed}s — starting"
+                  exit 0
+                fi
+                echo "  ${elapsed}s: ${code} — waiting (000 is DNS/edge/cert, 404 is the wrong realm path)"
+                sleep 5
+              done
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 32Mi}
+
+      containers:
+        - name: assessment
+          # Overridden by digest in kustomization.yaml. This tag is a
+          # placeholder and MUST NOT be what runs: `main` moves, and with
+          # imagePullPolicy IfNotPresent a node keeps whatever it cached, so two
+          # replicas can run different code and nothing reports the difference.
+          image: ghcr.io/mertkan-iscan/xenopsbase-learn/assessment:main
+          imagePullPolicy: IfNotPresent
+          ports:
+            - {name: http, containerPort: 8086}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          env:
+            - {name: SERVER_PORT, value: "8086"}
+            - name: OIDC_ISSUER_URI
+              valueFrom: {configMapKeyRef: {name: learn-oidc, key: OIDC_ISSUER_URI}}
+
+            # Its own database and its own role inside the SHARED cluster, like
+            # Keycloak's and core's. The isolation that matters — one module
+            # unable to read or rewrite another's tables — comes from separate
+            # roles and databases, not from separate Postgres clusters, and this
+            # way learn's data is covered by the same WAL archive as everything
+            # else rather than becoming a new exception to ADR-0002.
+            - name: ASSESSMENT_DB_URL
+              value: jdbc:postgresql://postgres-rw.database.svc.cluster.local:5432/learn_assessment
+            - name: ASSESSMENT_DB_USER
+              valueFrom: {secretKeyRef: {name: learn-assessment-db, key: username}}
+            - name: ASSESSMENT_DB_PASSWORD
+              valueFrom: {secretKeyRef: {name: learn-assessment-db, key: password}}
+
+            # The permission cache (T-2.5). The cluster's Valkey requires a
+            # password; without it every read would fail NOAUTH and degrade into
+            # the "Valkey is down" path this service is built to survive, which
+            # is the worst shape available because nothing would look broken.
+            - {name: VALKEY_HOST, value: valkey-cache.cache.svc.cluster.local}
+            - {name: VALKEY_PORT, value: "6379"}
+            - name: VALKEY_PASSWORD
+              valueFrom: {secretKeyRef: {name: valkey-client, key: password}}
+
+            # Service-to-service (T-9.11). Per service and rotatable on its own:
+            # a shared secret would make rotating any of them an outage for all
+            # of them, and would let any service claim to be another.
+            - {name: SERVICE_CLIENT_ID, value: svc-assessment}
+            - name: SERVICE_CLIENT_SECRET
+              valueFrom: {secretKeyRef: {name: learn-service-clients, key: assessment}}
+            - {name: IDENTITY_URL, value: http://identity.learn.svc.cluster.local:8082}
+            - {name: STREAMING_URL, value: http://streaming.learn.svc.cluster.local:8083}
+            - {name: REPORTING_URL, value: http://reporting.learn.svc.cluster.local:8084}
+            - {name: CATALOG_URL, value: http://catalog.learn.svc.cluster.local:8085}
+            - {name: ASSESSMENT_URL, value: http://assessment.learn.svc.cluster.local:8086}
+
+            # THE BUS. Assessment publishes assessment.attempt.graded, which
+            # is how a passed test opens the gate behind it (T-5.3) and how the
+            # learner is told a pending attempt has finally been marked
+            # (T-6.7). Its own pom says the outbox arrives "with the first thing
+            # that has to be announced, which is an attempt being graded, not a
+            # bank being renamed" -- this is that.
+            #
+            # Without it a learner can pass a certification exam and stay locked
+            # out of the course behind it, with nothing anywhere reporting a
+            # fault.
+            - {name: NATS_URL, value: nats://nats.messaging.svc.cluster.local:4222}
+
+            # NO MAIL CLIENT here, deliberately, even though grading is what a
+            # learner gets told about: the letter is sent by CATALOG, which
+            # already holds their address as a projection of identity's (T-5.6)
+            # and already owns telling people about their training. Sending it
+            # from here would put a third copy of every learner's email address
+            # in a third database, fed by the same event, to say one sentence.
+          readinessProbe:
+            httpGet: {path: /management/health/readiness, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /management/health/liveness, port: http}
+            periodSeconds: 20
+          resources:
+            # 512Mi/896Mi, the same envelope every service here declares and
+            # the one scripts/verify_capacity.py fails on if it drifts.
+            #
+            # NOT MEASURED ON THESE PODS. Reporting's numbers (278Mi at start,
+            # 339-370Mi warm, 406Mi worst) came from a load test against
+            # reporting, and this service has never run on the cluster. The
+            # envelope is the platform's shared one until somebody takes a
+            # reading here -- which is worth doing, because assessment holds
+            # more in memory per request than reporting does and catalog builds
+            # a whole course tree for the home screen.
+            requests: {cpu: 100m, memory: 512Mi}
+            limits: {memory: 896Mi}
+          volumeMounts:
+            # readOnlyRootFilesystem is on and Tomcat still needs a writable
+            # java.io.tmpdir: it creates its work directory under /tmp before
+            # the context refreshes. Without this the pod does not fail a
+            # health check, it fails to start at all --
+            # "Unable to create tempDir. java.io.tmpdir is set to /tmp",
+            # caused by a Read-only file system, on every restart.
+            #
+            # An emptyDir rather than relaxing the root filesystem, which is the
+            # same trade the stemcell's own services make: scratch space is
+            # writable, everything the image ships is not.
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: assessment
+  namespace: learn
+  labels: {app.kubernetes.io/name: assessment, app.kubernetes.io/part-of: xenopslearn}
+spec:
+  selector: {app.kubernetes.io/name: assessment}
+  ports:
+    - {name: http, port: 8086, targetPort: http}

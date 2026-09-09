@@ -335,6 +335,66 @@
         }
       ],
       "protocol": "openid-connect"
+    },
+    {
+      "clientId": "svc-catalog",
+      "name": "catalog service",
+      "description": "Service credentials for catalog (T-9.11). Client credentials only; per-service secret.",
+      "enabled": true,
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "secret": "local-development-only-catalog-secret",
+      "attributes": {
+        "access.token.lifespan": "300"
+      },
+      "protocolMappers": [
+        {
+          "name": "service-id-claim",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "svc",
+            "claim.value": "catalog",
+            "jsonType.label": "String",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ],
+      "protocol": "openid-connect"
+    },
+    {
+      "clientId": "svc-assessment",
+      "name": "assessment service",
+      "description": "Service credentials for assessment (T-9.11). Client credentials only; per-service secret.",
+      "enabled": true,
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "secret": "local-development-only-assessment-secret",
+      "attributes": {
+        "access.token.lifespan": "300"
+      },
+      "protocolMappers": [
+        {
+          "name": "service-id-claim",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "svc",
+            "claim.value": "assessment",
+            "jsonType.label": "String",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ],
+      "protocol": "openid-connect"
     }
   ],
   "users": [
