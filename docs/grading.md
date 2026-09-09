@@ -120,7 +120,7 @@ See [`integrity-signals.md`](integrity-signals.md).
 ## What is not here yet
 
 - **A permission on the queue**, above.
-- **Review.** T-6.9 (#68) renders what was served from the form, under a policy, and per-question
-  feedback belongs on the question version there.
+- **Review** — done, in T-6.9 (#68) and [`review.md`](review.md). Per-question feedback went
+  into the versioned body rather than a table, so it stays correct across edits.
 - **Item analysis.** T-7.7 (#75) reads `credited`/`available` per served version — which is why a
   person's mark deliberately does *not* invent that pair for an essay.

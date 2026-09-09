@@ -139,14 +139,24 @@ class QuestionTest extends PostgresTestHarness {
         assertThat(current.get("version").asInt()).isEqualTo(2);
         assertThat(current.get("id").asString()).isNotEqualTo(asked.toString());
 
-        // What the learner was actually asked, dereferenced the way a review screen will.
-        JsonNode wasAsked = json.readTree(
-            get("/api/v1/questions/" + question + "/versions/" + asked, ACME).body());
+        // What the learner was actually asked. Through the AUTHORING path, because the ordinary
+        // read no longer carries the answer key at all (T-6.9): the key is the one thing a learner
+        // must never be handed, and it used to travel in every payload without anybody asking.
+        JsonNode wasAsked = json.readTree(get(
+            "/api/v1/questions/" + question + "/versions/" + asked + "/authoring", ACME).body());
         assertThat(wasAsked.get("body")).isEqualTo(json.readTree(ORIGINAL));
         assertThat(wasAsked.get("body").get("options").get("choices")).hasSize(2);
         assertThat(wasAsked.get("body").get("answerKey").get("correct").get(0).asString())
             .as("the answer key that marked this learner, not the corrected one")
             .isEqualTo("b");
+
+        // And the ordinary read of the same version is the same question with the key gone.
+        JsonNode redacted = json.readTree(
+            get("/api/v1/questions/" + question + "/versions/" + asked, ACME).body());
+        assertThat(redacted.get("body").get("stem")).isEqualTo(wasAsked.get("body").get("stem"));
+        assertThat(redacted.get("body").has("answerKey"))
+            .as("absent from the payload, not merely hidden by a renderer (T-6.9)")
+            .isFalse();
         assertThat(wasAsked.get("firstServedAt").isNull()).isFalse();
     }
 
@@ -208,9 +218,10 @@ class QuestionTest extends PostgresTestHarness {
         assertThat(get("/api/v1/banks/" + bank + "/questions", ACME).body())
             .doesNotContain("Electrical fire");
 
-        // ...and still answerable about what it asked, which is the whole difference.
+        // ...and still answerable about what it asked, which is the whole difference. Through the
+        // authoring path, because the ordinary read redacts the answer key (T-6.9).
         HttpResponse<String> history =
-            get("/api/v1/questions/" + question + "/versions/" + asked, ACME);
+            get("/api/v1/questions/" + question + "/versions/" + asked + "/authoring", ACME);
         assertThat(history.statusCode()).isEqualTo(200);
         assertThat(json.readTree(history.body()).get("body")).isEqualTo(json.readTree(ORIGINAL));
     }

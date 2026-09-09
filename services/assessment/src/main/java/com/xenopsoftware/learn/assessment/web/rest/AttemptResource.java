@@ -7,6 +7,7 @@ import com.xenopsoftware.learn.assessment.form.FormItem;
 import com.xenopsoftware.learn.assessment.integrity.IntegrityService;
 import com.xenopsoftware.learn.assessment.integrity.IntegritySignal;
 import com.xenopsoftware.learn.assessment.integrity.MonitoringDisclosure;
+import com.xenopsoftware.learn.assessment.review.ReviewService;
 import com.xenopsoftware.learn.common.tenancy.TenantContext;
 import com.xenopsoftware.learn.common.web.ProblemDocumentation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -59,14 +60,17 @@ public class AttemptResource {
     private final AttemptResponses responses;
     private final IntegrityService integrity;
     private final MonitoringDisclosure disclosure;
+    private final ReviewService review;
     private final LearnerIdentity learners;
 
     public AttemptResource(AttemptService attempts, AttemptResponses responses,
-            IntegrityService integrity, MonitoringDisclosure disclosure, LearnerIdentity learners) {
+            IntegrityService integrity, MonitoringDisclosure disclosure, ReviewService review,
+            LearnerIdentity learners) {
         this.attempts = attempts;
         this.responses = responses;
         this.integrity = integrity;
         this.disclosure = disclosure;
+        this.review = review;
         this.learners = learners;
     }
 
@@ -231,6 +235,31 @@ public class AttemptResource {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A signal has a kind.");
         }
         integrity.record(id, caller(), kind(form.kind()), form.reportedAt(), form.detail());
+    }
+
+    /**
+     * The caller's own paper back, as far as the test's review policy allows (T-6.9).
+     *
+     * <p><b>Built from the policy, not filtered by it.</b> A field the policy does not permit is
+     * never put into the response at all: there is no parameter, header or body shape a client can
+     * send that reaches a different branch, which is what "regardless of what the client asks for"
+     * has to mean to be worth anything.
+     *
+     * <p>Reconstructed from the form (T-6.5), including the option order this learner was shown, so
+     * a review screen renders their paper rather than somebody else's.
+     */
+    @GetMapping("/attempts/{id}/review")
+    @ApiResponse(responseCode = "200",
+        description = "The result, and as much of the paper as the policy permits. `visibility` "
+            + "says which — a screen renders the shape it names rather than inferring one from "
+            + "which fields happen to be null. Answer keys and feedback are absent from the "
+            + "payload unless the policy is FULL and its timing has opened.")
+    @ApiResponse(responseCode = "404",
+        description = "No such attempt, or it is not this caller's — the same answer either way.",
+        content = @Content(mediaType = ProblemDocumentation.PROBLEM_JSON,
+            schema = @Schema(ref = ProblemDocumentation.REF)))
+    public ReviewService.Review review(@PathVariable UUID id) {
+        return review.of(id, caller());
     }
 
     /**
