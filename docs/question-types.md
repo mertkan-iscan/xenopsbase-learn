@@ -94,8 +94,9 @@ Two things to get right, both of which this repository has paid for:
 - **Shuffling** is decided here and applied by T-6.5's assembler
   ([`test-assembly.md`](test-assembly.md)): `shufflableOptionFields()` says which of a type's option
   lists may be presented in any order, and the form records what each learner actually saw.
-- **Submitting anything.** `validateResponse` and `grade` have no caller: the attempt is T-6.6
-  (#65)'s. They are written now because the shape a learner sends is decided by the same file that
-  decides the shape they were shown, and deciding those apart is how the two stop agreeing.
+- **Submitting anything** — done, in T-6.6 (#65) and [`attempts.md`](attempts.md).
+  `validateResponse` now has its caller, and it validates against the version the learner was
+  *served* rather than the question as it is now: a version edited since is a different question.
+  `grade` still waits for T-6.7 (#66) to call it.
 - **Reporting.** T-6.3's last criterion asks for fixtures exercised "from authoring to scoring to
   reporting". Authoring and scoring are covered end to end; item analysis is T-7.7 (#75).
