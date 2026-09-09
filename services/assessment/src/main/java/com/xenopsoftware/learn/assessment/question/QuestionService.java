@@ -50,14 +50,16 @@ public class QuestionService {
     private final QuestionBodies bodies;
     private final QuestionTypes types;
     private final BankService banks;
+    private final QuestionTags tags;
 
     public QuestionService(QuestionRepository questions, QuestionVersionRepository versions,
-            QuestionBodies bodies, QuestionTypes types, BankService banks) {
+            QuestionBodies bodies, QuestionTypes types, BankService banks, QuestionTags tags) {
         this.questions = questions;
         this.versions = versions;
         this.bodies = bodies;
         this.types = types;
         this.banks = banks;
+        this.tags = tags;
     }
 
     @Transactional(readOnly = true)
@@ -210,5 +212,32 @@ public class QuestionService {
         banks.get(bankId);
         question.moveTo(bankId);
         return questions.save(question);
+    }
+
+    /**
+     * How hard it is and what it is about -- the two things a draw filters on (T-6.5).
+     *
+     * <p>Neither is versioned, which ADR-0106 puts on the non-versioned side and V2 deferred to
+     * this issue: an author deciding a question is harder than they first thought, or adding a tag
+     * they forgot, has not changed what anybody was asked. So this produces no version and
+     * disturbs no attempt, exactly like {@link #moveToBank}.
+     *
+     * <p>Both together rather than two methods, because they are one thought -- an author
+     * classifying a question does both at once -- and because a draw reads them together.
+     */
+    public Question describe(UUID id, UUID difficultyId, java.util.Collection<UUID> tagIds) {
+        Question question = get(id);
+        question.difficultyIs(difficultyId);
+        Question saved = questions.save(question);
+        // After the save, so a difficulty id from another company is refused by the foreign key
+        // before any tag is written -- one failed request rather than a half-applied one.
+        tags.set(id, tagIds);
+        return saved;
+    }
+
+    /** What it is about, for the authoring screen that renders it. */
+    @Transactional(readOnly = true)
+    public java.util.List<UUID> tagsOf(UUID id) {
+        return tags.of(get(id).getId());
     }
 }

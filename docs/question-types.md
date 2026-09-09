@@ -91,6 +91,9 @@ Two things to get right, both of which this repository has paid for:
   it is the only thing negative marking is for.
 - **The manual queue** for essay and file upload. `grade` returns empty for them, which is how
   T-6.7 (#66) can ask the type instead of keeping its own list of which types a machine can mark.
+- **Shuffling** is decided here and applied by T-6.5's assembler
+  ([`test-assembly.md`](test-assembly.md)): `shufflableOptionFields()` says which of a type's option
+  lists may be presented in any order, and the form records what each learner actually saw.
 - **Submitting anything.** `validateResponse` and `grade` have no caller: the attempt is T-6.6
   (#65)'s. They are written now because the shape a learner sends is decided by the same file that
   decides the shape they were shown, and deciding those apart is how the two stop agreeing.

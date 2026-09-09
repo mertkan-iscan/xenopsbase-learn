@@ -58,6 +58,12 @@ public class ChoiceQuestionTypes {
             return true;
         }
 
+        /** Shuffling the choices is the oldest reason forms are shuffled at all (T-6.5). */
+        @Override
+        public List<String> shufflableOptionFields() {
+            return List.of("choices");
+        }
+
         @Override
         public void validateAsked(JsonNode options, JsonNode answerKey) {
             List<String> offered = Shapes.ids(
