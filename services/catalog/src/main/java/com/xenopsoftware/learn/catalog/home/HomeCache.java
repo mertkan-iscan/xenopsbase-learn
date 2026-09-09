@@ -1,9 +1,11 @@
 package com.xenopsoftware.learn.catalog.home;
 
+import com.xenopsoftware.learn.common.cache.DegradableCache;
+import com.xenopsoftware.learn.common.cache.DegradableCaches;
 import java.time.Duration;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -37,7 +39,13 @@ import tools.jackson.databind.json.JsonMapper;
  *
  * The screen is built from Postgres, which is what happens on every miss anyway. A failure is
  * logged once and then the cache is skipped for a cooldown, so a Valkey outage costs one timeout
- * rather than one per request — the same shape as identity's permission cache (T-2.5).
+ * rather than one per request.
+ *
+ * <p>That cooldown used to live here, in twelve lines this class owned, and identically in
+ * identity's permission cache. It is now {@link DegradableCache}, which is where the two callers
+ * that never wrote it — the tenant status gate and the playback mint limit — have it too. Both of
+ * those sit on the path of every request, and on 2026-09-08 that is what turned an unreachable
+ * Valkey into a service serving one request per second (#126).
  */
 @Component
 public class HomeCache {
@@ -56,23 +64,27 @@ public class HomeCache {
     private final StringRedisTemplate valkey;
     private final JsonMapper json = JsonMapper.builder().build();
     private final Duration ttl;
-    private final Duration cooldown;
-    private final AtomicLong quietUntil = new AtomicLong();
+    private final DegradableCache cache;
 
     public HomeCache(ObjectProvider<StringRedisTemplate> valkey,
             @Value("${catalog.home.cache-ttl:PT1M}") Duration ttl,
-            @Value("${catalog.home.cache-cooldown:PT30S}") Duration cooldown) {
+            @Value("${catalog.home.cache-cooldown:PT30S}") Duration cooldown,
+            DegradableCaches caches) {
         this.valkey = valkey.getIfAvailable();
         this.ttl = ttl;
-        this.cooldown = cooldown;
         if (this.valkey == null) {
             LOG.warn("No Valkey is configured, so every home screen is assembled from Postgres. "
                 + "Correct, and slower than it needs to be.");
+            this.cache = caches.absent("home-screen",
+                "no Valkey is configured, so every screen is assembled from Postgres");
+        } else {
+            this.cache = caches.register("home-screen", cooldown,
+                Map.of("schema", SCHEMA, "ttl", ttl.toString()));
         }
     }
 
     Optional<HomeView> get(String tenantId, UUID learnerId, String version) {
-        if (skip()) {
+        if (cache.quiet()) {
             return Optional.empty();
         }
         try {
@@ -82,34 +94,20 @@ public class HomeCache {
         } catch (RuntimeException unreachableOrUnreadable) {
             // Unreadable is as survivable as unreachable: the screen is rebuilt either way, and an
             // entry this version cannot parse is one a previous version wrote.
-            quieten(unreachableOrUnreadable);
+            cache.failed("read", unreachableOrUnreadable);
             return Optional.empty();
         }
     }
 
     void put(String tenantId, UUID learnerId, String version, HomeView view) {
-        if (skip()) {
+        if (cache.quiet()) {
             return;
         }
         try {
             valkey.opsForValue().set(key(tenantId, learnerId, version),
                 json.writeValueAsString(view), ttl);
         } catch (RuntimeException unreachable) {
-            quieten(unreachable);
-        }
-    }
-
-    private boolean skip() {
-        return valkey == null || System.currentTimeMillis() < quietUntil.get();
-    }
-
-    private void quieten(RuntimeException failure) {
-        long until = System.currentTimeMillis() + cooldown.toMillis();
-        if (quietUntil.getAndSet(until) < System.currentTimeMillis()) {
-            // Once per cooldown, not once per request: a Valkey outage during a busy hour must not
-            // also be a log outage.
-            LOG.warn("The home screen cache is unavailable; screens are being assembled from "
-                + "Postgres for the next {}.", cooldown, failure);
+            cache.failed("write", unreachable);
         }
     }
 

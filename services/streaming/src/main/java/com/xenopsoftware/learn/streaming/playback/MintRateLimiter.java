@@ -1,8 +1,8 @@
 package com.xenopsoftware.learn.streaming.playback;
 
+import com.xenopsoftware.learn.common.cache.DegradableCache;
+import com.xenopsoftware.learn.common.cache.DegradableCaches;
 import java.time.Clock;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -29,24 +29,34 @@ import org.springframework.stereotype.Component;
  * gate — is unaffected and still refuses everything it would otherwise refuse. Trading "abuse is
  * briefly unbounded" against "nobody can watch anything" is not a close call, and it is the same
  * direction {@code PublishedStatusLookup} chose for the same reason.
+ *
+ * <p>Failing open is only cheap if failing is cheap. A Valkey that cannot be reached does not
+ * refuse the {@code INCR} quickly — Lettuce shares one connection and every mint waits for one
+ * that will never be established — so without {@link DegradableCache}'s cooldown an unreachable
+ * limiter would add a connection timeout to every playback token this service issues, which is a
+ * latency outage on the one path a learner is watching.
  */
 @Component
 public class MintRateLimiter {
 
-    private static final Logger LOG = LoggerFactory.getLogger(MintRateLimiter.class);
-
     private final StringRedisTemplate valkey;
     private final PlaybackProperties properties;
     private final Clock clock;
+    private final DegradableCache cache;
 
-    public MintRateLimiter(StringRedisTemplate valkey, PlaybackProperties properties, Clock clock) {
+    public MintRateLimiter(StringRedisTemplate valkey, PlaybackProperties properties, Clock clock,
+            DegradableCaches caches) {
         this.valkey = valkey;
         this.properties = properties;
         this.clock = clock;
+        this.cache = caches.register("playback-mint-limit");
     }
 
     /** Whether this viewer may mint now, counting the attempt. */
     public boolean permit(Viewer viewer) {
+        if (cache.quiet()) {
+            return true;
+        }
         long window = properties.mintWindow().toSeconds();
         long bucket = clock.instant().getEpochSecond() / window;
         String key = "playback:mint:" + viewer.tenantId() + ":" + viewer.subject() + ":" + bucket;
@@ -59,8 +69,7 @@ public class MintRateLimiter {
             }
             return used == null || used <= properties.mintsPerWindow();
         } catch (RuntimeException valkeyDown) {
-            LOG.warn("Could not count playback mints for {}; the rate limit is not being applied "
-                + "until Valkey returns", viewer.subject(), valkeyDown);
+            cache.failed("count", valkeyDown);
             return true;
         }
     }
