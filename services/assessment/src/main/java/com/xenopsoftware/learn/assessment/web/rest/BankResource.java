@@ -3,7 +3,9 @@ package com.xenopsoftware.learn.assessment.web.rest;
 import com.xenopsoftware.learn.assessment.bank.BankService;
 import com.xenopsoftware.learn.assessment.bank.PlatformBanks;
 import com.xenopsoftware.learn.assessment.bank.QuestionBank;
+import com.xenopsoftware.learn.common.web.ProblemDocumentation;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import java.time.Instant;
 import java.util.List;
@@ -39,22 +41,19 @@ import org.springframework.web.bind.annotation.RestController;
  * that). The permissions are in the catalog and grantable at BANK scope; nothing checks them here,
  * and nothing here checks anything else instead — see {@link BankService} for why a convenience
  * check would be worse than none.
+ *
+ * <h2>Every refusal is declared, including the bodiless ones</h2>
+ *
+ * <p>An {@code @ApiResponse} with no {@code content} falls back to the METHOD'S RETURN TYPE, so a
+ * 404 declared bare would be documented as returning a {@link BankView} — which is how a
+ * deliberately bodiless 404 was once documented as returning a playback token. The empty
+ * {@code @Content} on each 404 here says "no body" and means it; the 409s point at the
+ * {@code Problem} schema {@link ProblemDocumentation} registers, so a generated client can type
+ * the failure rather than being handed {@code unknown}.
  */
 @RestController
 @RequestMapping("/api/v1")
 public class BankResource {
-
-    /**
-     * The refusal media type, as a literal.
-     *
-     * <p>Written out rather than imported because the {@code Problem} schema is registered
-     * centrally by T-9.10's {@code ProblemDocumentation}, which is not on this branch yet. Naming
-     * the media type here is still worth doing: an {@code @ApiResponse} with no {@code content}
-     * falls back to the METHOD'S RETURN TYPE, so a 409 declared bare would be documented as
-     * returning a {@link BankView} — which is how a deliberately bodiless 404 was once documented
-     * as returning a playback token.
-     */
-    private static final String PROBLEM_JSON = "application/problem+json";
 
     private final BankService banks;
 
@@ -95,7 +94,8 @@ public class BankResource {
     @ResponseStatus(HttpStatus.CREATED)
     @ApiResponse(responseCode = "201", description = "The bank that was created")
     @ApiResponse(responseCode = "409", description = "This company already has a bank with that name",
-        content = @Content(mediaType = PROBLEM_JSON))
+        content = @Content(mediaType = ProblemDocumentation.PROBLEM_JSON,
+            schema = @Schema(ref = ProblemDocumentation.REF)))
     public BankView create(@RequestBody BankForm form) {
         return BankView.of(banks.create(form.name(), form.description()));
     }
@@ -105,7 +105,8 @@ public class BankResource {
     @ApiResponse(responseCode = "404", description = "No such bank in this company",
         content = @Content)
     @ApiResponse(responseCode = "409", description = "This company already has a bank with that name",
-        content = @Content(mediaType = PROBLEM_JSON))
+        content = @Content(mediaType = ProblemDocumentation.PROBLEM_JSON,
+            schema = @Schema(ref = ProblemDocumentation.REF)))
     public BankView rename(@PathVariable UUID id, @RequestBody BankForm form) {
         return BankView.of(banks.rename(id, form.name(), form.description()));
     }
@@ -134,7 +135,8 @@ public class BankResource {
     @ApiResponse(responseCode = "404", description = "No such bank is offered in the shared library",
         content = @Content)
     @ApiResponse(responseCode = "409", description = "This company already has a bank with that name",
-        content = @Content(mediaType = PROBLEM_JSON))
+        content = @Content(mediaType = ProblemDocumentation.PROBLEM_JSON,
+            schema = @Schema(ref = ProblemDocumentation.REF)))
     public BankView copy(@PathVariable UUID id, @RequestBody(required = false) CopyForm form) {
         CopyForm copy = form == null ? new CopyForm(null, null) : form;
         return BankView.of(banks.copy(id, copy.name(), copy.description()));
