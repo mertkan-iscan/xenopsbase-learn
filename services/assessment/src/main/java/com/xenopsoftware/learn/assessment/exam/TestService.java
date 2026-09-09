@@ -80,6 +80,17 @@ public class TestService {
         return tests.save(test);
     }
 
+    /** How it may be sat: how many attempts, and how long each one lasts (T-6.6). */
+    public TestDefinition satAs(UUID id, Integer attemptsAllowed, java.time.Duration timeLimit) {
+        TestDefinition test = get(id);
+        try {
+            test.satAs(attemptsAllowed, timeLimit);
+        } catch (IllegalArgumentException notALegalPolicy) {
+            throw refused(notALegalPolicy.getMessage());
+        }
+        return tests.save(test);
+    }
+
     public void delete(UUID id) {
         tests.delete(get(id));
     }

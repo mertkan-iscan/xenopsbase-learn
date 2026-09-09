@@ -21,6 +21,7 @@ public abstract class PostgresTestHarness {
      * <p>Add a table here in the same commit that creates it.
      */
     private static final java.util.List<String> EVERY_TABLE = java.util.List.of(
+        "attempt_response", "attempt",
         "test_form_item", "test_form",
         "test_section_question", "test_section_tag", "test_section", "test",
         "question_tag", "question_version", "question",
@@ -65,5 +66,11 @@ public abstract class PostgresTestHarness {
         // one Postgres — identity hit the ceiling as "too many clients" inside Flyway, in
         // whichever class happened to load last, which reads as that class being broken.
         registry.add("spring.datasource.hikari.maximum-pool-size", () -> 2);
+        // THE ATTEMPT REAPER IS PARKED, not disabled -- catalog's reminder pass carries the same
+        // note (T-6.6). It ends attempts on a schedule, so a test asserting that one is still open
+        // would be racing a background job it never mentioned and would pass or fail on timing.
+        // The tests drive sweep() themselves against a clock they move, which is the only way an
+        // assertion about "not yet" can mean anything.
+        registry.add("assessment.attempt.interval", () -> "PT1H");
     }
 }

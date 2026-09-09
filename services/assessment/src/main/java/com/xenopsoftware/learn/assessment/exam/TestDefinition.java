@@ -10,6 +10,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -63,6 +64,25 @@ public class TestDefinition extends TenantOwned {
 
     @Column(name = "penalty_points", nullable = false)
     private BigDecimal penaltyPoints;
+
+    /**
+     * How many times one learner may sit it, or null for unlimited (T-6.6).
+     *
+     * <p>Null rather than a large number, because "as often as you like" is what a practice quiz
+     * means and a limit of 999 is a limit somebody eventually hits and cannot explain.
+     */
+    @Column(name = "attempts_allowed")
+    private Short attemptsAllowed;
+
+    /**
+     * The time limit in seconds, or null for untimed.
+     *
+     * <p>Null means an attempt gets <b>no</b> {@code expires_at} at all rather than a very distant
+     * one: "no deadline" and "a deadline in the year 3000" are different facts, and only the first
+     * one is true.
+     */
+    @Column(name = "time_limit_seconds")
+    private Integer timeLimitSeconds;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -124,6 +144,40 @@ public class TestDefinition extends TenantOwned {
         this.defaultMode = checked.mode();
         this.penaltyPoints = checked.penalty();
         touch();
+    }
+
+    /**
+     * How it may be sat: how many times, and for how long (T-6.6).
+     *
+     * <p>Separate from {@link #scoredAs}, because they are different decisions by different people
+     * -- what a result means against how the exam is invigilated -- and because changing one must
+     * not require restating the other.
+     *
+     * <p><b>Changing this does not touch an attempt already under way.</b> {@code expires_at} is
+     * computed once, at start, from the limit in force then; shortening a test's limit cannot take
+     * time off somebody who is mid-exam, and lengthening it cannot give them more.
+     */
+    public void satAs(Integer newAttemptsAllowed, Duration newTimeLimit) {
+        if (newAttemptsAllowed != null && newAttemptsAllowed < 1) {
+            throw new IllegalArgumentException(
+                "A test nobody may sit is not a limit, it is a withdrawal: " + newAttemptsAllowed);
+        }
+        if (newTimeLimit != null && (newTimeLimit.isZero() || newTimeLimit.isNegative())) {
+            throw new IllegalArgumentException(
+                "A time limit is a positive duration, or none at all: " + newTimeLimit);
+        }
+        this.attemptsAllowed = newAttemptsAllowed == null ? null : newAttemptsAllowed.shortValue();
+        this.timeLimitSeconds = newTimeLimit == null ? null : (int) newTimeLimit.toSeconds();
+        touch();
+    }
+
+    public Integer getAttemptsAllowed() {
+        return attemptsAllowed == null ? null : (int) attemptsAllowed;
+    }
+
+    /** The limit as a duration, or null when this test is untimed. */
+    public Duration getTimeLimit() {
+        return timeLimitSeconds == null ? null : Duration.ofSeconds(timeLimitSeconds);
     }
 
     /** What a question in this test is worth unless a section says otherwise (T-6.5). */

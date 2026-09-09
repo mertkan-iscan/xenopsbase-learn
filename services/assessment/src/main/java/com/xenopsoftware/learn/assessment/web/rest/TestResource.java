@@ -63,15 +63,26 @@ public class TestResource {
                                  BigDecimal defaultPoints, String defaultMode,
                                  BigDecimal penaltyPoints) {}
 
+    /**
+     * @param attemptsAllowed null for unlimited, which is what a practice quiz means. A limit of
+     *                        999 is a limit somebody eventually hits and cannot explain
+     * @param timeLimitSeconds null for untimed, which means an attempt gets no deadline at all
+     *                        rather than a very distant one
+     */
+    public record SittingForm(Integer attemptsAllowed, Integer timeLimitSeconds) {}
+
     public record TestView(UUID id, String title, String description, int passMarkPercent,
                            boolean negativeMarking, BigDecimal defaultPoints, String defaultMode,
-                           BigDecimal penaltyPoints, Instant updatedAt) {
+                           BigDecimal penaltyPoints, Integer attemptsAllowed,
+                           Integer timeLimitSeconds, Instant updatedAt) {
 
         static TestView of(TestDefinition test) {
             return new TestView(test.getId(), test.getTitle(), test.getDescription(),
                 test.getPassMarkPercent(), test.isNegativeMarking(),
                 test.defaultScoring().points(), test.defaultScoring().mode().name(),
-                test.defaultScoring().penalty(), test.getUpdatedAt());
+                test.defaultScoring().penalty(), test.getAttemptsAllowed(),
+                test.getTimeLimit() == null ? null : (int) test.getTimeLimit().toSeconds(),
+                test.getUpdatedAt());
         }
     }
 
@@ -130,6 +141,32 @@ public class TestResource {
             request.defaultPoints() == null ? BigDecimal.ONE : request.defaultPoints(),
             mode(request.defaultMode()),
             request.penaltyPoints() == null ? BigDecimal.ZERO : request.penaltyPoints()));
+    }
+
+    /**
+     * How it may be sat: how many attempts, and how long each one lasts (T-6.6).
+     *
+     * <p>Its own resource beside {@code /scoring}, because they are different decisions -- what a
+     * result means against how the exam is invigilated -- made by different people at different
+     * times.
+     *
+     * <p><b>Changing this does not touch an attempt already under way.</b> A deadline is computed
+     * once, at start, from the limit in force then: shortening a test's limit cannot take time off
+     * somebody mid-exam, and lengthening it cannot give them more.
+     */
+    @PutMapping("/{id}/sitting")
+    @ApiResponse(responseCode = "200", description = "The policy as it now stands.")
+    @ApiResponse(responseCode = "400",
+        description = "An attempt limit below one, or a time limit that is not positive.",
+        content = @Content(mediaType = ProblemDocumentation.PROBLEM_JSON,
+            schema = @Schema(ref = ProblemDocumentation.REF)))
+    @ApiResponse(responseCode = "404", description = "No such test in this company.",
+        content = @Content(mediaType = ProblemDocumentation.PROBLEM_JSON,
+            schema = @Schema(ref = ProblemDocumentation.REF)))
+    public TestView sitting(@PathVariable UUID id, @RequestBody SittingForm form) {
+        return TestView.of(tests.satAs(id, form.attemptsAllowed(),
+            form.timeLimitSeconds() == null ? null
+                : java.time.Duration.ofSeconds(form.timeLimitSeconds())));
     }
 
     @DeleteMapping("/{id}")

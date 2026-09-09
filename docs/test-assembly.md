@@ -116,9 +116,11 @@ certification is exactly the circumstance in which somebody looks.
 
 ## What is not here yet
 
-- **The attempt.** `FormAssembler.assemble(testId, attemptId)` is called *by* starting an attempt —
-  T-6.6 (#65) owns the lifecycle, the clock and the limits. `test_form.attempt_id` carries no foreign
-  key until that migration lands.
+- **The attempt** — done, in T-6.6 (#65) and [`attempts.md`](attempts.md).
+  `AttemptService.startOrResume` is what calls `FormAssembler.assemble`, in the same transaction, so
+  an insufficient pool leaves no attempt behind that could never be sat. `test_form.attempt_id`
+  still carries no foreign key: adding one is a small migration T-6.7 or a follow-up can make now
+  that `attempt` exists.
 - **A review screen.** T-6.9 (#68) reconstructs what was served from the form, under a policy. The
   form already holds everything it needs.
 - **Item analysis.** T-7.7 (#75) counts responses per served version; the form is the join it walks.
