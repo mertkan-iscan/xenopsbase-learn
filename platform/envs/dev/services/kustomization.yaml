@@ -12,6 +12,18 @@ resources:
   - streaming.yaml
   - reporting.yaml
 
+# GATEWAY, FRONTEND AND INGRESS EXIST IN THIS DIRECTORY AND ARE NOT LISTED ABOVE.
+#
+# Said out loud because a reader seeing three unreferenced files will assume one
+# of us forgot. The order is forced by the rule this file exists for: an image is
+# pinned by DIGEST and never by a tag, and the frontend image does not exist
+# until this commit's CI publishes it. Listing the manifests now would deploy the
+# `:main` placeholder each of them warns against in capitals.
+#
+# So they land here first and are switched on by the deploy commit that pins both
+# digests -- which is the same two-step every service in this file already went
+# through, and the reason `git log` on this file is the deployment history.
+
 # IMAGES ARE PINNED HERE, NOT IN THE DEPLOYMENTS.
 #
 # So a deploy is a one-line commit and `git log` on this file is the deployment
