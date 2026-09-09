@@ -1,0 +1,162 @@
+package com.xenopsoftware.learn.assessment.web.rest;
+
+import com.xenopsoftware.learn.assessment.exam.TestDefinition;
+import com.xenopsoftware.learn.assessment.exam.TestService;
+import com.xenopsoftware.learn.assessment.scoring.ScoringMode;
+import com.xenopsoftware.learn.common.web.ProblemDocumentation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
+
+/**
+ * Tests, and the scoring policy that decides what their results mean (T-6.4).
+ *
+ * <p><b>The scoring policy is its own resource</b>, at {@code /tests/{id}/scoring}, rather than
+ * fields on the test. Two reasons, and the second is the one that matters: it is a different
+ * decision from "what is this test called", made by a different person at a different time; and it
+ * is the thing a rescore will have to reference, so it needs a place a client can PUT and a diff can
+ * point at. Renaming a test and changing its pass mark are not the same request.
+ *
+ * <p>The permission story is {@code BankResource}'s, unchanged (T-9.11, ADR-0109).
+ */
+@RestController
+@RequestMapping("/api/v1/tests")
+public class TestResource {
+
+    private final TestService tests;
+
+    public TestResource(TestService tests) {
+        this.tests = tests;
+    }
+
+    /**
+     * @param passMarkPercent a whole percent. It is the same number a learner is shown as their
+     *                        result, which is what stops a screen ever saying "80%" beside "failed"
+     */
+    public record TestRequest(String title, String description, Integer passMarkPercent) {}
+
+    /**
+     * @param negativeMarking whether a wrong answer can cost marks at all. The question type still
+     *                        has the last word: a penalty only ever applies where a wrong answer
+     *                        could have been a guess
+     * @param defaultPoints   what a question in this test is worth unless a section says otherwise
+     * @param defaultMode     {@code ALL_OR_NOTHING} or {@code PARTIAL_CREDIT}
+     * @param penaltyPoints   what an answered, wholly wrong response costs. Never charged to an
+     *                        unanswered question
+     */
+    public record ScoringRequest(Integer passMarkPercent, Boolean negativeMarking,
+                                 BigDecimal defaultPoints, String defaultMode,
+                                 BigDecimal penaltyPoints) {}
+
+    public record TestView(UUID id, String title, String description, int passMarkPercent,
+                           boolean negativeMarking, BigDecimal defaultPoints, String defaultMode,
+                           BigDecimal penaltyPoints, Instant updatedAt) {
+
+        static TestView of(TestDefinition test) {
+            return new TestView(test.getId(), test.getTitle(), test.getDescription(),
+                test.getPassMarkPercent(), test.isNegativeMarking(),
+                test.defaultScoring().points(), test.defaultScoring().mode().name(),
+                test.defaultScoring().penalty(), test.getUpdatedAt());
+        }
+    }
+
+    @GetMapping
+    public List<TestView> all() {
+        return tests.list().stream().map(TestView::of).toList();
+    }
+
+    @GetMapping("/{id}")
+    @ApiResponse(responseCode = "200", description = "The test and its scoring policy.")
+    @ApiResponse(responseCode = "404", description = "No such test in this company.",
+        content = @Content(mediaType = ProblemDocumentation.PROBLEM_JSON,
+            schema = @Schema(ref = ProblemDocumentation.REF)))
+    public TestView one(@PathVariable UUID id) {
+        return TestView.of(tests.get(id));
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    @ApiResponse(responseCode = "201", description = "Created.")
+    @ApiResponse(responseCode = "400",
+        description = "A test needs a title and a pass mark; the pass mark is a whole percent.",
+        content = @Content(mediaType = ProblemDocumentation.PROBLEM_JSON,
+            schema = @Schema(ref = ProblemDocumentation.REF)))
+    public TestView create(@RequestBody TestRequest request) {
+        return TestView.of(tests.create(request.title(), request.description(),
+            required(request.passMarkPercent())));
+    }
+
+    @PutMapping("/{id}")
+    public TestView rename(@PathVariable UUID id, @RequestBody TestRequest request) {
+        return TestView.of(tests.rename(id, request.title(), request.description()));
+    }
+
+    /**
+     * Replaces the whole scoring policy.
+     *
+     * <p>A PUT of all five values rather than a PATCH of some, because they are one decision: a
+     * penalty with negative marking off does nothing, and negative marking with no penalty does
+     * nothing either. A partial update lets a caller leave the policy half-changed and then wonder
+     * why the scores did not move.
+     */
+    @PutMapping("/{id}/scoring")
+    @ApiResponse(responseCode = "200", description = "The policy as it now stands.")
+    @ApiResponse(responseCode = "400",
+        description = "A pass mark outside 0-100, points of zero or less, a negative penalty, or "
+            + "an unknown scoring mode.",
+        content = @Content(mediaType = ProblemDocumentation.PROBLEM_JSON,
+            schema = @Schema(ref = ProblemDocumentation.REF)))
+    @ApiResponse(responseCode = "404", description = "No such test in this company.",
+        content = @Content(mediaType = ProblemDocumentation.PROBLEM_JSON,
+            schema = @Schema(ref = ProblemDocumentation.REF)))
+    public TestView scoring(@PathVariable UUID id, @RequestBody ScoringRequest request) {
+        return TestView.of(tests.scoredAs(id, required(request.passMarkPercent()),
+            request.negativeMarking() != null && request.negativeMarking(),
+            request.defaultPoints() == null ? BigDecimal.ONE : request.defaultPoints(),
+            mode(request.defaultMode()),
+            request.penaltyPoints() == null ? BigDecimal.ZERO : request.penaltyPoints()));
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable UUID id) {
+        tests.delete(id);
+    }
+
+    private static int required(Integer passMarkPercent) {
+        if (passMarkPercent == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "A test says what passing it means. Give a pass mark as a whole percent; zero is "
+                + "allowed and means nobody can fail, which is a real thing and a deliberate one.");
+        }
+        return passMarkPercent;
+    }
+
+    private static ScoringMode mode(String name) {
+        if (name == null || name.isBlank()) {
+            return ScoringMode.ALL_OR_NOTHING;
+        }
+        try {
+            return ScoringMode.valueOf(name);
+        } catch (IllegalArgumentException unknown) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "No scoring mode '" + name + "'. There are two: " + ScoringMode.ALL_OR_NOTHING
+                + " and " + ScoringMode.PARTIAL_CREDIT + ".", unknown);
+        }
+    }
+}

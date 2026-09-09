@@ -21,7 +21,7 @@ public abstract class PostgresTestHarness {
      * <p>Add a table here in the same commit that creates it.
      */
     private static final java.util.List<String> EVERY_TABLE = java.util.List.of(
-        "question_version", "question", "bank_difficulty", "bank_tag", "question_bank");
+        "question_version", "question", "bank_difficulty", "bank_tag", "question_bank", "test");
 
     /**
      * Empties the schema. Call it before AND after: before for a clean start, after out of manners.

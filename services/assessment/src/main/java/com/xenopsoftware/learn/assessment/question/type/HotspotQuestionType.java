@@ -56,6 +56,16 @@ public class HotspotQuestionType {
 
     private static final class Hotspot implements QuestionTypeDefinition {
 
+        /**
+         * A named region is a choice, so clicking about has odds and a penalty means something
+         * (T-6.4). It is the same answer the choice types give, which is not a coincidence: the
+         * response shape is a choice question's with a different field name.
+         */
+        @Override
+        public boolean guessable() {
+            return true;
+        }
+
         @Override
         public String code() {
             return "hotspot";
