@@ -1,5 +1,7 @@
 import createClient from 'openapi-fetch';
 import { csrfHeader } from '../auth/session.ts';
+import type { paths as assessmentPaths } from './assessment.d.ts';
+import type { paths as catalogPaths } from './catalog.d.ts';
 import type { paths as identityPaths } from './identity.d.ts';
 import type { paths as reportingPaths } from './reporting.d.ts';
 import type { paths as streamingPaths } from './streaming.d.ts';
@@ -84,6 +86,28 @@ export const streaming = createClient<streamingPaths>({ baseUrl, fetch: currentF
 export const reporting = createClient<reportingPaths>({ baseUrl, fetch: currentFetch });
 reporting.use(browserSession);
 streaming.use(browserSession);
+
+/**
+ * `catalog`: what training exists, who it reaches, and what is pinned inside a video (E5).
+ *
+ * Same origin again, and the routing behind it is the sharpest case in the table: catalog and
+ * streaming BOTH answer under `/api/v1/me/nodes/{id}/…` — playback and progress on one side, the
+ * interstitials pinned in that node's timeline on the other. The gateway tells them apart by the
+ * segment after the id, and `UpstreamsTest` is where that is asserted rather than hoped.
+ */
+export const catalog = createClient<catalogPaths>({ baseUrl, fetch: currentFetch });
+catalog.use(browserSession);
+
+/**
+ * `assessment`: banks, questions, tests, attempts and marking (E6).
+ *
+ * The largest surface here by some way, and the one where a drifted client would be least
+ * obvious: an admin console that cannot build a question is broken loudly, and one that builds a
+ * subtly wrong one is not. `npm run api:check` is what makes that a build failure rather than a
+ * screen.
+ */
+export const assessment = createClient<assessmentPaths>({ baseUrl, fetch: currentFetch });
+assessment.use(browserSession);
 
 /**
  * What a screen shows when a call fails. The shape is deliberately small: a sentence a person can

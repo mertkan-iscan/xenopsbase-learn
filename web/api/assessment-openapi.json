@@ -1,0 +1,3936 @@
+{
+  "components": {
+    "schemas": {
+      "AnswerForm": {
+        "properties": {
+          "response": {
+            "$ref": "#/components/schemas/JsonNode"
+          }
+        },
+        "type": "object"
+      },
+      "AttemptGradingView": {
+        "properties": {
+          "attemptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "gradedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "grading": {
+            "type": "string"
+          },
+          "passed": {
+            "type": "boolean"
+          },
+          "scorePercent": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "scoreRaw": {
+            "type": "number"
+          },
+          "scoreScaled": {
+            "type": "number"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AttemptView": {
+        "properties": {
+          "attemptNumber": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "BankForm": {
+        "properties": {
+          "bankId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "BankView": {
+        "properties": {
+          "copiedFromBankId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CopyForm": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CreateForm": {
+        "properties": {
+          "body": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "internalName": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CriterionForm": {
+        "properties": {
+          "maxPoints": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ordinal": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "CriterionView": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxPoints": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ordinal": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "DeletionView": {
+        "properties": {
+          "explanation": {
+            "type": "string"
+          },
+          "retired": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "DescriptionForm": {
+        "properties": {
+          "difficultyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tagIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "DescriptionView": {
+        "properties": {
+          "difficultyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tagIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "DifficultyForm": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "rank": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "DifficultyView": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "rank": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "EditForm": {
+        "properties": {
+          "body": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "internalName": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "EventView": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "gradedBy": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "grading": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "passed": {
+            "type": "boolean"
+          },
+          "scorePercent": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "scoreRaw": {
+            "type": "number"
+          },
+          "scoreScaled": {
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "ItemView": {
+        "properties": {
+          "formItemId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "optionOrder": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          },
+          "position": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "questionVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "sectionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "JsonNode": {
+        "properties": {
+          "array": {
+            "type": "boolean"
+          },
+          "bigDecimal": {
+            "type": "boolean"
+          },
+          "bigInteger": {
+            "type": "boolean"
+          },
+          "binary": {
+            "type": "boolean"
+          },
+          "boolean": {
+            "type": "boolean"
+          },
+          "container": {
+            "type": "boolean"
+          },
+          "double": {
+            "type": "boolean"
+          },
+          "embeddedValue": {
+            "type": "boolean"
+          },
+          "empty": {
+            "type": "boolean"
+          },
+          "float": {
+            "type": "boolean"
+          },
+          "floatingPointNumber": {
+            "type": "boolean"
+          },
+          "int": {
+            "type": "boolean"
+          },
+          "integralNumber": {
+            "type": "boolean"
+          },
+          "long": {
+            "type": "boolean"
+          },
+          "missingNode": {
+            "type": "boolean"
+          },
+          "nodeType": {
+            "enum": [
+              "ARRAY",
+              "BINARY",
+              "BOOLEAN",
+              "MISSING",
+              "NULL",
+              "NUMBER",
+              "OBJECT",
+              "POJO",
+              "STRING"
+            ],
+            "type": "string"
+          },
+          "null": {
+            "type": "boolean"
+          },
+          "number": {
+            "type": "boolean"
+          },
+          "object": {
+            "type": "boolean"
+          },
+          "pojo": {
+            "type": "boolean"
+          },
+          "short": {
+            "type": "boolean"
+          },
+          "string": {
+            "type": "boolean"
+          },
+          "textual": {
+            "deprecated": true,
+            "type": "boolean"
+          },
+          "valueNode": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "MarkForm": {
+        "properties": {
+          "awarded": {
+            "type": "number"
+          },
+          "comment": {
+            "type": "string"
+          },
+          "criterionMarks": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "MarkView": {
+        "properties": {
+          "available": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "awarded": {
+            "type": "number"
+          },
+          "comment": {
+            "type": "string"
+          },
+          "credited": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "criterionMarks": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object"
+          },
+          "formItemId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "graded": {
+            "type": "boolean"
+          },
+          "gradedBy": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "questionVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "responseId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "MonitoringView": {
+        "properties": {
+          "collects": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "keptForDays": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "neverUsedFor": {
+            "type": "string"
+          },
+          "usedFor": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "MoveForm": {
+        "properties": {
+          "afterSectionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "NewSectionForm": {
+        "properties": {
+          "drawCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "selection": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PoolForm": {
+        "properties": {
+          "bankId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "drawCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "maxDifficultyRank": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "minDifficultyRank": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "tagIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "PoolView": {
+        "properties": {
+          "available": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "enough": {
+            "type": "boolean"
+          },
+          "wanted": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Problem": {
+        "description": "An RFC 9457 problem document. Every refusal this platform writes has this shape, on `application/problem+json`.\n\nRFC 9457 permits extension members and this platform uses one, `code`. Switch on that rather than on `type`: a URI invites prefix-matching and string surgery, and the short token is the thing that stays readable in a client.",
+        "properties": {
+          "code": {
+            "description": "The extension member a client switches on, e.g. `PLAYBACK_NOT_ENTITLED`. Absent when the refusal has no machine-readable identity behind it, such as a bare `ResponseStatusException`.",
+            "type": "string"
+          },
+          "detail": {
+            "description": "What went wrong THIS time, written for whoever is on the other end. Absent when the refusal must not describe itself.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "The occurrence this document is about, when there is one.",
+            "format": "uri",
+            "type": "string"
+          },
+          "status": {
+            "description": "The HTTP status code, repeated in the document.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "title": {
+            "description": "A short, human-readable summary of the kind of problem.",
+            "type": "string"
+          },
+          "type": {
+            "description": "A stable URI identifying the kind of problem. It does not resolve; RFC 9457 says it need not.",
+            "format": "uri",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "QuestionView": {
+        "properties": {
+          "bankId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currentVersion": {
+            "$ref": "#/components/schemas/VersionView"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "internalName": {
+            "type": "string"
+          },
+          "retiredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "QuestionsForm": {
+        "properties": {
+          "questionIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "Review": {
+        "properties": {
+          "attemptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "attemptNumber": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "grading": {
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewedItem"
+            },
+            "type": "array"
+          },
+          "passed": {
+            "type": "boolean"
+          },
+          "scorePercent": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "scoreRaw": {
+            "type": "number"
+          },
+          "scoreScaled": {
+            "type": "number"
+          },
+          "state": {
+            "type": "string"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "testId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ReviewForm": {
+        "properties": {
+          "openAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "timing": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ReviewedItem": {
+        "properties": {
+          "awarded": {
+            "type": "number"
+          },
+          "body": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "correct": {
+            "type": "boolean"
+          },
+          "feedback": {
+            "type": "string"
+          },
+          "formItemId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "graderComment": {
+            "type": "string"
+          },
+          "optionOrder": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          },
+          "points": {
+            "type": "number"
+          },
+          "position": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "questionVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "response": {
+            "$ref": "#/components/schemas/JsonNode"
+          }
+        },
+        "type": "object"
+      },
+      "ScoringForm": {
+        "properties": {
+          "mode": {
+            "type": "string"
+          },
+          "points": {
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "ScoringRequest": {
+        "properties": {
+          "defaultMode": {
+            "type": "string"
+          },
+          "defaultPoints": {
+            "type": "number"
+          },
+          "negativeMarking": {
+            "type": "boolean"
+          },
+          "passMarkPercent": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "penaltyPoints": {
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "SectionView": {
+        "properties": {
+          "bankId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "drawCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxDifficultyRank": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "minDifficultyRank": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "points": {
+            "type": "number"
+          },
+          "questionIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "selection": {
+            "type": "string"
+          },
+          "shuffleOptions": {
+            "type": "boolean"
+          },
+          "shuffleQuestions": {
+            "type": "boolean"
+          },
+          "tagIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "testId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "weight": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SharedBank": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ShuffleForm": {
+        "properties": {
+          "options": {
+            "type": "boolean"
+          },
+          "questions": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "SignalForm": {
+        "properties": {
+          "detail": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "reportedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SignalView": {
+        "properties": {
+          "detail": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "recordedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reportedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "whatItMeans": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SittingForm": {
+        "properties": {
+          "attemptsAllowed": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "timeLimitSeconds": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SittingView": {
+        "properties": {
+          "answers": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonNode"
+            },
+            "type": "object"
+          },
+          "attemptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "attemptNumber": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ItemView"
+            },
+            "type": "array"
+          },
+          "monitoring": {
+            "$ref": "#/components/schemas/MonitoringView"
+          },
+          "secondsRemaining": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "testId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TagForm": {
+        "properties": {
+          "tag": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TagView": {
+        "properties": {
+          "tag": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TestRequest": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "passMarkPercent": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TestView": {
+        "properties": {
+          "attemptsAllowed": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "defaultMode": {
+            "type": "string"
+          },
+          "defaultPoints": {
+            "type": "number"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "negativeMarking": {
+            "type": "boolean"
+          },
+          "passMarkPercent": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "penaltyPoints": {
+            "type": "number"
+          },
+          "reviewAfter": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reviewTiming": {
+            "type": "string"
+          },
+          "reviewVisibility": {
+            "type": "string"
+          },
+          "timeLimitSeconds": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "VersionView": {
+        "properties": {
+          "body": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "firstServedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "WaitingView": {
+        "properties": {
+          "attemptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "attemptNumber": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "learnerId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "outstanding": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "testId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "testTitle": {
+            "type": "string"
+          },
+          "waitingSeconds": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "WeightForm": {
+        "properties": {
+          "weight": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "OpenAPI definition",
+    "version": "v0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/banks": {
+      "get": {
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BankView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "bank-resource"
+        ]
+      },
+      "post": {
+        "operationId": "create_1",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BankForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankView"
+                }
+              }
+            },
+            "description": "The bank that was created"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "This company already has a bank with that name"
+          }
+        },
+        "tags": [
+          "bank-resource"
+        ]
+      }
+    },
+    "/api/v1/banks/{bankId}/questions": {
+      "get": {
+        "operationId": "list_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "bankId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/QuestionView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "The bank's questions, retired ones excluded"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "404": {
+            "description": "No such bank in this company"
+          }
+        },
+        "tags": [
+          "question-resource"
+        ]
+      },
+      "post": {
+        "operationId": "create_2",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "bankId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionView"
+                }
+              }
+            },
+            "description": "The question, on its first version"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "404": {
+            "description": "No such bank in this company"
+          }
+        },
+        "tags": [
+          "question-resource"
+        ]
+      }
+    },
+    "/api/v1/banks/{id}": {
+      "get": {
+        "operationId": "get_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankView"
+                }
+              }
+            },
+            "description": "The bank"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "404": {
+            "description": "No such bank in this company"
+          }
+        },
+        "tags": [
+          "bank-resource"
+        ]
+      },
+      "put": {
+        "operationId": "rename_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BankForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankView"
+                }
+              }
+            },
+            "description": "The bank as it now is"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "404": {
+            "description": "No such bank in this company"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "This company already has a bank with that name"
+          }
+        },
+        "tags": [
+          "bank-resource"
+        ]
+      }
+    },
+    "/api/v1/grading/attempts/{attemptId}/answers/{responseId}": {
+      "post": {
+        "operationId": "mark",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "attemptId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "responseId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttemptGradingView"
+                }
+              }
+            },
+            "description": "The attempt as it now stands. It settles when nothing is left outstanding."
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A mark that does not fit the rubric, exceeds what the question is worth, or is negative."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "No such attempt in this company, or it has no such answer."
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The attempt is still being sat."
+          }
+        },
+        "tags": [
+          "grading-resource"
+        ]
+      }
+    },
+    "/api/v1/grading/attempts/{attemptId}/history": {
+      "get": {
+        "operationId": "history_2",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "attemptId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EventView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "grading-resource"
+        ]
+      }
+    },
+    "/api/v1/grading/attempts/{attemptId}/marks": {
+      "get": {
+        "operationId": "marks",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "attemptId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MarkView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "grading-resource"
+        ]
+      }
+    },
+    "/api/v1/grading/attempts/{attemptId}/signals": {
+      "get": {
+        "operationId": "signals",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "attemptId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SignalView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "What the learner's browser reported during the attempt, in the order it reached us. Self-reported telemetry from a page the learner controls: it corroborates a human's suspicion and is not evidence, and an ABSENCE of signals means nothing at all."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "grading-resource"
+        ]
+      }
+    },
+    "/api/v1/grading/questions/{questionId}/rubric": {
+      "get": {
+        "operationId": "rubric",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "questionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CriterionView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "grading-resource"
+        ]
+      },
+      "post": {
+        "operationId": "addCriterion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "questionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CriterionForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CriterionView"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "grading-resource"
+        ]
+      }
+    },
+    "/api/v1/grading/queue": {
+      "get": {
+        "operationId": "waiting",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "testId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WaitingView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Attempts waiting for a person, oldest first, with how long each has waited."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "grading-resource"
+        ]
+      }
+    },
+    "/api/v1/grading/queue/depth": {
+      "get": {
+        "operationId": "depth",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "additionalProperties": {
+                    "format": "int32",
+                    "type": "integer"
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "grading-resource"
+        ]
+      }
+    },
+    "/api/v1/internal/whoami": {
+      "get": {
+        "operationId": "whoami",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "service-chain-resource"
+        ]
+      }
+    },
+    "/api/v1/me/attempts/{id}": {
+      "get": {
+        "operationId": "one_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SittingView"
+                }
+              }
+            },
+            "description": "The attempt, its form and what is saved."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "No such attempt, or it is not this caller's — the same answer either way (T-2.4's disclosure rule)."
+          }
+        },
+        "tags": [
+          "attempt-resource"
+        ]
+      }
+    },
+    "/api/v1/me/attempts/{id}/answers/{formItemId}": {
+      "put": {
+        "operationId": "answer",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "formItemId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnswerForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Saved. Repeating it is free."
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The response does not fit the question this learner was served (T-6.3)."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "No such attempt for this caller, or it was never asked that question."
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Time is up, or the attempt is already over. Everything saved before the deadline still counts."
+          }
+        },
+        "tags": [
+          "attempt-resource"
+        ]
+      }
+    },
+    "/api/v1/me/attempts/{id}/review": {
+      "get": {
+        "operationId": "review_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Review"
+                }
+              }
+            },
+            "description": "The result, and as much of the paper as the policy permits. `visibility` says which — a screen renders the shape it names rather than inferring one from which fields happen to be null. Answer keys and feedback are absent from the payload unless the policy is FULL and its timing has opened."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "No such attempt, or it is not this caller's — the same answer either way."
+          }
+        },
+        "tags": [
+          "attempt-resource"
+        ]
+      }
+    },
+    "/api/v1/me/attempts/{id}/signals": {
+      "post": {
+        "operationId": "signal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignalForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Taken. Also the answer when it was dropped, which the client does not need to distinguish."
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not one of the disclosed kinds."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "No such attempt for this caller."
+          }
+        },
+        "tags": [
+          "attempt-resource"
+        ]
+      }
+    },
+    "/api/v1/me/attempts/{id}/submit": {
+      "post": {
+        "operationId": "submit",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SittingView"
+                }
+              }
+            },
+            "description": "The attempt, ended. Submitting again returns the same thing and changes nothing. A submit after the deadline is still accepted and the attempt is marked EXPIRED — nothing in it was written late, because the save path refuses that."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "No such attempt for this caller."
+          }
+        },
+        "tags": [
+          "attempt-resource"
+        ]
+      }
+    },
+    "/api/v1/me/monitoring": {
+      "get": {
+        "operationId": "monitoring",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonitoringView"
+                }
+              }
+            },
+            "description": "The integrity signals this platform records during an attempt, what a person may do with them, what nothing does with them, and how long they are kept. Generated from the same values the recorder accepts, so a signal cannot be collected without appearing here."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "attempt-resource"
+        ]
+      }
+    },
+    "/api/v1/me/tests/{testId}/attempts": {
+      "get": {
+        "operationId": "history",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "testId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AttemptView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "attempt-resource"
+        ]
+      },
+      "post": {
+        "operationId": "start",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "testId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SittingView"
+                }
+              }
+            },
+            "description": "The attempt and the form assembled for it. A second call while one is open resumes it rather than starting another, and does not move the deadline."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "No such test in this company."
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Every allowed attempt has been used, or this test has no sections to sit, or a section's pool cannot fill the form it asks for (T-6.5)."
+          }
+        },
+        "tags": [
+          "attempt-resource"
+        ]
+      }
+    },
+    "/api/v1/questions/{id}": {
+      "delete": {
+        "operationId": "delete_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionView"
+                }
+              }
+            },
+            "description": "Whether the question was retired or deleted"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "404": {
+            "description": "No such question, or it was already retired"
+          }
+        },
+        "tags": [
+          "question-resource"
+        ]
+      },
+      "get": {
+        "operationId": "get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionView"
+                }
+              }
+            },
+            "description": "The question and its current version"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "404": {
+            "description": "No such question, or it has been retired"
+          }
+        },
+        "tags": [
+          "question-resource"
+        ]
+      },
+      "put": {
+        "operationId": "edit",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionView"
+                }
+              }
+            },
+            "description": "The question as it now is"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "404": {
+            "description": "No such question, or it has been retired"
+          }
+        },
+        "tags": [
+          "question-resource"
+        ]
+      }
+    },
+    "/api/v1/questions/{id}/bank": {
+      "put": {
+        "operationId": "move_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BankForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionView"
+                }
+              }
+            },
+            "description": "The question, now in the other bank"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "404": {
+            "description": "No such question or no such bank"
+          }
+        },
+        "tags": [
+          "question-resource"
+        ]
+      }
+    },
+    "/api/v1/questions/{id}/description": {
+      "get": {
+        "operationId": "description",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/DescriptionView"
+                }
+              }
+            },
+            "description": "What a draw filters this question on"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "404": {
+            "description": "No such question"
+          }
+        },
+        "tags": [
+          "question-resource"
+        ]
+      },
+      "put": {
+        "operationId": "describe",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DescriptionForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/DescriptionView"
+                }
+              }
+            },
+            "description": "The question's draw attributes as they now are"
+          },
+          "400": {
+            "description": "A tag that is not in this company's vocabulary (T-6.1)"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "404": {
+            "description": "No such question"
+          }
+        },
+        "tags": [
+          "question-resource"
+        ]
+      }
+    },
+    "/api/v1/questions/{id}/versions": {
+      "get": {
+        "operationId": "history_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/VersionView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Every version, newest first"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "404": {
+            "description": "No such question"
+          }
+        },
+        "tags": [
+          "question-resource"
+        ]
+      }
+    },
+    "/api/v1/questions/{id}/versions/{versionId}": {
+      "get": {
+        "operationId": "version",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionView"
+                }
+              }
+            },
+            "description": "The version, as it was served"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "404": {
+            "description": "No such question or no such version of it"
+          }
+        },
+        "tags": [
+          "question-resource"
+        ]
+      }
+    },
+    "/api/v1/questions/{id}/versions/{versionId}/authoring": {
+      "get": {
+        "operationId": "authoring",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionView"
+                }
+              }
+            },
+            "description": "The version in full, including the answer key. The endpoint a permission goes on; until grants travel between services, nothing checks one."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "404": {
+            "description": "No such question or version"
+          }
+        },
+        "tags": [
+          "question-resource"
+        ]
+      }
+    },
+    "/api/v1/sections/{id}": {
+      "delete": {
+        "operationId": "remove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Somebody has already sat a test containing this section, and their form points at it."
+          }
+        },
+        "tags": [
+          "section-resource"
+        ]
+      }
+    },
+    "/api/v1/sections/{id}/pool": {
+      "get": {
+        "operationId": "pool",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PoolView"
+                }
+              }
+            },
+            "description": "How many questions this section could draw from right now, against what it asks for. The same predicate the draw uses."
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A fixed section has no pool."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "section-resource"
+        ]
+      },
+      "put": {
+        "operationId": "pool_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PoolForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SectionView"
+                }
+              }
+            },
+            "description": "The section as it now stands."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The pool holds fewer questions than the section asks for, with both numbers. Serving a short test would score this learner out of a different total from everybody else and nothing in the result would say so."
+          }
+        },
+        "tags": [
+          "section-resource"
+        ]
+      }
+    },
+    "/api/v1/sections/{id}/position": {
+      "put": {
+        "operationId": "move",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SectionView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "section-resource"
+        ]
+      }
+    },
+    "/api/v1/sections/{id}/questions": {
+      "put": {
+        "operationId": "questions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionsForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SectionView"
+                }
+              }
+            },
+            "description": "The section as it now stands."
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A pool section draws its questions, or the list was empty, or one of the questions is not this company's."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "section-resource"
+        ]
+      }
+    },
+    "/api/v1/sections/{id}/scoring": {
+      "put": {
+        "operationId": "scoring_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScoringForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SectionView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "section-resource"
+        ]
+      }
+    },
+    "/api/v1/sections/{id}/shuffle": {
+      "put": {
+        "operationId": "shuffle",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShuffleForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SectionView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "section-resource"
+        ]
+      }
+    },
+    "/api/v1/sections/{id}/weight": {
+      "put": {
+        "operationId": "weight",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WeightForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SectionView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "section-resource"
+        ]
+      }
+    },
+    "/api/v1/shared-banks": {
+      "get": {
+        "operationId": "shared",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SharedBank"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "bank-resource"
+        ]
+      }
+    },
+    "/api/v1/shared-banks/{id}/copies": {
+      "post": {
+        "operationId": "copy",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CopyForm"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankView"
+                }
+              }
+            },
+            "description": "The independent copy, owned by this company"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "404": {
+            "description": "No such bank is offered in the shared library"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "This company already has a bank with that name"
+          }
+        },
+        "tags": [
+          "bank-resource"
+        ]
+      }
+    },
+    "/api/v1/tests": {
+      "get": {
+        "operationId": "all",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TestView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "test-resource"
+        ]
+      },
+      "post": {
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestView"
+                }
+              }
+            },
+            "description": "Created."
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A test needs a title and a pass mark; the pass mark is a whole percent."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "test-resource"
+        ]
+      }
+    },
+    "/api/v1/tests/{id}": {
+      "delete": {
+        "operationId": "delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "test-resource"
+        ]
+      },
+      "get": {
+        "operationId": "one",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestView"
+                }
+              }
+            },
+            "description": "The test and its scoring policy."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "No such test in this company."
+          }
+        },
+        "tags": [
+          "test-resource"
+        ]
+      },
+      "put": {
+        "operationId": "rename",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "test-resource"
+        ]
+      }
+    },
+    "/api/v1/tests/{id}/review": {
+      "put": {
+        "operationId": "review",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestView"
+                }
+              }
+            },
+            "description": "The policy as it now stands."
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A timing of AFTER_DATE with no date, a date on any other timing, or AFTER_ALL_ATTEMPTS on a test with no attempt limit — which would mean never."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "No such test in this company."
+          }
+        },
+        "tags": [
+          "test-resource"
+        ]
+      }
+    },
+    "/api/v1/tests/{id}/scoring": {
+      "put": {
+        "operationId": "scoring",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScoringRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestView"
+                }
+              }
+            },
+            "description": "The policy as it now stands."
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A pass mark outside 0-100, points of zero or less, a negative penalty, or an unknown scoring mode."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "No such test in this company."
+          }
+        },
+        "tags": [
+          "test-resource"
+        ]
+      }
+    },
+    "/api/v1/tests/{id}/sitting": {
+      "put": {
+        "operationId": "sitting",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SittingForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestView"
+                }
+              }
+            },
+            "description": "The policy as it now stands."
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "An attempt limit below one, or a time limit that is not positive."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "No such test in this company."
+          }
+        },
+        "tags": [
+          "test-resource"
+        ]
+      }
+    },
+    "/api/v1/tests/{testId}/sections": {
+      "get": {
+        "operationId": "of",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "testId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SectionView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "section-resource"
+        ]
+      },
+      "post": {
+        "operationId": "add",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "testId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewSectionForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SectionView"
+                }
+              }
+            },
+            "description": "Created, at the end of the test."
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "An unknown selection, or a pool section with no draw count."
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "section-resource"
+        ]
+      }
+    },
+    "/api/v1/vocabulary/difficulties": {
+      "get": {
+        "operationId": "difficulties",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DifficultyView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "vocabulary-resource"
+        ]
+      },
+      "post": {
+        "operationId": "addDifficulty",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DifficultyForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/DifficultyView"
+                }
+              }
+            },
+            "description": "The difficulty level that was added"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "This company already has that code, or already has a level at that rank"
+          }
+        },
+        "tags": [
+          "vocabulary-resource"
+        ]
+      }
+    },
+    "/api/v1/vocabulary/tags": {
+      "get": {
+        "operationId": "tags",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TagView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "vocabulary-resource"
+        ]
+      },
+      "post": {
+        "operationId": "addTag",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagView"
+                }
+              }
+            },
+            "description": "The tag that was added"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "This company already has that tag"
+          }
+        },
+        "tags": [
+          "vocabulary-resource"
+        ]
+      }
+    }
+  },
+  "servers": [
+    {
+      "description": "Generated server url",
+      "url": "http://localhost:8086"
+    }
+  ]
+}

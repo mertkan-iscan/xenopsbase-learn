@@ -199,13 +199,16 @@ jobs:
       # Backgrounded and then waited for, rather than assumed up. Each writes a
       # log that is uploaded on failure, because "the contract check could not
       # reach identity" is not a diagnosis.
-      - name: Run identity, streaming and reporting
+      # Five services, because five describe themselves to the browser. Catalog and
+      # assessment joined this list when the gateway learned to route to them: a
+      # contract that is checked for three of five is a contract for three.
+      - name: Run the services that publish a contract
         run: |
-          for service in identity streaming reporting; do
+          for service in identity streaming reporting catalog assessment; do
             nohup java -jar "services/${service}/target/${service}-0.0.1-SNAPSHOT.jar" \
               > "/tmp/${service}.log" 2>&1 &
           done
-          for port in 8082 8083 8084; do
+          for port in 8082 8083 8084 8085 8086; do
             for _ in $(seq 1 90); do
               if curl -sf "http://localhost:${port}/v3/api-docs" > /dev/null; then
                 echo "port ${port} serving its contract"
