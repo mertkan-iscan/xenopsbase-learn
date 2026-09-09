@@ -1,0 +1,60 @@
+# One host, two backends, and the reason the split is where it is (T-10.2).
+#
+# The browser must see ONE origin. Not for tidiness: the session cookie belongs
+# to an origin, a second origin means CORS and a cookie that does not travel, and
+# the whole "the browser never holds a token" design rests on a cookie that does.
+#
+#   /                    the static build       frontend:8080
+#   /api                 the relay              gateway:8080
+#   /auth                session and sign-out   gateway:8080
+#   /oauth2, /login      the sign-in round trip gateway:8080
+#
+# THE ORDER OF THESE PATHS DOES NOT MATTER and that is worth stating, because the
+# equivalent table inside the gateway is order-sensitive and says so loudly.
+# Ingress-nginx matches the LONGEST prefix rather than the first, so `/` cannot
+# swallow `/api` here. The gateway's `Upstreams` walks a list in order and can.
+#
+# NO TLS BLOCK, deliberately. Nothing in this cluster terminates TLS: cloudflared
+# dials out and Cloudflare's edge holds the certificate, which is what lets the
+# cluster have no inbound listener at all (the stemcell's ADR-0006). An Ingress
+# here that asked cert-manager for a certificate would get one nothing presents.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: learn
+  namespace: learn
+  labels: {app.kubernetes.io/part-of: xenopslearn}
+  annotations:
+    # Bytes do not pass through here: uploads go straight to the media provider
+    # from the browser (T-3.2), so this bounds ordinary API requests only.
+    # nginx's 1m default would do; a stated limit beats an inherited one.
+    nginx.ingress.kubernetes.io/proxy-body-size: "8m"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: learn-dev.xenopsoftware.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service: {name: gateway, port: {number: 8080}}
+          - path: /auth
+            pathType: Prefix
+            backend:
+              service: {name: gateway, port: {number: 8080}}
+          # The two halves of the sign-in round trip: out to Keycloak, and back
+          # with the code. Both are the gateway's -- the frontend has no part in
+          # the flow at all, which is the point of it holding no token.
+          - path: /oauth2
+            pathType: Prefix
+            backend:
+              service: {name: gateway, port: {number: 8080}}
+          - path: /login/oauth2
+            pathType: Prefix
+            backend:
+              service: {name: gateway, port: {number: 8080}}
+          - path: /
+            pathType: Prefix
+            backend:
+              service: {name: frontend, port: {number: 8080}}

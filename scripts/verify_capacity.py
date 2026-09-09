@@ -115,18 +115,41 @@ def ok(message):
     return 0
 
 
+def maven_modules():
+    """The services the Java build produces, read from the one list that must be right.
+
+    This is what makes the invariant below apply to the right manifests. It is about
+    JVMs: a JVM sizes its heap from the container LIMIT, and one that under-declares
+    its REQUEST is starved first and never Pending, so nothing reports it. Neither
+    property belongs to nginx serving files out of page cache, and booking half a
+    gigabyte for the frontend would be the same mistake ADR-0109 caught in the other
+    direction -- spending the cluster's scarcest resource on nothing.
+
+    So a Deployment whose name is not a Maven module is not held to the figure. The
+    discriminator is deliberately not a list of names kept here: a new Java service
+    cannot escape it by being forgotten, and a static asset server is not asked to
+    pretend to be a JVM.
+    """
+    pom = (ROOT / "services" / "pom.xml").read_text(encoding="utf-8")
+    modules = set(re.findall(r"<module>([^<]+)</module>", pom))
+    return {m for m in modules if not m.startswith("platform-common")}
+
+
 def declared_resources():
-    """Each service manifest's app-container memory request and limit.
+    """Each JVM service manifest's app-container memory request and limit.
 
     Parsed with a regular expression rather than a YAML library, deliberately: this
     script is meant to run in CI on a checkout with no Python dependencies installed,
     the same way scripts/service-modules.sh works with no jq. The shape it reads is
     the one the manifests use and a `verify` job proves it still matches.
     """
+    jvm_services = maven_modules()
     found = {}
     for path in sorted(MANIFESTS.glob("*.yaml")):
         text = path.read_text(encoding="utf-8")
         if "kind: Deployment" not in text:
+            continue
+        if path.stem not in jvm_services:
             continue
         # The LAST resources block in the file is the app container's; the first is
         # the wait-for-oidc init container, which is 16Mi and not what is being sized.

@@ -1,0 +1,86 @@
+# frontend: nginx and a directory of files (T-10.2's deploy).
+#
+# A pod of its own rather than files served by the gateway, and the reason is
+# T-3.10 rather than tidiness: what ships is a static build "so a learner's page
+# loads when none of our services are running" (docs/frontend.md). Put the app
+# inside the gateway and the gateway being down stops the page loading at all,
+# which turns a degraded backend into a blank screen.
+#
+# ADR-0109 counts this as a process that is "static, free". 16Mi against 512Mi
+# for a JVM is what free looks like.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: learn
+  labels: {app.kubernetes.io/name: frontend, app.kubernetes.io/part-of: xenopslearn}
+spec:
+  # Two, and it costs almost nothing: 32Mi of requests buys a rollout with no
+  # gap and survives a node. This is the one pod in the namespace whose absence
+  # is a blank page rather than a degraded one.
+  replicas: 2
+  selector:
+    matchLabels: {app.kubernetes.io/name: frontend}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: frontend, app.kubernetes.io/part-of: xenopslearn}
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: frontend
+          # Overridden by digest in kustomization.yaml; this tag is a
+          # placeholder and MUST NOT be what runs.
+          image: ghcr.io/mertkan-iscan/xenopsbase-learn/frontend:main
+          imagePullPolicy: IfNotPresent
+          ports:
+            - {name: http, containerPort: 8080}
+          securityContext:
+            # 101 is nginx-unprivileged's own user. Named numerically because
+            # runAsNonRoot cannot verify a name -- the same refusal the curl
+            # init container names.
+            runAsUser: 101
+            runAsGroup: 101
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 20
+          resources:
+            # NOT the 512Mi every JVM here declares, and this is the manifest
+            # that made scripts/verify_capacity.py distinguish the two: that
+            # invariant exists because a JVM sizes its heap from the container
+            # limit and under-declaring starves it. nginx serving files from
+            # page cache has neither property, and booking half a gigabyte for
+            # it would spend the cluster's scarcest resource on nothing --
+            # which is the exact mistake ADR-0109 caught in the other direction.
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 64Mi}
+          volumeMounts:
+            # readOnlyRootFilesystem, so nginx's scratch has to come from
+            # somewhere: it writes its pid and its proxy/fastcgi temp paths at
+            # startup and exits if it cannot.
+            - {name: cache, mountPath: /var/cache/nginx}
+            - {name: run, mountPath: /tmp}
+      volumes:
+        - name: cache
+          emptyDir: {}
+        - name: run
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: learn
+  labels: {app.kubernetes.io/name: frontend, app.kubernetes.io/part-of: xenopslearn}
+spec:
+  selector: {app.kubernetes.io/name: frontend}
+  ports:
+    - {name: http, port: 8080, targetPort: http}

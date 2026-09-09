@@ -385,3 +385,111 @@ jobs:
             echo
             echo "Pin the digest in \`platform/envs/dev/services/kustomization.yaml\`."
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # The frontend image, which is the one thing here that is not a JVM.
+  #
+  # A SEPARATE JOB RATHER THAN A ROW IN THE MATRIX ABOVE, because that matrix is
+  # derived from services/pom.xml and the frontend is not a Maven module. Adding
+  # it by hand would be re-introducing the typed list that job exists to have
+  # deleted -- and it would then be built with jib, which builds Java images.
+  #
+  # THE SAME SIGNING, and it is not optional. The `learn` namespace is enrolled
+  # in policy-controller and its ClusterImagePolicy covers this whole registry
+  # path, so an unsigned frontend image is refused at admission with the pod
+  # sitting in a state whose logs say nothing.
+  publish-frontend:
+    name: publish frontend image
+    runs-on: ubuntu-latest
+    needs: [services, web, contract]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      # No setup-buildx or docker/build-push actions: buildx ships with the
+      # runner's Docker, and two more third-party actions is two more things to
+      # pin, review and keep current for a `docker build` that fits in a line.
+      - name: Log in to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      # --metadata-file rather than parsing the push output: the digest is what
+      # gets signed and pinned, and reading it out of a log line is how a
+      # deploy ends up pointing at whatever was parsed successfully.
+      - name: Build and push
+        working-directory: web
+        run: |
+          docker buildx build \
+            --file Dockerfile \
+            --tag ghcr.io/mertkan-iscan/xenopsbase-learn/frontend:${{ github.sha }} \
+            --tag ghcr.io/mertkan-iscan/xenopsbase-learn/frontend:main \
+            --metadata-file metadata.json \
+            --push .
+
+      - name: Resolve the pushed digest
+        id: digest
+        working-directory: web
+        run: |
+          digest="$(python3 -c 'import json;print(json.load(open("metadata.json"))["containerimage.digest"])')"
+          case "$digest" in
+            sha256:*) ;;
+            *) echo "::error::not a digest: '${digest}'"; exit 1 ;;
+          esac
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/mertkan-iscan/xenopsbase-learn/frontend" >> "$GITHUB_OUTPUT"
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Log in to GHCR for cosign
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$GHCR_TOKEN" | cosign login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      # --new-bundle-format=false for the reason the JVM job states in full:
+      # policy-controller looks for the classic `sha256-<digest>.sig`, and the
+      # default bundle format publishes somewhere it does not look. The image is
+      # then signed and the cluster refuses it.
+      - name: Sign the image
+        env:
+          COSIGN_YES: 'true'
+        run: |
+          cosign sign --new-bundle-format=false --use-signing-config=false \
+            "${{ steps.digest.outputs.image }}@${{ steps.digest.outputs.digest }}"
+
+      - name: Assert the signature is where a verifier will look
+        run: |
+          tag="$(printf '%s' '${{ steps.digest.outputs.digest }}' | tr ':' '-').sig"
+          cosign manifest download "${{ steps.digest.outputs.image }}:${tag}" > /dev/null
+
+      - name: Verify the signature we just made
+        run: |
+          cosign verify \
+            --certificate-identity-regexp '^https://github\.com/${{ github.repository }}/\.github/workflows/' \
+            --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+            "${{ steps.digest.outputs.image }}@${{ steps.digest.outputs.digest }}"
+
+      - name: Attest SLSA provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ steps.digest.outputs.image }}
+          subject-digest: ${{ steps.digest.outputs.digest }}
+
+      - name: Report the digest
+        run: |
+          {
+            echo "### frontend"
+            echo
+            echo '```'
+            echo "image:  ${{ steps.digest.outputs.image }}"
+            echo "digest: ${{ steps.digest.outputs.digest }}"
+            echo "commit: ${{ github.sha }}"
+            echo '```'
+            echo
+            echo "Pin the digest in \`platform/envs/dev/services/kustomization.yaml\`."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,13 @@
+# The build installs from the lockfile, so a host node_modules is both enormous
+# and wrong -- it may hold binaries built for a different platform.
+node_modules
+dist
+
+# Nothing here belongs in an image, and .env.local held a token until T-10.2
+# removed the need for one.
+.env
+.env.*
+*.log
+
+# The tests run in CI, against a pull request, where a failure is reported.
+e2e

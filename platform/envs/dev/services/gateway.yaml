@@ -1,0 +1,165 @@
+# gateway: the one origin a browser talks to (T-10.2, ADR-0109).
+#
+# The first thing in this namespace that is exposed through the ingress, and the
+# reason the other three are not. Every public request enters here, is matched
+# against a session, and is relayed inward with a token the browser never holds;
+# a second public entry point straight to a service would be an unauthenticated
+# one.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: learn
+  labels: {app.kubernetes.io/name: gateway, app.kubernetes.io/part-of: xenopslearn}
+spec:
+  # ONE REPLICA HERE, WHERE ADR-0109 SAYS TWO.
+  #
+  # The ADR's two is about a production edge surviving a node. What makes one
+  # acceptable on dev is the thing that would make two work anyway: the sessions
+  # live in Valkey, not in this process, so a restart or a rollout costs a few
+  # seconds of unavailability and signs nobody out. Two replicas here would take
+  # another 512Mi out of a cluster that ADR-0109 already measured as short.
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: gateway}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: gateway, app.kubernetes.io/part-of: xenopslearn}
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+
+      # WAIT FOR THE ISSUER, and here it is not merely a startup race.
+      #
+      # The other three services resolve the discovery document to verify
+      # tokens. This one resolves it to OBTAIN them, so without Keycloak it
+      # cannot even offer a login page. Same init container, same reasoning as
+      # identity's: waiting in Init beats a CrashLoopBackOff that outlives the
+      # dependency by five minutes.
+      initContainers:
+        - name: wait-for-oidc
+          image: curlimages/curl@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13  # 8.21.0
+          # THE DIGEST IS SHARED WITH THE STEMCELL AND MUST STAY IN STEP. The
+          # `learn` namespace is enrolled in policy-controller and this image
+          # gets in only through the stemcell's `third-party-images-by-digest`,
+          # which passes one exact digest. Bumping it here without bumping it
+          # there means three pods stuck in Init with clean logs.
+          securityContext:
+            runAsUser: 100
+            runAsGroup: 101
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          env:
+            - name: OIDC_ISSUER_URI
+              valueFrom: {configMapKeyRef: {name: learn-oidc, key: OIDC_ISSUER_URI}}
+          command: ["sh", "-c"]
+          args:
+            - |
+              until curl -sf "$OIDC_ISSUER_URI/.well-known/openid-configuration" >/dev/null; do
+                echo "waiting for $OIDC_ISSUER_URI"
+                sleep 5
+              done
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 32Mi}
+
+      containers:
+        - name: gateway
+          # Overridden by digest in kustomization.yaml; this tag is a
+          # placeholder and MUST NOT be what runs.
+          image: ghcr.io/mertkan-iscan/xenopsbase-learn/gateway:main
+          imagePullPolicy: IfNotPresent
+          ports:
+            - {name: http, containerPort: 8080}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          env:
+            - {name: SERVER_PORT, value: "8080"}
+            - name: OIDC_ISSUER_URI
+              valueFrom: {configMapKeyRef: {name: learn-oidc, key: OIDC_ISSUER_URI}}
+
+            # THE CLIENT THAT OBTAINS TOKENS ON A PERSON'S BEHALF.
+            #
+            # Confidential, so it has a secret, and that secret is the one thing
+            # in this file whose leak would let somebody complete an
+            # authorization-code flow as this application.
+            - {name: GATEWAY_CLIENT_ID, value: gateway}
+            - name: GATEWAY_CLIENT_SECRET
+              valueFrom: {secretKeyRef: {name: learn-gateway-client, key: secret}}
+            # THIS SECRET DOES NOT EXIST YET. It is the stemcell's to create --
+            # every learn secret lives there, SOPS-encrypted, beside the three
+            # database ones. On dev its value is the realm's own published
+            # development constant (`local-development-only-gateway-secret` in
+            # learn-realm-import.yaml), so creating it is a plumbing job rather
+            # than a credential-handling one; without it this pod does not start
+            # and the message names the missing key.
+
+            # WHERE THE BROWSER COMES BACK TO, and it must be the app's origin
+            # rather than this pod's. Spring's default builds the redirect from
+            # the request it saw, which behind an ingress is whatever the proxy
+            # forwarded; naming it makes the value a decision instead of a
+            # consequence. It has to match the realm's registered redirect URI
+            # exactly, or Keycloak refuses the flow.
+            - {name: OIDC_REDIRECT_URI, value: "https://learn-dev.xenopsoftware.com/login/oauth2/code/oidc"}
+            - {name: APP_URL, value: "https://learn-dev.xenopsoftware.com"}
+
+            # Secure, because the edge is TLS and a session cookie that would
+            # travel over plaintext is one that can be taken off a network.
+            - {name: SESSION_COOKIE_SECURE, value: "true"}
+
+            # THE SESSION STORE, AND THE ONE DEPENDENCY THIS SERVICE CANNOT
+            # DEGRADE WITHOUT. Everywhere else in this repository Valkey is a
+            # cache and its absence is a slower request (#126). Here it holds
+            # the sessions: losing it signs everybody out. That is stated rather
+            # than defended, because the alternative -- sessions in the heap --
+            # trades "everybody is signed out when Valkey goes" for "everybody
+            # is signed out when this pod moves", which happens far more often.
+            - {name: VALKEY_HOST, value: valkey-cache.cache.svc.cluster.local}
+            - {name: VALKEY_PORT, value: "6379"}
+            - name: VALKEY_PASSWORD
+              valueFrom: {secretKeyRef: {name: valkey-client, key: password}}
+
+            # Where the relay sends things. The routing table itself is in
+            # `Upstreams`; these are only the addresses.
+            - {name: IDENTITY_URL, value: http://identity.learn.svc.cluster.local:8082}
+            - {name: STREAMING_URL, value: http://streaming.learn.svc.cluster.local:8083}
+            - {name: REPORTING_URL, value: http://reporting.learn.svc.cluster.local:8084}
+          readinessProbe:
+            httpGet: {path: /management/health/readiness, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /management/health/liveness, port: http}
+            periodSeconds: 20
+          resources:
+            # The same 512Mi/896Mi every JVM service in this repository declares
+            # (T-9.15), and NOT because this one was measured -- it has never
+            # run under load. It is a JVM on the same base image with the same
+            # heap sizing, so the measured floor is the closest honest figure
+            # available, and scripts/verify_capacity.py holds every service to
+            # one number precisely so a new one cannot quietly pick its own.
+            #
+            # It should be measured once there is traffic through it, the same
+            # way the other three were.
+            requests: {cpu: 100m, memory: 512Mi}
+            limits: {memory: 896Mi}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: learn
+  labels: {app.kubernetes.io/name: gateway, app.kubernetes.io/part-of: xenopslearn}
+spec:
+  selector: {app.kubernetes.io/name: gateway}
+  ports:
+    - {name: http, port: 8080, targetPort: http}
