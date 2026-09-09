@@ -62,7 +62,20 @@ public enum RefusalReason {
      * the node points at no video. Not a 404 — the learner may see it, it just is not ready.
      */
     NOT_PLAYABLE(HttpStatus.CONFLICT, "NOT_PLAYABLE",
-        "This video is not ready to play yet.");
+        "This video is not ready to play yet."),
+    /**
+     * The video was deleted (T-3.8), and this is what a learner mid-course meets.
+     *
+     * <p>Separate from NOT_PLAYABLE, which says "not ready to play YET" — an answer that invites
+     * waiting, and would have the learner refresh a course page forever for a video nobody is going
+     * to encode. 410 rather than 404 because the learner IS entitled: they passed status,
+     * permission, assignment and gate, so the disclosure rule that makes an unentitled read a bare
+     * 404 (T-2.4) has nothing to protect here, and telling them the content is gone is the only
+     * answer that lets them stop.
+     */
+    CONTENT_REMOVED(HttpStatus.GONE, "CONTENT_REMOVED",
+        "This video has been removed. Your progress is unaffected; ask your administrator if you "
+        + "were expecting it to be here.");
 
     private final HttpStatus status;
     private final String code;

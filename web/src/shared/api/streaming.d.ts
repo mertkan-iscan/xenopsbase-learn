@@ -73,7 +73,7 @@ export interface paths {
         get: operations["video"];
         put?: never;
         post?: never;
-        delete?: never;
+        delete: operations["delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -120,6 +120,18 @@ export interface components {
             maxDurationSeconds?: number;
             /** Format: int64 */
             sizeBytes?: number;
+        };
+        DeleteVideoRequest: {
+            reason?: string;
+        };
+        DeletionView: {
+            /** Format: date-time */
+            deletedAt?: string;
+            /** Format: uuid */
+            id?: string;
+            /** Format: date-time */
+            requestedAt?: string;
+            state?: string;
         };
         IssuedUploadResponse: {
             /** Format: uuid */
@@ -506,6 +518,61 @@ export interface operations {
                 content: {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
+            };
+        };
+    };
+    delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeleteVideoRequest"];
+            };
+        };
+        responses: {
+            /** @description The deletion was accepted; the video no longer plays */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["DeletionView"];
+                };
+            };
+            /** @description No reason was given */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /**
+             * @description The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.
+             *
+             *     A permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting.
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No such video in this company */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

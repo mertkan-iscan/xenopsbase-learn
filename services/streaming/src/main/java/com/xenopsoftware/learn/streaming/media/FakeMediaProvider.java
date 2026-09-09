@@ -9,6 +9,7 @@ import java.net.URI;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -139,6 +140,18 @@ public class FakeMediaProvider implements MediaProvider {
     @Override
     public void delete(String providerRef) {
         assets.remove(providerRef);
+    }
+
+    /**
+     * Everything this fake is holding, in one page.
+     *
+     * <p>Unpaginated on purpose: a fake that paginated would be testing its own arithmetic, and the
+     * caller's handling of a cursor is exercised where it belongs — against a provider that
+     * actually has one.
+     */
+    @Override
+    public ProviderAssetPage list(String cursor) {
+        return ProviderAssetPage.last(List.copyOf(assets.keySet()));
     }
 
     /** The encode pipeline's happy path, played by tests and local tooling. */

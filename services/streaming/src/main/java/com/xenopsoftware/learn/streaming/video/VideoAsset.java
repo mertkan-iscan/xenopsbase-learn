@@ -58,6 +58,27 @@ public class VideoAsset extends TenantOwned {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    // ---- Deletion (T-3.8). The record of intent; `deletedAt` is the record of fact. ----
+
+    @Column(name = "deletion_requested_at")
+    private Instant deletionRequestedAt;
+
+    /** An app_user id resolved through identity, never a token subject (ADR-0104). */
+    @Column(name = "deletion_requested_by")
+    private UUID deletionRequestedBy;
+
+    @Column(name = "deletion_reason", length = 500)
+    private String deletionReason;
+
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
+    @Column(name = "deletion_attempts", nullable = false)
+    private int deletionAttempts;
+
+    @Column(name = "deletion_error", columnDefinition = "text")
+    private String deletionError;
+
     protected VideoAsset() {}
 
     public VideoAsset(String provider, String providerRef, long sizeBytes, long maxDurationSeconds,
@@ -77,6 +98,50 @@ public class VideoAsset extends TenantOwned {
     public void replaceUploadTarget(String newProviderRef, Instant expiresAt) {
         this.providerRef = newProviderRef;
         this.uploadTargetExpiresAt = expiresAt;
+    }
+
+    /**
+     * Record that somebody has asked for this video to be deleted (T-3.8).
+     *
+     * <p>This does not delete anything. It stops playback and puts the row in the reconciler's
+     * queue, and that ordering is the whole guarantee: the claim "this is deleted" is only made by
+     * {@link #deletionConfirmed()}, after a provider has said so.
+     *
+     * <p>Idempotent for a repeated request, and deliberately: a customer pressing delete twice is
+     * not an error, and resetting the reason or the actor on the second press would overwrite the
+     * record of who actually asked.
+     */
+    public void deletionRequested(UUID actor, String reason) {
+        if (state == VideoAssetState.DELETING || state == VideoAssetState.DELETED) {
+            return;
+        }
+        this.state = VideoAssetState.DELETING;
+        this.deletionRequestedAt = Instant.now();
+        this.deletionRequestedBy = actor;
+        this.deletionReason = reason == null || reason.isBlank() ? null : reason.strip();
+        this.deletionAttempts = 0;
+        this.deletionError = null;
+    }
+
+    /** The provider has confirmed. The only place this row is allowed to claim the bytes are gone. */
+    public void deletionConfirmed() {
+        this.state = VideoAssetState.DELETED;
+        this.deletedAt = Instant.now();
+        this.deletionError = null;
+    }
+
+    /**
+     * An attempt failed. The row stays DELETING and is retried; the count and the message are what
+     * turn "still not deleted" from a silence into something an operator can escalate.
+     */
+    public void deletionFailed(String error) {
+        this.deletionAttempts++;
+        this.deletionError = error;
+    }
+
+    /** Whether this asset is on its way out or already gone — either way, it never plays again. */
+    public boolean isBeingRemoved() {
+        return state == VideoAssetState.DELETING || state == VideoAssetState.DELETED;
     }
 
     public UUID getId() {
@@ -105,6 +170,30 @@ public class VideoAsset extends TenantOwned {
 
     public long getMaxDurationSeconds() {
         return maxDurationSeconds;
+    }
+
+    public Instant getDeletionRequestedAt() {
+        return deletionRequestedAt;
+    }
+
+    public UUID getDeletionRequestedBy() {
+        return deletionRequestedBy;
+    }
+
+    public String getDeletionReason() {
+        return deletionReason;
+    }
+
+    public Instant getDeletedAt() {
+        return deletedAt;
+    }
+
+    public int getDeletionAttempts() {
+        return deletionAttempts;
+    }
+
+    public String getDeletionError() {
+        return deletionError;
     }
 
     public Instant getUploadTargetExpiresAt() {

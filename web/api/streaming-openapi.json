@@ -14,6 +14,34 @@
         },
         "type": "object"
       },
+      "DeleteVideoRequest": {
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "DeletionView": {
+        "properties": {
+          "deletedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "IssuedUploadResponse": {
         "properties": {
           "id": {
@@ -487,6 +515,68 @@
       }
     },
     "/api/v1/videos/{id}": {
+      "delete": {
+        "operationId": "delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteVideoRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionView"
+                }
+              }
+            },
+            "description": "The deletion was accepted; the video no longer plays"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "No reason was given"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "404": {
+            "description": "No such video in this company"
+          }
+        },
+        "tags": [
+          "video-resource"
+        ]
+      },
       "get": {
         "operationId": "video",
         "parameters": [

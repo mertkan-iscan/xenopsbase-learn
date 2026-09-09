@@ -45,6 +45,11 @@ class VideoUploadWebTest extends PostgresTestHarness {
             "same authorization story as create, on the same asset",
         "VideoResource#video",
             "read gating arrives with the playback entitlement work (T-3.4)",
+        "VideoResource#delete",
+            "the same authorization story as create (T-3.8): deleting a video is an authoring act "
+            + "and its permission arrives with cross-service grants. Until then any tenant member, "
+            + "and the discriminator is what stops it being anybody else's video. The reason is "
+            + "required and recorded, so the act is attributable even while it is not yet gated",
         "PlaybackResource#playbackToken",
             "authorization is not decided by an annotation here on purpose (T-3.4): the "
             + "permission check is one link of an ordered chain inside PlaybackTokenService, "
