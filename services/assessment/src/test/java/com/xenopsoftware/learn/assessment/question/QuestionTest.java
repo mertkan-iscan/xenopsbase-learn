@@ -43,8 +43,16 @@ class QuestionTest extends PostgresTestHarness {
     private static final String ACME = "acme-author~acme~TENANT";
     private static final String GLOBEX = "globex-author~globex~TENANT";
 
+    /**
+     * A well-formed single-choice question (T-6.3 gave the body a shape).
+     *
+     * <p>These fixtures were three fields deep and shapeless until T-6.3; they are a real question
+     * now, which is what makes the edits below edits to something a learner could have sat.
+     */
     private static final String ORIGINAL = """
-        {"stem":"Which extinguisher suits an electrical fire?","options":["Water","CO2"],"key":1}""";
+        {"type":"single-choice","stem":"Which extinguisher suits an electrical fire?",
+         "options":{"choices":[{"id":"a","text":"Water"},{"id":"b","text":"CO2"}]},
+         "answerKey":{"correct":["b"]}}""";
 
     @Autowired
     private DataSource dataSource;
@@ -96,8 +104,10 @@ class QuestionTest extends PostgresTestHarness {
     void correctingADraftLeavesNoTrace() throws Exception {
         UUID question = question("Electrical fire", ORIGINAL);
 
-        put("/api/v1/questions/" + question, ACME,
-            "{\"body\":{\"stem\":\"Which extinguisher suits an electrical fire\",\"options\":[\"Water\",\"CO2\"],\"key\":1}}");
+        put("/api/v1/questions/" + question, ACME, """
+            {"body":{"type":"single-choice","stem":"Which extinguisher suits an electrical fire",
+             "options":{"choices":[{"id":"a","text":"Water"},{"id":"b","text":"CO2"}]},
+             "answerKey":{"correct":["b"]}}}""");
 
         JsonNode current = json.readTree(get("/api/v1/questions/" + question, ACME).body())
             .get("currentVersion");
@@ -118,8 +128,11 @@ class QuestionTest extends PostgresTestHarness {
         // Delivery hands the question to a learner. An attempt would record exactly this id.
         assertThat(serve(asked)).isTrue();
 
-        put("/api/v1/questions/" + question, ACME,
-            "{\"body\":{\"stem\":\"Which extinguisher suits an electrical fire?\",\"options\":[\"Water\",\"CO2\",\"Foam\"],\"key\":2}}");
+        put("/api/v1/questions/" + question, ACME, """
+            {"body":{"type":"single-choice","stem":"Which extinguisher suits an electrical fire?",
+             "options":{"choices":[{"id":"a","text":"Water"},{"id":"b","text":"CO2"},
+                                   {"id":"c","text":"Foam"}]},
+             "answerKey":{"correct":["c"]}}}""");
 
         JsonNode current = json.readTree(get("/api/v1/questions/" + question, ACME).body())
             .get("currentVersion");
@@ -130,10 +143,10 @@ class QuestionTest extends PostgresTestHarness {
         JsonNode wasAsked = json.readTree(
             get("/api/v1/questions/" + question + "/versions/" + asked, ACME).body());
         assertThat(wasAsked.get("body")).isEqualTo(json.readTree(ORIGINAL));
-        assertThat(wasAsked.get("body").get("options")).hasSize(2);
-        assertThat(wasAsked.get("body").get("key").asInt())
+        assertThat(wasAsked.get("body").get("options").get("choices")).hasSize(2);
+        assertThat(wasAsked.get("body").get("answerKey").get("correct").get(0).asString())
             .as("the answer key that marked this learner, not the corrected one")
-            .isEqualTo(1);
+            .isEqualTo("b");
         assertThat(wasAsked.get("firstServedAt").isNull()).isFalse();
     }
 
@@ -168,8 +181,10 @@ class QuestionTest extends PostgresTestHarness {
         UUID question = question("Electrical fire", ORIGINAL);
         serve(currentVersionOf(question));
 
-        put("/api/v1/questions/" + question, ACME,
-            "{\"body\":{\"key\":1,\"options\":[\"Water\",\"CO2\"],\"stem\":\"Which extinguisher suits an electrical fire?\"}}");
+        put("/api/v1/questions/" + question, ACME, """
+            {"body":{"answerKey":{"correct":["b"]},
+             "options":{"choices":[{"id":"a","text":"Water"},{"id":"b","text":"CO2"}]},
+             "stem":"Which extinguisher suits an electrical fire?","type":"single-choice"}}""");
 
         assertThat(json.readTree(get("/api/v1/questions/" + question + "/versions", ACME).body()))
             .as("the same question, with its fields in another order")
