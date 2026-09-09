@@ -6,6 +6,7 @@ import com.xenopsoftware.learn.assessment.grading.GradingService;
 import com.xenopsoftware.learn.assessment.grading.MarkingQueue;
 import com.xenopsoftware.learn.assessment.grading.Marks;
 import com.xenopsoftware.learn.assessment.grading.Rubrics;
+import com.xenopsoftware.learn.assessment.integrity.IntegrityService;
 import com.xenopsoftware.learn.common.tenancy.TenantContext;
 import com.xenopsoftware.learn.common.web.ProblemDocumentation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -29,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import tools.jackson.databind.JsonNode;
 
 /**
  * The marking queue, and marking what is in it (T-6.7).
@@ -58,14 +60,16 @@ public class GradingResource {
     private final MarkingQueue queue;
     private final Rubrics rubrics;
     private final GradeEvents events;
+    private final IntegrityService integrity;
     private final LearnerIdentity graders;
 
     public GradingResource(GradingService grading, MarkingQueue queue, Rubrics rubrics,
-            GradeEvents events, LearnerIdentity graders) {
+            GradeEvents events, IntegrityService integrity, LearnerIdentity graders) {
         this.grading = grading;
         this.queue = queue;
         this.rubrics = rubrics;
         this.events = events;
+        this.integrity = integrity;
         this.graders = graders;
     }
 
@@ -91,6 +95,15 @@ public class GradingResource {
     public record CriterionForm(String name, BigDecimal maxPoints, Integer ordinal) {}
 
     public record CriterionView(UUID id, String name, BigDecimal maxPoints, int ordinal) {}
+
+    /**
+     * @param whatItMeans the signal's own innocent explanation, returned with it so a reviewer
+     *                    reads both at once
+     * @param reportedAt  the learner's browser clock, which can say anything
+     * @param recordedAt  ours, which is what this is ordered by
+     */
+    public record SignalView(UUID id, String kind, String whatItMeans, Instant reportedAt,
+                             Instant recordedAt, JsonNode detail) {}
 
     public record EventView(UUID id, UUID gradedBy, String grading, BigDecimal scoreRaw,
                             BigDecimal scoreScaled, Integer scorePercent, Boolean passed,
@@ -166,6 +179,31 @@ public class GradingResource {
             .map(event -> new EventView(event.id(), event.gradedBy(), event.grading().name(),
                 event.raw(), event.scaled(), event.percent(), event.passed(), event.note(),
                 event.at()))
+            .toList();
+    }
+
+    /**
+     * The integrity signals recorded during an attempt (T-6.8).
+     *
+     * <p>Beside the marking queue because that is where the person who might look at them already
+     * is. <b>Never summarised into a number.</b> A "suspicion score" is exactly the thing T-6.8
+     * exists to not build: it would be acted on, and it would be acted on hardest against the
+     * learners whose innocent explanations are the most common — a screen reader moving focus, a
+     * phone dropping to cellular.
+     *
+     * <p>Each signal is returned with its innocent explanation attached, because a signal without
+     * one beside it is a signal somebody acts on.
+     */
+    @GetMapping("/attempts/{attemptId}/signals")
+    @ApiResponse(responseCode = "200",
+        description = "What the learner's browser reported during the attempt, in the order it "
+            + "reached us. Self-reported telemetry from a page the learner controls: it "
+            + "corroborates a human's suspicion and is not evidence, and an ABSENCE of signals "
+            + "means nothing at all.")
+    public List<SignalView> signals(@PathVariable UUID attemptId) {
+        return integrity.of(attemptId).stream()
+            .map(event -> new SignalView(event.id(), event.kind().name(),
+                event.kind().disclosure(), event.reportedAt(), event.recordedAt(), event.detail()))
             .toList();
     }
 

@@ -4,6 +4,9 @@ import com.xenopsoftware.learn.assessment.attempt.Attempt;
 import com.xenopsoftware.learn.assessment.attempt.AttemptResponses;
 import com.xenopsoftware.learn.assessment.attempt.AttemptService;
 import com.xenopsoftware.learn.assessment.form.FormItem;
+import com.xenopsoftware.learn.assessment.integrity.IntegrityService;
+import com.xenopsoftware.learn.assessment.integrity.IntegritySignal;
+import com.xenopsoftware.learn.assessment.integrity.MonitoringDisclosure;
 import com.xenopsoftware.learn.common.tenancy.TenantContext;
 import com.xenopsoftware.learn.common.web.ProblemDocumentation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -54,12 +57,16 @@ public class AttemptResource {
 
     private final AttemptService attempts;
     private final AttemptResponses responses;
+    private final IntegrityService integrity;
+    private final MonitoringDisclosure disclosure;
     private final LearnerIdentity learners;
 
     public AttemptResource(AttemptService attempts, AttemptResponses responses,
-            LearnerIdentity learners) {
+            IntegrityService integrity, MonitoringDisclosure disclosure, LearnerIdentity learners) {
         this.attempts = attempts;
         this.responses = responses;
+        this.integrity = integrity;
+        this.disclosure = disclosure;
         this.learners = learners;
     }
 
@@ -73,7 +80,7 @@ public class AttemptResource {
     public record SittingView(UUID attemptId, UUID testId, int attemptNumber, String state,
                               Instant startedAt, Instant expiresAt, Long secondsRemaining,
                               Instant submittedAt, List<ItemView> items,
-                              Map<UUID, JsonNode> answers) {}
+                              Map<UUID, JsonNode> answers, MonitoringView monitoring) {}
 
     /**
      * @param optionOrder the options in the order this learner was shown them (T-6.5). A review
@@ -86,6 +93,30 @@ public class AttemptResource {
                               Instant expiresAt, Instant submittedAt) {}
 
     public record AnswerForm(JsonNode response) {}
+
+    /**
+     * One integrity signal, reported by the learner's own browser (T-6.8).
+     *
+     * @param kind       one of the closed set the disclosure lists. Anything else is refused,
+     *                   because a free-text kind is a way to start collecting something nobody
+     *                   agreed to
+     * @param reportedAt the browser's clock. Kept for the order of a burst and for nothing else —
+     *                   it belongs to the learner and can say anything
+     * @param detail     what the signal carries: how long focus was away, how much was pasted.
+     *                   <b>Never the pasted text.</b> Collecting that would be collecting their
+     *                   answer twice, once as an answer and once as surveillance
+     */
+    public record SignalForm(String kind, Instant reportedAt, JsonNode detail) {}
+
+    /**
+     * What the learner is told before they start (T-6.8).
+     *
+     * <p>Returned by its own endpoint <b>and</b> included in the response that starts an attempt, so
+     * a player has been handed it before it can render a question. A server cannot make a client
+     * display anything; it can make the disclosure impossible to miss.
+     */
+    public record MonitoringView(List<String> collects, String usedFor, String neverUsedFor,
+                                 long keptForDays) {}
 
     /** Starts an attempt, or resumes the one already open. */
     @PostMapping("/tests/{testId}/attempts")
@@ -158,6 +189,51 @@ public class AttemptResource {
     }
 
     /**
+     * What is collected during an attempt, and what is never done with it (T-6.8).
+     *
+     * <p>Its own endpoint so a "before you start" screen can show it without starting anything.
+     * The same content also rides on the response that starts an attempt.
+     */
+    @GetMapping("/monitoring")
+    @ApiResponse(responseCode = "200",
+        description = "The integrity signals this platform records during an attempt, what a "
+            + "person may do with them, what nothing does with them, and how long they are kept. "
+            + "Generated from the same values the recorder accepts, so a signal cannot be "
+            + "collected without appearing here.")
+    public MonitoringView monitoring() {
+        return view(disclosure.forLearner());
+    }
+
+    /**
+     * Records one integrity signal.
+     *
+     * <p>Answers 202 whether or not it was kept: an attempt that is over records nothing further,
+     * and one that has produced more than the cap allows drops the rest. Neither is the learner's
+     * fault and neither is worth an error — a refusal would make a player retry, which is the
+     * opposite of what a flood needs.
+     *
+     * <p><b>Nothing reads these while marking.</b> No signal here can fail a learner, reduce their
+     * mark or end their attempt, and an ArchUnit rule keeps the grading path unable to reach them.
+     */
+    @PostMapping("/attempts/{id}/signals")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    @ApiResponse(responseCode = "202",
+        description = "Taken. Also the answer when it was dropped, which the client does not need "
+            + "to distinguish.")
+    @ApiResponse(responseCode = "400", description = "Not one of the disclosed kinds.",
+        content = @Content(mediaType = ProblemDocumentation.PROBLEM_JSON,
+            schema = @Schema(ref = ProblemDocumentation.REF)))
+    @ApiResponse(responseCode = "404", description = "No such attempt for this caller.",
+        content = @Content(mediaType = ProblemDocumentation.PROBLEM_JSON,
+            schema = @Schema(ref = ProblemDocumentation.REF)))
+    public void signal(@PathVariable UUID id, @RequestBody SignalForm form) {
+        if (form == null || form.kind() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A signal has a kind.");
+        }
+        integrity.record(id, caller(), kind(form.kind()), form.reportedAt(), form.detail());
+    }
+
+    /**
      * Ends the attempt. Twice is once.
      *
      * <p>A second submit answers with the attempt as it stands rather than an error: from the
@@ -185,7 +261,23 @@ public class AttemptResource {
             sitting.remaining() == null ? null : sitting.remaining().toSeconds(),
             attempt.getSubmittedAt(),
             sitting.form().items().stream().map(AttemptResource::view).toList(),
-            responses.of(attempt.getId()));
+            responses.of(attempt.getId()), view(disclosure.forLearner()));
+    }
+
+    private static MonitoringView view(MonitoringDisclosure.Disclosure disclosure) {
+        return new MonitoringView(disclosure.collects(), disclosure.usedFor(),
+            disclosure.neverUsedFor(), disclosure.keptForDays());
+    }
+
+    private static IntegritySignal kind(String name) {
+        try {
+            return IntegritySignal.valueOf(name);
+        } catch (IllegalArgumentException notDisclosed) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "There is no signal '" + name + "'. The kinds this platform records are the ones "
+                + "GET /api/v1/me/monitoring discloses, and a kind that is not disclosed is one "
+                + "nobody agreed to.", notDisclosed);
+        }
     }
 
     private static ItemView view(FormItem item) {

@@ -21,6 +21,7 @@ public abstract class PostgresTestHarness {
      * <p>Add a table here in the same commit that creates it.
      */
     private static final java.util.List<String> EVERY_TABLE = java.util.List.of(
+        "attempt_event",
         "grade_event", "response_criterion_mark", "rubric_criterion",
         "attempt_response", "attempt",
         "outbox", "consumed_message",
@@ -74,6 +75,10 @@ public abstract class PostgresTestHarness {
         // The tests drive sweep() themselves against a clock they move, which is the only way an
         // assertion about "not yet" can mean anything.
         registry.add("assessment.attempt.interval", () -> "PT1H");
+        // The integrity-signal retention sweep, parked for the same reason (T-6.8): it deletes
+        // rows the tests assert on, and a test checking that a signal is still there would be
+        // racing it.
+        registry.add("assessment.integrity.sweep-interval", () -> "PT24H");
         // THE RELAY AND SUBSCRIBER ARE PARKED, not disabled -- catalog's harness carries the
         // reasoning. Both are @Scheduled and both mutate the table the grading tests assert on, so
         // a test that published a row and then checked it was still unpublished would be racing a
