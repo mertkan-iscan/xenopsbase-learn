@@ -12,27 +12,38 @@ import org.testcontainers.containers.PostgreSQLContainer;
 public abstract class PostgresTestHarness {
 
     /**
-     * Every table, in foreign-key order, newest dependency first.
+     * Every table this module owns.
      *
      * <p>ONE list, here, rather than one per test class — catalog's harness carries the story of
-     * why: the container is shared by every class in the module, so a class that leaves rows
-     * behind breaks somebody else's setup a long way from where the mess was made.
-     *
-     * <p>There are no foreign keys between these three yet, and the order is still written down,
-     * because the first one that arrives will not come with a reminder to reorder this list.
+     * why: the container is shared by every class in the module, so a class that leaves rows behind
+     * breaks somebody else's setup a long way from where the mess was made.
      *
      * <p>Add a table here in the same commit that creates it.
      */
-    private static final java.util.List<String> TABLES_IN_FK_ORDER = java.util.List.of(
-        "bank_difficulty", "bank_tag", "question_bank");
+    private static final java.util.List<String> EVERY_TABLE = java.util.List.of(
+        "question_version", "question", "bank_difficulty", "bank_tag", "question_bank");
 
-    /** Empties the schema. Call it before AND after: before for a clean start, after out of manners. */
+    /**
+     * Empties the schema. Call it before AND after: before for a clean start, after out of manners.
+     *
+     * <p><b>TRUNCATE rather than DELETE, and not for speed.</b> Two things in this schema make a
+     * DELETE per table in dependency order impossible, and both are deliberate:
+     *
+     * <ul>
+     *   <li>{@code question} and {@code question_version} reference each other (T-6.2), so there is
+     *       no order — one of them always has to go first while the other still points at it.
+     *   <li>{@code question_version} <b>refuses to be deleted once it has been served</b>. That is
+     *       the ADR-0106 trigger doing its job, and a test suite that could get around it would be
+     *       a test suite proving something weaker than the product does.
+     * </ul>
+     *
+     * <p>TRUNCATE resolves the first with one statement and the second by not firing row triggers
+     * at all — which is exactly the distinction being drawn: an application may not delete that
+     * row, and resetting a schema between tests is not an application.
+     */
     protected static void emptyEveryTable(javax.sql.DataSource dataSource) {
-        org.springframework.jdbc.core.JdbcTemplate jdbc =
-            new org.springframework.jdbc.core.JdbcTemplate(dataSource);
-        for (String table : TABLES_IN_FK_ORDER) {
-            jdbc.update("DELETE FROM " + table);
-        }
+        new org.springframework.jdbc.core.JdbcTemplate(dataSource)
+            .update("TRUNCATE TABLE " + String.join(", ", EVERY_TABLE) + " CASCADE");
     }
 
     private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:17-alpine");
