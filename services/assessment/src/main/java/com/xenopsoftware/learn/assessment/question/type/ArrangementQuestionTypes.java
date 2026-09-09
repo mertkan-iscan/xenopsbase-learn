@@ -51,6 +51,16 @@ public class ArrangementQuestionTypes {
 
     private static final class Matching implements QuestionTypeDefinition {
 
+        /**
+         * Both columns (T-6.5). Shuffling only the right one leaves the left in authoring order,
+         * which is often the answer order -- an author who wrote the pairs down the page has
+         * handed every learner the key.
+         */
+        @Override
+        public List<String> shufflableOptionFields() {
+            return List.of("left", "right");
+        }
+
         @Override
         public String code() {
             return "matching";
@@ -149,6 +159,16 @@ public class ArrangementQuestionTypes {
     }
 
     private static final class Ordering implements QuestionTypeDefinition {
+
+        /**
+         * The items (T-6.5), and here shuffling is closer to required than optional: an ordering
+         * question served in its authored order is one every learner gets right without reading
+         * it.
+         */
+        @Override
+        public List<String> shufflableOptionFields() {
+            return List.of("items");
+        }
 
         @Override
         public String code() {

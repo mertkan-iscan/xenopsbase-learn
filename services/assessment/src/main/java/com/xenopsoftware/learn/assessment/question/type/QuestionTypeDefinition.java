@@ -88,4 +88,25 @@ public interface QuestionTypeDefinition {
     default boolean guessable() {
         return false;
     }
+
+    /**
+     * The option lists this type may present in a different order to each learner (T-6.5).
+     *
+     * <p>Field names inside {@code options}, so the assembler can shuffle them and record what it
+     * did without learning what any of them mean. Empty means nothing here may be reordered, and
+     * that is the default — <b>a wrong shuffle is silent and a missing one is merely a shame</b>.
+     *
+     * <p>The types that opt out are worth knowing, because each is a different reason:
+     *
+     * <ul>
+     *   <li>{@code true-false} — "false, true" is not a harder question, it is a confusing one.
+     *   <li>{@code fill-in} — the blanks are positions in the stem; reordering them detaches the
+     *       answer from the sentence.
+     *   <li>{@code hotspot} — the regions are pinned to an image and their order is the image's.
+     *   <li>{@code numeric}, {@code essay}, {@code file-upload} — nothing to reorder.
+     * </ul>
+     */
+    default java.util.List<String> shufflableOptionFields() {
+        return java.util.List.of();
+    }
 }

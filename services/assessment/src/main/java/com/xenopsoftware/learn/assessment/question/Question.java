@@ -56,6 +56,17 @@ public class Question extends TenantOwned {
     @Column(name = "retired_at")
     private Instant retiredAt;
 
+    /**
+     * How hard it is, from the company's own ordered vocabulary (T-6.1), or null.
+     *
+     * <p>On the question rather than on a version, which is ADR-0106's rule applied: an author
+     * deciding a question is harder than they first thought has not changed what anybody was
+     * asked. A section draws on it by rank range, so a company adding a level in the middle of its
+     * scale does not silently narrow every existing draw (T-6.5).
+     */
+    @Column(name = "difficulty_id")
+    private UUID difficultyId;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -114,6 +125,12 @@ public class Question extends TenantOwned {
         this.updatedAt = Instant.now();
     }
 
+    /** Null clears it, which is what an author does when they stop grading their own questions. */
+    void difficultyIs(UUID newDifficultyId) {
+        this.difficultyId = newDifficultyId;
+        this.updatedAt = Instant.now();
+    }
+
     void retire() {
         if (retiredAt == null) {
             this.retiredAt = Instant.now();
@@ -123,6 +140,10 @@ public class Question extends TenantOwned {
 
     public boolean isRetired() {
         return retiredAt != null;
+    }
+
+    public UUID getDifficultyId() {
+        return difficultyId;
     }
 
     public UUID getId() {

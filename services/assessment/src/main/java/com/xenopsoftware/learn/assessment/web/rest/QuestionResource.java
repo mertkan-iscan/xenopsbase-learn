@@ -89,6 +89,23 @@ public class QuestionResource {
     public record BankForm(UUID bankId) {}
 
     /**
+     * How hard it is and what it is about -- what a draw filters on (T-6.5).
+     *
+     * <p>Both together, because they are one thought: an author classifying a question does both at
+     * once, and a section reads them together. Neither is versioned (ADR-0106), so sending this
+     * creates no version and disturbs no attempt.
+     *
+     * @param difficultyId one of this company's levels, or null to clear it
+     * @param tagIds       replaces the whole set. Each must be in this company's vocabulary
+     *                     (T-6.1) -- a tag nobody defined is a question no section can reliably
+     *                     draw, which is the failure the vocabulary exists to prevent
+     */
+    public record DescriptionForm(UUID difficultyId, List<UUID> tagIds) {}
+
+    /** A question's draw attributes, read back. */
+    public record DescriptionView(UUID difficultyId, List<UUID> tagIds) {}
+
+    /**
      * What "delete" did.
      *
      * @param retired true when the question was retired because it has been served, false when it
@@ -141,6 +158,24 @@ public class QuestionResource {
         content = @Content)
     public QuestionView move(@PathVariable UUID id, @RequestBody BankForm form) {
         return view(questions.moveToBank(id, form.bankId()));
+    }
+
+    @GetMapping("/questions/{id}/description")
+    @ApiResponse(responseCode = "200", description = "What a draw filters this question on")
+    @ApiResponse(responseCode = "404", description = "No such question", content = @Content)
+    public DescriptionView description(@PathVariable UUID id) {
+        return new DescriptionView(questions.get(id).getDifficultyId(), questions.tagsOf(id));
+    }
+
+    @PutMapping("/questions/{id}/description")
+    @ApiResponse(responseCode = "200", description = "The question's draw attributes as they now are")
+    @ApiResponse(responseCode = "400",
+        description = "A tag that is not in this company's vocabulary (T-6.1)", content = @Content)
+    @ApiResponse(responseCode = "404", description = "No such question", content = @Content)
+    public DescriptionView describe(@PathVariable UUID id, @RequestBody DescriptionForm form) {
+        questions.describe(id, form.difficultyId(),
+            form.tagIds() == null ? List.of() : form.tagIds());
+        return new DescriptionView(questions.get(id).getDifficultyId(), questions.tagsOf(id));
     }
 
     @DeleteMapping("/questions/{id}")
