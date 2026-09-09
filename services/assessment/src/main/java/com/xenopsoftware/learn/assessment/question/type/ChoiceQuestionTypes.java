@@ -52,6 +52,12 @@ public class ChoiceQuestionTypes {
     private record PickFrom(String code, String displayName, boolean exactlyOne)
             implements QuestionTypeDefinition {
 
+        /** A fixed set of choices is where guessing has odds, so negative marking may apply. */
+        @Override
+        public boolean guessable() {
+            return true;
+        }
+
         @Override
         public void validateAsked(JsonNode options, JsonNode answerKey) {
             List<String> offered = Shapes.ids(
@@ -107,6 +113,12 @@ public class ChoiceQuestionTypes {
     private static final class TrueFalse implements QuestionTypeDefinition {
 
         private static final List<String> CHOICES = List.of("true", "false");
+
+        /** Two choices, so a coin scores half. If any type is worth penalising, it is this one. */
+        @Override
+        public boolean guessable() {
+            return true;
+        }
 
         @Override
         public String code() {

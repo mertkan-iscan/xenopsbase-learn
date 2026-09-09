@@ -72,4 +72,20 @@ public interface QuestionTypeDefinition {
      * asking every type whether it belongs in one.
      */
     Optional<Correctness> grade(JsonNode options, JsonNode answerKey, JsonNode response);
+
+    /**
+     * Whether a wrong answer to this type could have been a guess with computable odds (T-6.4).
+     *
+     * <p>This is the only thing negative marking is for. Four choices means a quarter of blind
+     * guesses score, and a penalty is how a test stops rewarding that. A typed answer has no such
+     * odds — nobody guesses "Ankara" — so a penalty there does not deter a guesser, it charges
+     * somebody for a typo or a spelling their author did not think of.
+     *
+     * <p><b>Default false, so opting in is deliberate.</b> A new type that says nothing cannot
+     * start costing learners marks, which is the direction a default has to fail in when the cost
+     * of being wrong lands on the person who cannot see the code.
+     */
+    default boolean guessable() {
+        return false;
+    }
 }

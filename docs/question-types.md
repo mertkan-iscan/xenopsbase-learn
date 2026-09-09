@@ -56,7 +56,8 @@ accessible route cannot rot separately from the visual one.
 **Wrong picks count against you.** For multiple choice and hotspot, `credited` is right picks minus
 wrong ones, floored at zero. Counting only the correct ones a learner found would give full marks
 for selecting everything, which is not a measure of correctness at all. Whether partial credit is
-*used* — two of three as two thirds, all, or nothing — is a scoring mode and belongs to T-6.4.
+*used* — two of three as two thirds, all, or nothing — is a scoring mode and is T-6.4's
+([`scoring.md`](scoring.md)).
 
 **Ordering credits absolute positions.** A learner who shifts everything by one has every *pair*
 right and every position wrong; reporting that as nearly full marks would be the arithmetic
@@ -84,8 +85,10 @@ Two things to get right, both of which this repository has paid for:
 
 ## What is not here yet
 
-- **Scoring modes** — weights, scaled scores, negative marking. T-6.4 (#63). `grade` returns
-  *how much was right*, and nothing about what it is worth.
+- **Scoring modes** — done, in T-6.4 (#63) and [`scoring.md`](scoring.md). `grade` still returns
+  *how much was right* and nothing about what it is worth; the one thing T-6.4 added here is
+  `guessable()`, because whether a wrong answer could have been a guess is the type's to know and
+  it is the only thing negative marking is for.
 - **The manual queue** for essay and file upload. `grade` returns empty for them, which is how
   T-6.7 (#66) can ask the type instead of keeping its own list of which types a machine can mark.
 - **Submitting anything.** `validateResponse` and `grade` have no caller: the attempt is T-6.6
