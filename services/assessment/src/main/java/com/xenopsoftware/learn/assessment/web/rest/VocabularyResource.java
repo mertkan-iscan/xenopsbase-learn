@@ -3,7 +3,9 @@ package com.xenopsoftware.learn.assessment.web.rest;
 import com.xenopsoftware.learn.assessment.vocabulary.BankDifficulty;
 import com.xenopsoftware.learn.assessment.vocabulary.BankTag;
 import com.xenopsoftware.learn.assessment.vocabulary.VocabularyService;
+import com.xenopsoftware.learn.common.web.ProblemDocumentation;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -29,8 +31,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/vocabulary")
 public class VocabularyResource {
 
-    private static final String PROBLEM_JSON = "application/problem+json";
-
     private final VocabularyService vocabulary;
 
     public VocabularyResource(VocabularyService vocabulary) {
@@ -54,7 +54,8 @@ public class VocabularyResource {
     @ResponseStatus(HttpStatus.CREATED)
     @ApiResponse(responseCode = "201", description = "The tag that was added")
     @ApiResponse(responseCode = "409", description = "This company already has that tag",
-        content = @Content(mediaType = PROBLEM_JSON))
+        content = @Content(mediaType = ProblemDocumentation.PROBLEM_JSON,
+            schema = @Schema(ref = ProblemDocumentation.REF)))
     public TagView addTag(@RequestBody TagForm form) {
         BankTag added = vocabulary.addTag(form.tag());
         return new TagView(added.getTag());
@@ -73,7 +74,8 @@ public class VocabularyResource {
     @ApiResponse(responseCode = "201", description = "The difficulty level that was added")
     @ApiResponse(responseCode = "409",
         description = "This company already has that code, or already has a level at that rank",
-        content = @Content(mediaType = PROBLEM_JSON))
+        content = @Content(mediaType = ProblemDocumentation.PROBLEM_JSON,
+            schema = @Schema(ref = ProblemDocumentation.REF)))
     public DifficultyView addDifficulty(@RequestBody DifficultyForm form) {
         BankDifficulty added = vocabulary.addDifficulty(form.code(), form.rank());
         return new DifficultyView(added.getCode(), added.getRank());
