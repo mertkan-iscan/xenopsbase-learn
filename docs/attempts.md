@@ -112,9 +112,10 @@ stale by the time it acted.
 
 ## What is not here yet
 
-- **Grading.** T-6.7 (#66) hangs off the terminal transition, whether the learner made it or the
-  reaper did. T-6.4 already computes both `score_raw` and `score_scaled`; what is missing is the
-  row to store them on and the `AWAITING_GRADING` state, which is T-6.7's to model.
+- **Grading** — done, in T-6.7 (#66) and [`grading.md`](grading.md). It hangs off the terminal
+  transition, whether the learner made it or the reaper did, and it runs inside the submitting
+  transaction. `AWAITING_GRADING` turned out to be a second column rather than a fifth state, for
+  the same reason `EXPIRED` and `ABANDONED` are two: an attempt can be both.
 - **`attempt_event`.** T-6.8 (#67) — behavioural data about a person, with its own retention story,
   which is a reason to keep it out of this table rather than a reason to defer it.
 - **Review.** T-6.9 (#68) renders from the form (T-6.5) under a policy.

@@ -5,6 +5,7 @@ import com.xenopsoftware.learn.assessment.exam.TestService;
 import com.xenopsoftware.learn.assessment.form.Form;
 import com.xenopsoftware.learn.assessment.form.FormAssembler;
 import com.xenopsoftware.learn.assessment.form.FormItem;
+import com.xenopsoftware.learn.assessment.grading.GradingService;
 import com.xenopsoftware.learn.assessment.question.type.QuestionTypes;
 import java.time.Clock;
 import java.time.Duration;
@@ -12,6 +13,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -58,15 +60,26 @@ public class AttemptService {
     private final TestService tests;
     private final FormAssembler forms;
     private final QuestionTypes types;
+    private final ObjectProvider<GradingService> grading;
     private final Clock clock;
 
+    /**
+     * Grading arrives through an {@link ObjectProvider}, which is worth a sentence.
+     *
+     * <p>{@code GradingService} needs this service's answers and forms, and this service needs
+     * grading on submit — a cycle Spring would refuse at startup. The lazy lookup breaks it at the
+     * one place the dependency is genuinely one-directional: submitting is what causes marking, and
+     * marking never causes a submission.
+     */
     public AttemptService(AttemptRepository attempts, AttemptResponses responses,
-            TestService tests, FormAssembler forms, QuestionTypes types, Clock clock) {
+            TestService tests, FormAssembler forms, QuestionTypes types,
+            ObjectProvider<GradingService> grading, Clock clock) {
         this.attempts = attempts;
         this.responses = responses;
         this.tests = tests;
         this.forms = forms;
         this.types = types;
+        this.grading = grading;
         this.clock = clock;
     }
 
@@ -198,8 +211,15 @@ public class AttemptService {
         if (attempt.getState() == Attempt.State.IN_PROGRESS) {
             // EXPIRED rather than SUBMITTED when the clock ran out, and graded either way: the
             // save path refused anything after the deadline, so nothing in here was written late.
-            end(attempt, attempt.isPastDeadline(now)
-                ? Attempt.State.EXPIRED : Attempt.State.SUBMITTED, now);
+            if (end(attempt, attempt.isPastDeadline(now)
+                    ? Attempt.State.EXPIRED : Attempt.State.SUBMITTED, now) == 1) {
+                // INSIDE THIS TRANSACTION, which the criterion asks for and the outbox needs
+                // (T-6.7): a verdict that committed while the submission rolled back would be a
+                // mark for an attempt nobody made, and a submission that committed without its
+                // verdict would leave an attempt nothing will ever mark, because only this branch
+                // calls grading.
+                grading.getObject().gradeOnSubmit(reload(attemptId));
+            }
         }
         return sitting(reload(attemptId), now);
     }

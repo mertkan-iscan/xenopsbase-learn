@@ -21,7 +21,9 @@ public abstract class PostgresTestHarness {
      * <p>Add a table here in the same commit that creates it.
      */
     private static final java.util.List<String> EVERY_TABLE = java.util.List.of(
+        "grade_event", "response_criterion_mark", "rubric_criterion",
         "attempt_response", "attempt",
+        "outbox", "consumed_message",
         "test_form_item", "test_form",
         "test_section_question", "test_section_tag", "test_section", "test",
         "question_tag", "question_version", "question",
@@ -72,5 +74,12 @@ public abstract class PostgresTestHarness {
         // The tests drive sweep() themselves against a clock they move, which is the only way an
         // assertion about "not yet" can mean anything.
         registry.add("assessment.attempt.interval", () -> "PT1H");
+        // THE RELAY AND SUBSCRIBER ARE PARKED, not disabled -- catalog's harness carries the
+        // reasoning. Both are @Scheduled and both mutate the table the grading tests assert on, so
+        // a test that published a row and then checked it was still unpublished would be racing a
+        // background job it never mentioned. Every bean stays wired and constructed.
+        registry.add("platform.outbox.interval", () -> "PT1H");
+        registry.add("platform.messaging.poll-interval", () -> "PT1H");
+        registry.add("platform.outbox.metrics-interval", () -> "PT1H");
     }
 }

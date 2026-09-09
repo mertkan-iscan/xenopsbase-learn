@@ -53,16 +53,32 @@
             its question banks either, and this service has no tenant table of
             its own to ask.
 
-            NO OUTBOX AND NO NATS, unlike catalog. This module publishes nothing
-            yet and consumes nothing, and platform-common keeps both optional
-            precisely so a service that needs neither pays for neither: no
-            relay, no scheduled task, no broker connection. They arrive with the
-            first thing that has to be announced, which is an attempt being
-            graded (T-6.7), not a bank being renamed.
+            THE OUTBOX AND NATS ARRIVED WITH T-6.7, exactly where the previous
+            version of this comment said they would: "with the first thing that
+            has to be announced, which is an attempt being graded, not a bank
+            being renamed". A graded attempt is what catalog folds into the gate
+            behind it (T-5.3) and what tells the learner.
         -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
+        <!--
+            The message bus (T-9.8, arriving here with T-6.7). platform-common
+            keeps it optional, so a service that announces nothing still pays
+            for no broker connection.
+
+            NO MAIL CLIENT, deliberately, even though grading is what a learner
+            gets told about: the letter is sent by CATALOG, which already holds
+            their address as a projection of identity's (T-5.6) and already owns
+            telling people about their training. Sending it from here would put
+            a third copy of every learner's email address in a third database,
+            fed by the same event, to say one sentence.
+        -->
+        <dependency>
+            <groupId>io.nats</groupId>
+            <artifactId>jnats</artifactId>
         </dependency>
 
         <dependency>

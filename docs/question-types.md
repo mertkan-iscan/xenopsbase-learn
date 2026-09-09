@@ -89,8 +89,9 @@ Two things to get right, both of which this repository has paid for:
   *how much was right* and nothing about what it is worth; the one thing T-6.4 added here is
   `guessable()`, because whether a wrong answer could have been a guess is the type's to know and
   it is the only thing negative marking is for.
-- **The manual queue** for essay and file upload. `grade` returns empty for them, which is how
-  T-6.7 (#66) can ask the type instead of keeping its own list of which types a machine can mark.
+- **The manual queue** — done, in T-6.7 (#66) and [`grading.md`](grading.md). `grade` returning
+  empty is what lets the queue ask the type rather than keep its own list, so an eleventh
+  human-marked type needs no change there.
 - **Shuffling** is decided here and applied by T-6.5's assembler
   ([`test-assembly.md`](test-assembly.md)): `shufflableOptionFields()` says which of a type's option
   lists may be presented in any order, and the form records what each learner actually saw.
