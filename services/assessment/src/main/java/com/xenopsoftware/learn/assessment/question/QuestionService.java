@@ -1,6 +1,7 @@
 package com.xenopsoftware.learn.assessment.question;
 
 import com.xenopsoftware.learn.assessment.bank.BankService;
+import com.xenopsoftware.learn.assessment.question.type.QuestionTypes;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -47,13 +48,15 @@ public class QuestionService {
     private final QuestionRepository questions;
     private final QuestionVersionRepository versions;
     private final QuestionBodies bodies;
+    private final QuestionTypes types;
     private final BankService banks;
 
     public QuestionService(QuestionRepository questions, QuestionVersionRepository versions,
-            QuestionBodies bodies, BankService banks) {
+            QuestionBodies bodies, QuestionTypes types, BankService banks) {
         this.questions = questions;
         this.versions = versions;
         this.bodies = bodies;
+        this.types = types;
         this.banks = banks;
     }
 
@@ -87,6 +90,10 @@ public class QuestionService {
      */
     public Question create(UUID bankId, String internalName, JsonNode body) {
         banks.get(bankId);
+        // Before anything is written (T-6.3). The body is a jsonb column, so the database will
+        // not catch a key that names a choice the question does not offer -- and nothing else
+        // will either, until a learner cannot be scored.
+        types.validateAsked(body);
 
         Question question = questions.saveAndFlush(Question.create(bankId, internalName));
         QuestionVersion first = versions.saveAndFlush(
@@ -121,6 +128,9 @@ public class QuestionService {
         }
 
         if (body != null && !body.isNull() && !bodies.equal(current.getBody(), body)) {
+            // Validated on every edit, not only on create: a type's rules can tighten, and a
+            // version saved under the old ones must not be re-saved under them.
+            types.validateAsked(body);
             if (current.isDraft()) {
                 current.editDraft(bodies.write(body));
                 versions.save(current);

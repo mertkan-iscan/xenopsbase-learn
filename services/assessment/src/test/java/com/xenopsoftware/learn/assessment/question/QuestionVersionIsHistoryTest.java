@@ -141,7 +141,9 @@ class QuestionVersionIsHistoryTest extends PostgresTestHarness {
         return TenantContext.callWithUnchecked("acme", () -> {
             UUID bank = banks.create("Fire safety", null).getId();
             Question question = questions.create(bank, "Electrical fire",
-                json.readTree("{\"stem\":\"Which extinguisher?\",\"key\":1}"));
+                json.readTree("""
+                    {"type":"true-false","stem":"Water conducts electricity.",
+                     "answerKey":{"correct":["true"]}}"""));
             return question.getCurrentVersionId();
         });
     }
