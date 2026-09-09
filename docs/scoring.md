@@ -130,9 +130,9 @@ anybody to mark.
 
 ## What is not here yet
 
-- **Storing a score.** `score_raw` and `score_scaled` both have to be written, and the only thing
-  they can be written on is an attempt — T-6.6 (#65). Both are computed here and the `TestScore`
-  record carries both, so the attempt stores what it is handed.
+- **Storing a score** — done, in T-6.7 (#66): `attempt.score_raw` and `attempt.score_scaled`,
+  with `score_percent` and `passed` beside them. `passed` is nullable and **null does not mean
+  failed** — see [`grading.md`](grading.md).
 - **Rescoring after an answer-key correction**, audited and keeping the original. Also T-6.6's, for
   the same reason: there is nothing to rescore. Editing a test's scoring policy today deliberately
   does **not** rescore anything already sat — a policy edit that silently rewrote a compliance

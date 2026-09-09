@@ -1,5 +1,6 @@
 package com.xenopsoftware.learn.assessment.attempt;
 
+import com.xenopsoftware.learn.assessment.grading.Grading;
 import com.xenopsoftware.learn.common.tenancy.TenantOwned;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -7,6 +8,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
@@ -79,6 +81,39 @@ public class Attempt extends TenantOwned {
     @Column(name = "submitted_at")
     private Instant submittedAt;
 
+    /**
+     * Where marking is — a second axis, not a fifth {@link State} (T-6.7).
+     *
+     * <p>{@code state} says how the attempt ended; this says whether anybody has marked it. An
+     * attempt that expired <em>and</em> is waiting on an essay is both, and one enum would have to
+     * lose one of those facts.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private Grading grading;
+
+    @Column(name = "score_raw")
+    private BigDecimal scoreRaw;
+
+    @Column(name = "score_scaled")
+    private BigDecimal scoreScaled;
+
+    @Column(name = "score_percent")
+    private Short scorePercent;
+
+    /**
+     * Whether they passed, or null because nobody has said yet.
+     *
+     * <p><b>Null does not mean failed.</b> A gate that reads it as false is the bug T-6.7 exists to
+     * prevent, which is why {@link #getGrading()} is beside it and why nothing downstream may read
+     * one without the other — {@link #isSettled()} is the question a gate should actually ask.
+     */
+    @Column
+    private Boolean passed;
+
+    @Column(name = "graded_at")
+    private Instant gradedAt;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -102,6 +137,7 @@ public class Attempt extends TenantOwned {
         attempt.learnerId = learnerId;
         attempt.attemptNumber = (short) attemptNumber;
         attempt.state = State.IN_PROGRESS;
+        attempt.grading = Grading.NOT_GRADED;
         attempt.startedAt = now;
         attempt.expiresAt = timeLimit == null ? null : now.plus(timeLimit);
         attempt.createdAt = now;
@@ -167,5 +203,59 @@ public class Attempt extends TenantOwned {
 
     public Instant getSubmittedAt() {
         return submittedAt;
+    }
+
+    /**
+     * Records what marking decided (T-6.7).
+     *
+     * <p>Public only because {@code GradingService} is in another package, and called by nothing
+     * else. It records a verdict; it does not decide one -- there is no arithmetic here, so a
+     * second caller would have to bring its own score and would be a second answer to "what did
+     * they get", which is the shape T-6.4 exists to keep singular.
+     *
+     * <p>Called after the score has been composed — a regrade calls
+     * it again, and the previous verdict survives in {@code grade_event} rather than here. These
+     * columns are a cache of the newest audit row.
+     */
+    public void graded(Grading nowGrading,
+            com.xenopsoftware.learn.assessment.scoring.TestScore score, Instant now) {
+        this.grading = nowGrading;
+        this.scoreRaw = score.raw();
+        this.scoreScaled = score.scaled();
+        this.scorePercent = (short) score.percent();
+        // Only a settled attempt carries a verdict. A provisional one leaves this null, which is
+        // what stops a gate reading "not yet" as "no".
+        this.passed = nowGrading == Grading.GRADED ? score.passed() : null;
+        this.gradedAt = now;
+        this.updatedAt = now;
+    }
+
+    public Grading getGrading() {
+        return grading;
+    }
+
+    /** Whether anybody may act on this result yet. The question a gate should ask. */
+    public boolean isSettled() {
+        return grading == Grading.GRADED;
+    }
+
+    public BigDecimal getScoreRaw() {
+        return scoreRaw;
+    }
+
+    public BigDecimal getScoreScaled() {
+        return scoreScaled;
+    }
+
+    public Integer getScorePercent() {
+        return scorePercent == null ? null : (int) scorePercent;
+    }
+
+    public Boolean getPassed() {
+        return passed;
+    }
+
+    public Instant getGradedAt() {
+        return gradedAt;
     }
 }

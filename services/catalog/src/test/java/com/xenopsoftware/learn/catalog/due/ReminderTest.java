@@ -3,6 +3,7 @@ package com.xenopsoftware.learn.catalog.due;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.xenopsoftware.learn.catalog.PostgresTestHarness;
+import com.xenopsoftware.learn.catalog.RecordingMailer;
 import com.xenopsoftware.learn.catalog.StubTokens;
 import com.xenopsoftware.learn.common.mail.Letter;
 import com.xenopsoftware.learn.common.mail.MailNotSent;
@@ -41,58 +42,13 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * an hour by the harness so it cannot race these.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Import({StubTokens.class, ReminderTest.StubMail.class})
+@Import({StubTokens.class, RecordingMailer.Wiring.class})
 class ReminderTest extends PostgresTestHarness {
 
     private static final String ACME = "acme-author~acme~TENANT";
     private static final UUID ADMIN = UUID.randomUUID();
     private static final ZoneId ISTANBUL = ZoneId.of("Europe/Istanbul");
     private static final ZoneId LOS_ANGELES = ZoneId.of("America/Los_Angeles");
-
-    /**
-     * A mailer that keeps what it was handed and can be told to refuse an address.
-     *
-     * <p>{@code @Primary} rather than a property, because what is under test is the call site's
-     * behaviour when a provider says no — and the only honest way to produce that is a provider
-     * that says no.
-     */
-    @TestConfiguration(proxyBeanMethods = false)
-    static class StubMail {
-
-        @Bean
-        @Primary
-        RecordingMailer recordingMailer() {
-            return new RecordingMailer();
-        }
-    }
-
-    static class RecordingMailer implements Mailer {
-
-        private final List<Letter> sent = new CopyOnWriteArrayList<>();
-        private volatile String refuseTo;
-
-        @Override
-        public void send(Letter letter) {
-            if (letter.to().equals(refuseTo)) {
-                throw new MailNotSent("The provider refused " + letter.to(), null);
-            }
-            sent.add(letter);
-        }
-
-        @Override
-        public boolean delivers() {
-            return true;
-        }
-
-        void refuse(String address) {
-            refuseTo = address;
-        }
-
-        void forget() {
-            sent.clear();
-            refuseTo = null;
-        }
-    }
 
     @Autowired
     private DataSource dataSource;
@@ -140,9 +96,9 @@ class ReminderTest extends PostgresTestHarness {
         ReminderService.Pass first = pass(atNineThirty(due.minusDays(7), ISTANBUL));
 
         assertThat(first.sent()).isEqualTo(1);
-        assertThat(mailer.sent).hasSize(1);
-        assertThat(mailer.sent.getFirst().to()).isEqualTo("kaya@acme.test");
-        assertThat(mailer.sent.getFirst().subject())
+        assertThat(mailer.sent()).hasSize(1);
+        assertThat(mailer.sent().getFirst().to()).isEqualTo("kaya@acme.test");
+        assertThat(mailer.sent().getFirst().subject())
             .as("a reminder names the training, because one that does not teaches people to "
                 + "ignore reminders")
             .contains("Fire safety");
@@ -152,7 +108,7 @@ class ReminderTest extends PostgresTestHarness {
             .plusSeconds(3600));
 
         assertThat(second.sent()).isZero();
-        assertThat(mailer.sent)
+        assertThat(mailer.sent())
             .as("the claim is a primary key, so a second pass finds the row and does nothing -- "
                 + "idempotence lives in the database, not in this service being careful")
             .hasSize(1);
@@ -174,7 +130,7 @@ class ReminderTest extends PostgresTestHarness {
         ReminderService.Pass morning = pass(istanbulsMorning);
 
         assertThat(morning.sent()).isEqualTo(1);
-        assertThat(mailer.sent.getFirst().to())
+        assertThat(mailer.sent().getFirst().to())
             .as("nine in the morning in Istanbul is the middle of the night in California, and a "
                 + "compliance nudge at 23:30 is how reminders get filtered to a folder nobody "
                 + "opens")
@@ -184,8 +140,8 @@ class ReminderTest extends PostgresTestHarness {
             pass(atNineThirty(due.minusDays(7), LOS_ANGELES));
 
         assertThat(californiasMorning.sent()).isEqualTo(1);
-        assertThat(mailer.sent).hasSize(2);
-        assertThat(mailer.sent.getLast().to()).isEqualTo("sam@acme.test");
+        assertThat(mailer.sent()).hasSize(2);
+        assertThat(mailer.sent().getLast().to()).isEqualTo("sam@acme.test");
     }
 
     // ---------------------------------------------------------------- the week of mail nobody wants
@@ -205,7 +161,7 @@ class ReminderTest extends PostgresTestHarness {
             .as("a service back after a week must not deliver a week of nudges at once -- that is "
                 + "the symptom the criterion names")
             .isEqualTo(1);
-        assertThat(mailer.sent).isEmpty();
+        assertThat(mailer.sent()).isEmpty();
         assertThat(outcomes())
             .as("and it must not pretend the window never existed either: the row says it was "
                 + "missed, where somebody can be asked about it")
@@ -264,7 +220,7 @@ class ReminderTest extends PostgresTestHarness {
         ReminderService.Pass result = pass(atNineThirty(due.minusDays(7), ISTANBUL));
 
         assertThat(result.sent()).isZero();
-        assertThat(mailer.sent)
+        assertThat(mailer.sent())
             .as("mailing a department to nag the people who did the training last week is how "
                 + "reminders get switched off entirely")
             .isEmpty();
@@ -279,7 +235,7 @@ class ReminderTest extends PostgresTestHarness {
         assign(learner, LocalDate.now(ISTANBUL).plusDays(7), List.of());
 
         assertThat(pass(Instant.now().plus(java.time.Duration.ofDays(30))).sent()).isZero();
-        assertThat(mailer.sent).isEmpty();
+        assertThat(mailer.sent()).isEmpty();
     }
 
     @Test
@@ -289,8 +245,8 @@ class ReminderTest extends PostgresTestHarness {
         assign(learner, due, List.of(1));
 
         assertThat(pass(atNineThirty(due.plusDays(1), ISTANBUL)).sent()).isEqualTo(1);
-        assertThat(mailer.sent.getFirst().subject()).startsWith("Overdue:");
-        assertThat(mailer.sent.getFirst().body())
+        assertThat(mailer.sent().getFirst().subject()).startsWith("Overdue:");
+        assertThat(mailer.sent().getFirst().body())
             .as("overdue marks a state and takes nothing away, so the mail that announces it must "
                 + "not read like a door closing")
             .contains("You can still complete it");

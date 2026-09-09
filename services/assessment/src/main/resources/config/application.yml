@@ -89,13 +89,16 @@ platform:
       catalog: ${CATALOG_URL:http://localhost:8085}
       assessment: ${ASSESSMENT_URL:http://localhost:8086}
 
-  # No outbox and no bus. This module publishes nothing and consumes nothing
-  # yet, and `enabled: false` is what keeps the relay, its scheduled task and
-  # the broker connection out of the process entirely. Grading (T-6.7) is what
-  # turns this on, because a graded attempt is the first thing here another
-  # module has to learn about.
+  # ON SINCE T-6.7. A graded attempt is the first thing here another module has
+  # to learn about: catalog folds a pass into the gate behind it (T-5.3) and
+  # tells the learner, and reporting will read the same event.
+  #
+  # An INSERT in the same transaction as the verdict, rather than a publish next
+  # to it -- publishing first can leave an event for a mark that rolled back,
+  # which opens a gate for training nobody passed, and publishing after can lose
+  # the event for a mark that is now permanent.
   outbox:
-    enabled: false
+    enabled: true
 
 server:
   port: ${SERVER_PORT:8086}
