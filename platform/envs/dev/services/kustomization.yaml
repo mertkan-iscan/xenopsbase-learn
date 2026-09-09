@@ -5,24 +5,19 @@ kind: Kustomization
 # Valkey, the ingress — is the stemcell's, deliberately: this product does not
 # operate a second copy of the platform, it is a tenant of the one that exists.
 resources:
-  # The issuer all three read, and which all three wait for before starting.
+  # The issuer every service reads, and which they all wait for before starting.
   # Listed first because nothing below starts without it.
   - oidc.yaml
   - identity.yaml
   - streaming.yaml
   - reporting.yaml
 
-# GATEWAY, FRONTEND AND INGRESS EXIST IN THIS DIRECTORY AND ARE NOT LISTED ABOVE.
-#
-# Said out loud because a reader seeing three unreferenced files will assume one
-# of us forgot. The order is forced by the rule this file exists for: an image is
-# pinned by DIGEST and never by a tag, and the frontend image does not exist
-# until this commit's CI publishes it. Listing the manifests now would deploy the
-# `:main` placeholder each of them warns against in capitals.
-#
-# So they land here first and are switched on by the deploy commit that pins both
-# digests -- which is the same two-step every service in this file already went
-# through, and the reason `git log` on this file is the deployment history.
+  # THE PUBLIC HALF (T-10.2), added together because none of the three is any
+  # use without the other two: the ingress needs both backends to exist, and a
+  # backend with no ingress is a pod nobody outside the cluster can reach.
+  - gateway.yaml
+  - frontend.yaml
+  - ingress.yaml
 
 # IMAGES ARE PINNED HERE, NOT IN THE DEPLOYMENTS.
 #
@@ -43,6 +38,32 @@ resources:
 # resolve a digest to know which build this is — per image, because they do not
 # move together.
 images:
+  - name: ghcr.io/mertkan-iscan/xenopsbase-learn/gateway
+    # Commit d04d4b6, and the first image this service has ever had (T-10.2).
+    #
+    # It is the only process here a browser talks to: it holds the session, and
+    # the access and refresh tokens inside it, so that no token is ever in a
+    # page that also renders uploaded packages. Everything under /api is
+    # relayed through it with a token it obtained and renewed itself.
+    #
+    # WHAT HAS TO BE TRUE AROUND IT, or sign-in fails after a successful login
+    # at Keycloak -- which is the worst place for it to fail, because the
+    # person has already authenticated:
+    #   - the realm's `gateway` client must list
+    #     https://learn-dev.xenopsoftware.com/login/oauth2/code/oidc
+    #   - learn-gateway-client must exist in this namespace
+    #     (xenopsbase-stemcell#451)
+    digest: sha256:48a59559e8c57101eb6ac9141761bc42f156ddafb5f065e60cf74d884045e845
+  - name: ghcr.io/mertkan-iscan/xenopsbase-learn/frontend
+    # Commit d04d4b6, and the first one. nginx and the Vite build -- no Node in
+    # any request path, which is what lets a learner's page load when none of
+    # our services are running (T-3.10, docs/frontend.md).
+    #
+    # The only image here that jib did not build: it comes from web/Dockerfile,
+    # built and signed by the `publish frontend image` job with the same cosign
+    # identity, because this namespace's ClusterImagePolicy covers the whole
+    # registry path and would refuse an unsigned one.
+    digest: sha256:80be1c8cfc3cfe8bbb5c6d836cc84da59e66325ead1863bf9be611a7eb65981b
   - name: ghcr.io/mertkan-iscan/xenopsbase-learn/identity
     # Commit 0747e6c — the first images this repository has ever published
     # (T-9.3, #11). Carries everything through T-3.6: the tenant boundary and
