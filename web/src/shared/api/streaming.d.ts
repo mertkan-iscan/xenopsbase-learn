@@ -145,6 +145,8 @@ export interface components {
         LearnerProgress: {
             allowSeekForward?: boolean;
             approximate?: boolean;
+            /** Format: int32 */
+            blockedAfterSecond?: number;
             completed?: boolean;
             /** Format: date-time */
             completedAt?: string;
@@ -420,7 +422,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description `SEEK_NOT_ALLOWED`. The item forbids skipping ahead, and the rule was one the player had already been told about. */
+            /** @description `SEEK_NOT_ALLOWED` or `INTERSTITIAL_UNANSWERED`. Both mean the batch reports playback past a boundary the player had already been told about: the end of what has been watched on an item that forbids skipping ahead, or an unanswered blocking interstitial (T-5.4). Show the learner what is in the way; resending will not help. */
             409: {
                 headers: {
                     [name: string]: unknown;

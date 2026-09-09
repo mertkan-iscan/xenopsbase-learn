@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { useHls, type PlaybackHistory } from './useHls.ts';
 
 /**
- * The two things the server tells the player to do with the element (T-3.7): where to start, and
- * how far a learner may drag the scrubber.
+ * What the server tells the player to do with the element (T-3.7, T-5.4): where to start, how far
+ * a learner may drag the scrubber, and where to stop for a question.
  *
  * <p>Tested against the hook with no manifest, which is not a shortcut — both behaviours belong to
  * the element rather than to the stream, and asserting them without hls.js in the way is the
@@ -68,6 +68,30 @@ describe('what the server tells the player about this learner', () => {
     // been shown -- the same boundary the server refuses to credit coverage beyond, so an honest
     // player and a modified one end up with the same progress.
     expect(video.currentTime).toBe(30);
+  });
+
+  it('pauses at an unanswered interstitial, however playback reached it', () => {
+    render(<Probe history={{ holdAt: 300 }} />);
+    const video = trackable(screen.getByTestId('video') as HTMLVideoElement);
+
+    // jsdom's media element has no clock and no pause; the call is what is observable, and it
+    // is the thing under test -- the hook's job is to tell the element to stop.
+    let pauses = 0;
+    video.pause = () => {
+      pauses += 1;
+    };
+
+    // Played into it.
+    video.currentTime = 301;
+    video.dispatchEvent(new Event('timeupdate'));
+    expect(video.currentTime).toBe(300);
+    expect(pauses).toBe(1);
+
+    // And seeked into it, which is the other way a learner meets a marker (T-5.4). The seek lands
+    // ON the question rather than past it, on an item that otherwise allows skipping ahead.
+    video.currentTime = 400;
+    video.dispatchEvent(new Event('seeking'));
+    expect(video.currentTime).toBe(300);
   });
 
   it('leaves seeking alone on an item that allows it', () => {

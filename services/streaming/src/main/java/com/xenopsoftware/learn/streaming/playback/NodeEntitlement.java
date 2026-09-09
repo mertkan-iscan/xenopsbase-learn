@@ -30,10 +30,17 @@ import java.util.UUID;
  *                     the item's, also carried here, and enforced on BOTH sides: the player is
  *                     told it so it can stop the seek, and {@code streaming} refuses to credit
  *                     coverage that could only have come from making it anyway (T-3.7)
+ * @param blockedAfterSecond the furthest second this learner may be CREDITED for right now, or
+ *                     null when nothing blocks them — catalog's earliest blocking interstitial
+ *                     they have not answered (T-5.4). Unlike the two fields above this one is
+ *                     about the LEARNER rather than the item, so it goes stale the moment they
+ *                     answer; {@code ProgressService} handles that by re-asking when a batch
+ *                     would actually cross the cached value, which happens once per interstitial
+ *                     rather than once per heartbeat
  */
 public record NodeEntitlement(UUID nodeId, UUID videoAssetId, boolean assigned, boolean reachable,
                               String gateReason, Integer thresholdPercent,
-                              boolean allowSeekForward) {
+                              boolean allowSeekForward, Integer blockedAfterSecond) {
 
     /**
      * The entitlement of an item that has said nothing about completion or seeking — the common
@@ -45,6 +52,13 @@ public record NodeEntitlement(UUID nodeId, UUID videoAssetId, boolean assigned, 
      */
     public NodeEntitlement(UUID nodeId, UUID videoAssetId, boolean assigned, boolean reachable,
             String gateReason) {
-        this(nodeId, videoAssetId, assigned, reachable, gateReason, null, true);
+        this(nodeId, videoAssetId, assigned, reachable, gateReason, null, true, null);
+    }
+
+    /** The shape every caller written before T-5.4 already uses: nothing interrupts this item. */
+    public NodeEntitlement(UUID nodeId, UUID videoAssetId, boolean assigned, boolean reachable,
+            String gateReason, Integer thresholdPercent, boolean allowSeekForward) {
+        this(nodeId, videoAssetId, assigned, reachable, gateReason, thresholdPercent,
+            allowSeekForward, null);
     }
 }

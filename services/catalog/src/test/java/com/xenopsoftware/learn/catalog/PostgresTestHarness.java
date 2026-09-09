@@ -24,6 +24,7 @@ public abstract class PostgresTestHarness {
      * <p>Add a table to this list in the same commit that creates it.
      */
     private static final java.util.List<String> TABLES_IN_FK_ORDER = java.util.List.of(
+        "interstitial_response", "node_interstitial",
         "reminder_sent", "assignment_reminder", "assignment_cycle",
         "assignment", "learner_group_reach", "learner_profile", "node_completion",
         "node_progress", "home_version",

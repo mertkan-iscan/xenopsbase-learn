@@ -33,8 +33,15 @@ import java.util.UUID;
  * @param approximate        the fragment cap has merged across a real gap, so coverage credits
  *                           seconds nobody was shown. Stated rather than hidden: an approximate
  *                           completion is still a completion, and somebody may need to know
+ * @param blockedAfterSecond where an unanswered blocking interstitial stops this learner (T-5.4),
+ *                           or null when nothing does. <b>The player pauses here</b> — and if it
+ *                           does not, nothing past this second is credited anyway, which is what
+ *                           makes the pause a rule rather than a request. {@code resumeSecond} is
+ *                           never past it, so a learner who reloads mid-interruption returns to
+ *                           it rather than past it
  */
 public record LearnerProgress(UUID nodeId, int coveredSeconds, Integer extentSeconds, int percent,
                               int thresholdPercent, boolean completed, Instant completedAt,
                               String completionSource, int resumeSecond, boolean allowSeekForward,
-                              Integer seekCeilingSecond, int fragments, boolean approximate) {}
+                              Integer seekCeilingSecond, int fragments, boolean approximate,
+                              Integer blockedAfterSecond) {}

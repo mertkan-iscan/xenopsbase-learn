@@ -95,6 +95,7 @@ function derived(overrides: Record<string, unknown> = {}) {
     seekCeilingSecond: null,
     fragments: 0,
     approximate: false,
+    blockedAfterSecond: null,
     ...overrides,
   };
 }
@@ -277,6 +278,20 @@ describe('the player', () => {
     // The rule is enforced on the element and stated in words. A scrubber that silently snaps
     // back is a broken player; one that snaps back next to a sentence explaining it is a rule.
     expect(await screen.findByText(/must be watched in order/)).toBeInTheDocument();
+  });
+
+  it('names the question holding playback, and where it is', async () => {
+    progress = () => ({
+      status: 200,
+      body: derived({ blockedAfterSecond: 300, resumeSecond: 300, coveredSeconds: 300, percent: 50 }),
+    });
+
+    render(<VideoPlayer nodeId="node-1" title="Fire safety, part 1" />);
+
+    // 300 seconds is 5:00 on the scrubber the learner is looking at, so that is what it says.
+    // A stop at five minutes with no explanation is the worst of the available states -- and the
+    // one a player that only implemented the pause would produce.
+    expect(await screen.findByText(/A question at 5:00 has to be answered/)).toBeInTheDocument();
   });
 
   it('does not translate a deliberately silent 404 into a claim about the video', async () => {

@@ -148,6 +148,14 @@ public class ProgressService {
         if (!row.allowSeekForward()) {
             refuseSkippingAhead(viewer.tenantId(), learnerId, row, claims);
         }
+        if (crosses(claims, row.blockedAfterSecond())) {
+            // The frontier is the one piece of copied policy that is about the LEARNER, so it goes
+            // stale the moment they answer -- and it is read only when a batch would actually
+            // cross it, which is once per interstitial rather than once per heartbeat.
+            row = refreshFrontier(row,
+                node == null ? entitlementOf(nodeId, viewer, learnerId) : node);
+            claims = holdAtTheInterstitial(viewer.tenantId(), learnerId, row, claims);
+        }
 
         Coverage.Merge merge = row.coverage().merge(claims, properties.coalesceGapSeconds(),
             properties.maxFragments());
@@ -214,6 +222,13 @@ public class ProgressService {
         UUID learnerId = identities.require(viewer);
         Row row = readRow(viewer.tenantId(), learnerId, nodeId);
         if (row != null) {
+            if (row.blockedAfterSecond() != null) {
+                // A page load is exactly when a stale frontier would be felt: a learner who
+                // answered and reloaded must not be held at a marker they have satisfied. Once per
+                // load, and only for the learners actually held by one.
+                row = row.withFrontier(
+                    entitlementOf(nodeId, viewer, learnerId).blockedAfterSecond());
+            }
             return view(nodeId, row.withExtent(extentOf(row.videoAssetId())));
         }
         // No coverage yet, so the answer is zeros — but the policy still has to be real, because
@@ -224,7 +239,8 @@ public class ProgressService {
             ? properties.defaultThresholdPercent() : node.thresholdPercent();
         Integer extent = extentOf(node.videoAssetId());
         return new LearnerProgress(nodeId, 0, extent, 0, threshold, false, null, DERIVED, 0,
-            node.allowSeekForward(), node.allowSeekForward() ? null : 0, 0, false);
+            node.allowSeekForward(), node.allowSeekForward() ? null : 0, 0, false,
+            node.blockedAfterSecond());
     }
 
     // ------------------------------------------------------------------ the checks
@@ -310,6 +326,57 @@ public class ProgressService {
         }
     }
 
+    /**
+     * THE SERVER HALF OF A BLOCKING INTERSTITIAL (T-5.4).
+     *
+     * <p>T-5.4 asks for a pause "enforced by the same interval accounting that measures progress,
+     * not by client honesty", and this is it: claims are <b>clipped</b> at the frontier, so seconds
+     * past an unanswered question are credited to nobody. A player that skips the question and
+     * plays to the end arrives there with the coverage it had at the marker, and the item does not
+     * complete. There is nothing to trust and nothing to spoof -- the arithmetic simply does not
+     * count those seconds.
+     *
+     * <p><b>Clipping rather than refusing, for the ordinary case.</b> A heartbeat that straddles
+     * the marker -- [290, 301) against one at 300 -- is exactly what a correct player produces when
+     * it pauses on the right second. Refusing that would make every honest player look broken once
+     * per interstitial, so it is credited to 300 and answered 200.
+     *
+     * <p><b>Refusing when the whole batch is past it</b>, because then there is nothing to clip and
+     * nothing honest to explain it: the player is reporting playback from beyond a frontier it was
+     * handed. It gets a code it can act on rather than a silent zero, and the learner gets a
+     * support answer to "why is my progress stuck".
+     */
+    private List<Coverage.Fragment> holdAtTheInterstitial(String tenantId, UUID learnerId, Row row,
+            List<Coverage.Fragment> claims) {
+        Integer frontier = row.blockedAfterSecond();
+        if (frontier == null) {
+            return claims;
+        }
+        // The same tolerance the seek rule uses, and for the same reason: it is the player's own
+        // "is this still continuous playback" threshold, so one rule holds on both sides.
+        int wholly = frontier + properties.seekToleranceSeconds();
+        if (claims.stream().allMatch(claim -> claim.from() >= wholly)) {
+            String detail = "a batch starting at " + claims.getFirst().from() + "s on an item held "
+                + "at " + frontier + "s by an unanswered interstitial";
+            refusals.record(tenantId, learnerId, row.nodeId(),
+                ProgressRejection.INTERSTITIAL_UNANSWERED, detail);
+            throw reject(ProgressRejection.INTERSTITIAL_UNANSWERED, detail);
+        }
+        List<Coverage.Fragment> held = new ArrayList<>(claims.size());
+        for (Coverage.Fragment claim : claims) {
+            int to = Math.min(claim.to(), frontier);
+            if (to > claim.from()) {
+                held.add(new Coverage.Fragment(claim.from(), to));
+            }
+        }
+        return held;
+    }
+
+    /** Whether any of these claims reaches past the frontier, and there is a frontier to reach. */
+    private static boolean crosses(List<Coverage.Fragment> claims, Integer frontier) {
+        return frontier != null && claims.stream().anyMatch(claim -> claim.to() > frontier);
+    }
+
     // ------------------------------------------------------------------ the row
 
     private NodeEntitlement entitlementOf(UUID nodeId, Viewer viewer, UUID learnerId) {
@@ -341,14 +408,16 @@ public class ProgressService {
         jdbc.update("""
             INSERT INTO learner_node_progress (id, tenant_id, learner_id, node_id, video_asset_id,
                     covered, covered_seconds, fragments, approximate, furthest_second,
-                    threshold_percent, allow_seek_forward, policy_seen_at, completion_source,
-                    first_seen_at, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, '{}'::int4multirange, 0, 0, false, 0, ?, ?, ?, ?, ?, ?, ?)
+                    threshold_percent, allow_seek_forward, blocked_after_second, policy_seen_at,
+                    completion_source, first_seen_at, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, '{}'::int4multirange, 0, 0, false, 0, ?, ?, ?, ?, ?, ?, ?, ?)
             """, id, tenantId, learnerId, nodeId, asset.getId(), threshold, node.allowSeekForward(),
-            java.sql.Timestamp.from(now), DERIVED, java.sql.Timestamp.from(now),
-            java.sql.Timestamp.from(now), java.sql.Timestamp.from(now));
+            node.blockedAfterSecond(), java.sql.Timestamp.from(now), DERIVED,
+            java.sql.Timestamp.from(now), java.sql.Timestamp.from(now),
+            java.sql.Timestamp.from(now));
         return new Row(id, nodeId, Coverage.empty(), 0, false, 0, threshold,
-            node.allowSeekForward(), now, null, null, now, asset.getId(), null, null);
+            node.allowSeekForward(), node.blockedAfterSecond(), now, null, null, now,
+            asset.getId(), null, null);
     }
 
     private Row refreshPolicy(Row row, NodeEntitlement node) {
@@ -357,10 +426,34 @@ public class ProgressService {
         Instant now = clock.instant();
         jdbc.update("""
             UPDATE learner_node_progress
-               SET threshold_percent = ?, allow_seek_forward = ?, policy_seen_at = ?
+               SET threshold_percent = ?, allow_seek_forward = ?, blocked_after_second = ?,
+                   policy_seen_at = ?
              WHERE id = ?
-            """, threshold, node.allowSeekForward(), java.sql.Timestamp.from(now), row.id());
-        return row.withPolicy(threshold, node.allowSeekForward(), now);
+            """, threshold, node.allowSeekForward(), node.blockedAfterSecond(),
+            java.sql.Timestamp.from(now), row.id());
+        // The frontier rides along because the answer is already in hand, not because it is on the
+        // item's clock. It has its own refresh, and that is the one that matters (T-5.4).
+        return row.withPolicy(threshold, node.allowSeekForward(), node.blockedAfterSecond(), now);
+    }
+
+    /**
+     * Re-reads the learner's frontier and stores it (T-5.4).
+     *
+     * <p>Its own write rather than part of {@link #refreshPolicy}, because it answers a different
+     * question on a different clock: the threshold and the seek rule belong to the item and may be
+     * assumed unchanged for an hour, and this changes the instant the learner answers. Caching it
+     * on the item's terms would leave somebody who has just answered staring at a video that will
+     * not credit them, for up to an hour.
+     *
+     * <p>The cost, stated: while a learner is held at a question, each heartbeat claiming past it
+     * costs one call to catalog. That is a small and self-limiting population -- people sitting on
+     * a question they are being asked to answer -- and the alternative is being slow to notice the
+     * answer, which is the failure a learner actually feels.
+     */
+    private Row refreshFrontier(Row row, NodeEntitlement node) {
+        jdbc.update("UPDATE learner_node_progress SET blocked_after_second = ? WHERE id = ?",
+            node.blockedAfterSecond(), row.id());
+        return row.withFrontier(node.blockedAfterSecond());
     }
 
     private boolean policyIsStale(Row row) {
@@ -383,7 +476,8 @@ public class ProgressService {
 
     private static final String SELECT_ROW = """
         SELECT id, node_id, covered::text AS covered, covered_seconds, approximate, furthest_second,
-               threshold_percent, allow_seek_forward, policy_seen_at, extent_seconds,
+               threshold_percent, allow_seek_forward, blocked_after_second, policy_seen_at,
+               extent_seconds,
                completed_at, first_seen_at, video_asset_id, announced_percent, announced_at
           FROM learner_node_progress
          WHERE tenant_id = ? AND learner_id = ? AND node_id = ?
@@ -398,6 +492,7 @@ public class ProgressService {
             rows.getInt("furthest_second"),
             rows.getInt("threshold_percent"),
             rows.getBoolean("allow_seek_forward"),
+            (Integer) rows.getObject("blocked_after_second"),
             rows.getTimestamp("policy_seen_at").toInstant(),
             (Integer) rows.getObject("extent_seconds"),
             rows.getTimestamp("completed_at") == null
@@ -532,14 +627,24 @@ public class ProgressService {
         return claims;
     }
 
+    /**
+     * <p>The resume point is clipped to the frontier, which is T-5.4's third criterion in one
+     * expression: a learner who reloads the page during an interstitial <b>returns to it, not past
+     * it</b>. Their furthest second may well be beyond the marker -- they seeked there, or their
+     * player played on -- and resuming them there would hand them a video that will credit them
+     * nothing, with no sign of why.
+     */
     private LearnerProgress view(UUID nodeId, Row row) {
         Integer extent = row.extentSeconds();
         int percent = percentOf(row.coveredSeconds(), extent);
+        Integer frontier = row.blockedAfterSecond();
+        int resume = frontier == null ? row.furthestSecond()
+            : Math.min(row.furthestSecond(), frontier);
         return new LearnerProgress(nodeId, row.coveredSeconds(), extent, percent,
             row.thresholdPercent(), row.completedAt() != null, row.completedAt(), DERIVED,
-            row.furthestSecond(), row.allowSeekForward(),
+            resume, row.allowSeekForward(),
             row.allowSeekForward() ? null : row.coverage().contiguousEnd(),
-            row.coverage().fragmentCount(), row.approximate());
+            row.coverage().fragmentCount(), row.approximate(), frontier);
     }
 
     /**
@@ -585,28 +690,35 @@ public class ProgressService {
     /** The stored row, as this service needs it. */
     private record Row(UUID id, UUID nodeId, Coverage coverage, int coveredSeconds,
                        boolean approximate, int furthestSecond, int thresholdPercent,
-                       boolean allowSeekForward, Instant policySeenAt, Integer extentSeconds,
-                       Instant completedAt, Instant firstSeenAt, UUID videoAssetId,
-                       Integer announcedPercent, Instant announcedAt) {
+                       boolean allowSeekForward, Integer blockedAfterSecond, Instant policySeenAt,
+                       Integer extentSeconds, Instant completedAt, Instant firstSeenAt,
+                       UUID videoAssetId, Integer announcedPercent, Instant announcedAt) {
 
-        Row withPolicy(int threshold, boolean allowSeekForward, Instant seenAt) {
+        Row withPolicy(int threshold, boolean allowSeekForward, Integer blockedAfter,
+                Instant seenAt) {
             return new Row(id, nodeId, coverage, coveredSeconds, approximate, furthestSecond,
-                threshold, allowSeekForward, seenAt, extentSeconds, completedAt, firstSeenAt,
-                videoAssetId, announcedPercent, announcedAt);
+                threshold, allowSeekForward, blockedAfter, seenAt, extentSeconds, completedAt,
+                firstSeenAt, videoAssetId, announcedPercent, announcedAt);
+        }
+
+        Row withFrontier(Integer blockedAfter) {
+            return new Row(id, nodeId, coverage, coveredSeconds, approximate, furthestSecond,
+                thresholdPercent, allowSeekForward, blockedAfter, policySeenAt, extentSeconds,
+                completedAt, firstSeenAt, videoAssetId, announcedPercent, announcedAt);
         }
 
         Row withExtent(Integer extent) {
             return new Row(id, nodeId, coverage, coveredSeconds, approximate, furthestSecond,
-                thresholdPercent, allowSeekForward, policySeenAt, extent, completedAt, firstSeenAt,
-                videoAssetId, announcedPercent, announcedAt);
+                thresholdPercent, allowSeekForward, blockedAfterSecond, policySeenAt, extent,
+                completedAt, firstSeenAt, videoAssetId, announcedPercent, announcedAt);
         }
 
         Row after(Coverage.Merge merge, int coveredSeconds, Integer extent, Instant completedAt) {
             return new Row(id, nodeId, merge.coverage(), coveredSeconds,
                 approximate || merge.approximated(),
                 Math.max(furthestSecond, merge.coverage().furthestSecond()), thresholdPercent,
-                allowSeekForward, policySeenAt, extent, completedAt, firstSeenAt, videoAssetId,
-                announcedPercent, announcedAt);
+                allowSeekForward, blockedAfterSecond, policySeenAt, extent, completedAt,
+                firstSeenAt, videoAssetId, announcedPercent, announcedAt);
         }
     }
 }
