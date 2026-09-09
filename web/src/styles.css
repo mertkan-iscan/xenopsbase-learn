@@ -1,19 +1,32 @@
-/* Enough to be legible and operable, and no design system yet -- that arrives with the screens
-   it has to serve (T-10.4, T-10.3). What is here is the part that is not decoration: visible
-   focus, a skip link that appears when focused, and states that read as states. */
+/*
+ * The application's stylesheet. Three layers, in cascade order: tokens, then the components
+ * built from them, then the layouts the screens compose (docs/design-prompt.md).
+ *
+ * Everything below this import block is either structural accessibility -- the part that is not
+ * decoration -- or the player, which is deliberately left alone.
+ */
+@import './shared/design/tokens.css';
+@import './shared/design/components.css';
+@import './shared/design/screens.css';
 
 :root {
   color-scheme: light dark;
-  --gap: 1rem;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-body);
+  font-size: var(--text-body);
   line-height: 1.5;
 }
 
 body {
   margin: 0;
-  padding: var(--gap);
+  background: var(--color-bg);
+  color: var(--color-text);
 }
 
+/*
+ * VISIBLE FOCUS, ON EVERYTHING. `currentColor` rather than the accent: the outline has to be
+ * visible against whatever the focused thing is sitting on, and on a filled ink button the accent
+ * is nearly invisible while the button's own foreground never is.
+ */
 *:focus-visible {
   outline: 3px solid currentColor;
   outline-offset: 2px;
@@ -27,44 +40,20 @@ body {
 .skip:focus {
   position: static;
   display: inline-block;
-  margin-bottom: var(--gap);
+  margin: var(--space-2);
 }
 
-nav ul {
-  display: flex;
-  gap: var(--gap);
-  list-style: none;
-  margin: 0 0 var(--gap);
-  padding: 0;
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-heading);
+  font-weight: 800;
+  text-wrap: balance;
 }
 
-.state {
-  border: 1px solid currentColor;
-  border-radius: 4px;
-  margin: var(--gap) 0;
-  padding: var(--gap);
-}
-
-.state__title {
-  font-weight: 600;
-  margin-top: 0;
-}
-
-label {
-  display: block;
-  font-weight: 600;
-}
-
-input {
-  font: inherit;
-  padding: 0.35rem;
-  min-width: 20rem;
-  max-width: 100%;
-}
-
-button {
-  font: inherit;
-  padding: 0.4rem 0.9rem;
+a {
+  color: var(--color-accent-700);
 }
 
 code {

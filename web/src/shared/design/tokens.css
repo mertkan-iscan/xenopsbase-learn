@@ -1,0 +1,155 @@
+/*
+ * The design system's tokens (T-10.3 – T-10.6, docs/design-prompt.md).
+ *
+ * Taken from the design canvas. Five values came from it as literal hex — ground, surface, ink,
+ * accent, accent-700, and the four the retention chart draws with. THE RAMPS AROUND THEM ARE
+ * RECONSTRUCTED: the canvas referenced `--color-neutral-*` and `--color-accent-*` from a
+ * stylesheet (`_ds/modernist-…/styles.css`) that was not part of what we received, so every step
+ * below that is not one of those literals is interpolated between them and should be replaced
+ * wholesale if that file ever arrives. The interpolation is why they are declared once here
+ * rather than spelled out at each use.
+ *
+ * What the system is, in one sentence: ink on paper, 2px rules instead of shadows, one red used
+ * sparingly enough that it still means something.
+ */
+
+:root {
+  /* --- from the canvas, verbatim ------------------------------------------------------- */
+  --color-bg: #f3f2f2;
+  --color-surface: #eae9e9;
+  --color-text: #201e1d;
+  --color-accent: #ec3013;
+  --color-accent-700: #ae1800;
+
+  /* --- reconstructed ------------------------------------------------------------------- */
+  --color-neutral-100: #efeeee;
+  --color-neutral-200: #e4e2e2;
+  --color-neutral-300: #d7d3d3;
+  --color-neutral-400: #b3aeae;
+  --color-neutral-500: #8f8a8a;
+  --color-neutral-600: #756f6f;
+  --color-neutral-700: #605d5d;
+  --color-neutral-800: #46423f;
+  --color-neutral-900: #201e1d;
+
+  --color-accent-100: #fdeae6;
+  --color-accent-200: #fbd3cc;
+  --color-accent-400: #f4715b;
+  --color-accent-900: #7a1000;
+
+  --color-divider: #d7d3d3;
+
+  /* The chart's own values, so the SVG takes them from the same place as everything else. */
+  --chart-line: var(--color-text);
+  --chart-fill: #eae7e7;
+  --chart-grid: #d7d3d3;
+  --chart-marker: var(--color-accent);
+
+  /*
+   * ONE FAMILY IN TWO ROLES. The canvas pairs Archivo 800 for headings with Archivo 400/500/600
+   * for everything else, which is a weight pairing rather than a typeface pairing — the display
+   * face earns its difference from mass, not from a second download on a phone connection.
+   */
+  --font-heading: Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-body: Archivo, 'Segoe UI', system-ui, -apple-system, sans-serif;
+
+  /* The canvas's five sizes, and nothing between them. */
+  --text-display: 2.125rem; /* 34 — screen title */
+  --text-section: 1.25rem; /* 20 — section */
+  --text-body: 0.9375rem; /* 15 — body, and the sentence a locked-out learner reads */
+  --text-meta: 0.8125rem; /* 13 — meta, durations, counts */
+  --text-label: 0.6875rem; /* 11 — caps, state labels only */
+
+  --tracking-label: 0.08em;
+  --tracking-chip: 0.06em;
+
+  /*
+   * TWO DENSITIES, and they are the reason this is one system rather than two.
+   *
+   * The learner is on a phone under obligation: one thumb, one column, and the WCAG target size
+   * is the floor rather than the aspiration. The administrator is on a desktop for six hours: a
+   * 56px row would put eleven learners on screen where thirty-two belong.
+   */
+  --row-touch: 56px;
+  --tap-min: 44px;
+  --row-dense: 32px;
+
+  --rule: 2px;
+  --hairline: 1px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+}
+
+/*
+ * DARK IS OURS, NOT THE DESIGN'S. The canvas supplied one palette. Rather than ship a product
+ * that ignores the setting, the roles are swapped here and the accent lifted — #ec3013 on a dark
+ * ground fails contrast for the small text it is used on, so the dark side runs a lighter red and
+ * keeps the deep one only for fills.
+ *
+ * Guarded on `:not([data-theme='light'])` so a person who has chosen light on a dark OS gets
+ * light, and stated again under `[data-theme='dark']` so the choice wins in both directions.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-bg: #16110f;
+    --color-surface: #221c1a;
+    --color-text: #f3f2f2;
+    --color-accent: #ff5a3c;
+    --color-accent-700: #ff8a72;
+
+    --color-neutral-100: #1c1614;
+    --color-neutral-200: #2a2321;
+    --color-neutral-300: #382f2c;
+    --color-neutral-400: #4d4340;
+    --color-neutral-500: #6d625e;
+    --color-neutral-600: #8b807b;
+    --color-neutral-700: #a89d98;
+    --color-neutral-800: #cdc4c0;
+    --color-neutral-900: #f3f2f2;
+
+    --color-accent-100: #3a1a12;
+    --color-accent-200: #4d2118;
+    --color-accent-400: #c9402a;
+    --color-accent-900: #ffc3b5;
+
+    --color-divider: #382f2c;
+
+    --chart-fill: #2a2321;
+    --chart-grid: #382f2c;
+  }
+}
+
+:root[data-theme='dark'] {
+  --color-bg: #16110f;
+  --color-surface: #221c1a;
+  --color-text: #f3f2f2;
+  --color-accent: #ff5a3c;
+  --color-accent-700: #ff8a72;
+
+  --color-neutral-100: #1c1614;
+  --color-neutral-200: #2a2321;
+  --color-neutral-300: #382f2c;
+  --color-neutral-400: #4d4340;
+  --color-neutral-500: #6d625e;
+  --color-neutral-600: #8b807b;
+  --color-neutral-700: #a89d98;
+  --color-neutral-800: #cdc4c0;
+  --color-neutral-900: #f3f2f2;
+
+  --color-accent-100: #3a1a12;
+  --color-accent-200: #4d2118;
+  --color-accent-400: #c9402a;
+  --color-accent-900: #ffc3b5;
+
+  --color-divider: #382f2c;
+
+  --chart-fill: #2a2321;
+  --chart-grid: #382f2c;
+}

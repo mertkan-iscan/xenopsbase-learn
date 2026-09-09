@@ -55,7 +55,10 @@ describe('the application shell', () => {
     await renderShellAndWait();
 
     const skip = screen.getByRole('link', { name: 'Skip to content' });
-    const firstNavLink = screen.getByRole('link', { name: 'My learning' });
+    // The learner's navigation is the tab bar at the bottom of the screen now (T-10.3). Where it
+    // sits visually is a design decision; where it sits in the DOM is this assertion, and the two
+    // are allowed to differ only in the direction that keeps the skip link first in the tab order.
+    const firstNavLink = screen.getByRole('link', { name: 'Training' });
 
     // Node.compareDocumentPosition: FOLLOWING means the nav link comes after the skip link, which
     // is what makes the skip link usable by somebody tabbing through.
