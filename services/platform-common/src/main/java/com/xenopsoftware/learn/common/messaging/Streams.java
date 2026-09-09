@@ -36,9 +36,39 @@ public final class Streams {
         stream("identity", "identity.>"),
         stream("catalog", "catalog.>"),
         stream("streaming", "streaming.>"),
-        stream("reporting", "reporting.>"));
+        stream("reporting", "reporting.>"),
+        // Added when assessment started publishing, which is later than it should have been: it
+        // began publishing at T-6.7 and this list did not move, so `assessment.attempt.graded`
+        // went into no stream at all. See StreamsTest, which now fails the build for the next one.
+        stream("assessment", "assessment.>"));
+
+    /**
+     * Every subject a {@code MessageHandler} in this repository subscribes to.
+     *
+     * <p>Here rather than discovered by scanning, because platform-common cannot see the modules
+     * that depend on it. That makes this a list somebody has to remember to update -- but it fails
+     * a build when it is wrong, which is the whole difference from the situation it was written
+     * for, where the same omission failed a pod on a cluster.
+     */
+    static final List<String> SUBSCRIBED_SUBJECTS = List.of(
+        "identity.group.reach",
+        "identity.user.profile",
+        "streaming.node.completed",
+        "streaming.node.progress",
+        "assessment.attempt.graded",
+        "assessment.interstitial.answered");
 
     private Streams() {}
+
+    /**
+     * The declared topology, for the test that checks it against what subscribes.
+     *
+     * <p>Package-private and read-only. {@code TOPOLOGY} is already immutable, so this hands out
+     * the list itself rather than a copy.
+     */
+    static List<StreamConfiguration> declared() {
+        return TOPOLOGY;
+    }
 
     /**
      * Makes the broker match this file.
