@@ -77,6 +77,12 @@ export type Progress = {
   seekCeilingSecond?: number | null;
   fragments: number;
   approximate: boolean;
+  /**
+   * Where an unanswered blocking interstitial stops this learner (T-5.4), or null when nothing
+   * does. The player pauses here — and if it did not, nothing past this second would be credited
+   * anyway, which is what makes the pause a rule rather than a request.
+   */
+  blockedAfterSecond?: number | null;
 };
 
 /** Ten seconds, matching ADR-0107's write-volume arithmetic. */

@@ -109,6 +109,17 @@ code {
 }
 
 /*
+ * What is holding playback (T-5.4). Full width so it sits on its own line under the controls,
+ * and NOT dimmed like the notices above it: this one is the reason the video stopped, and a
+ * learner who cannot find it is a learner staring at a paused player.
+ */
+.player__held {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+/*
  * Inside the iframe there is no page around the player, and the host's box is the whole viewport.
  * No background colour is set: a host may embed us into any design, and a white rectangle we did
  * not have to draw is one we should not.

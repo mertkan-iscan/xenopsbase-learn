@@ -27,8 +27,9 @@ import org.springframework.web.bind.annotation.RestController;
  * <h2>Two verbs, two different jobs</h2>
  *
  * The POST is the merge: it is called every ten seconds by a playing player and its response is
- * what the player renders. The GET is called once, on load, and answers the two questions a player
- * cannot answer for itself — where to resume, and whether this item allows skipping ahead.
+ * what the player renders. The GET is called once, on load, and answers the questions a player
+ * cannot answer for itself — where to resume, whether this item allows skipping ahead, and
+ * whether something inside it is waiting to be answered (T-5.4).
  *
  * <p>Both return the same view. A player that has just posted and a player that has just loaded
  * are looking at the same thing, and two shapes for it would be two renderings to keep in step.
@@ -63,8 +64,11 @@ public class ProgressResource {
         content = @Content(mediaType = ProblemDocumentation.PROBLEM_JSON,
             schema = @Schema(ref = ProblemDocumentation.REF)))
     @ApiResponse(responseCode = "409",
-        description = "`SEEK_NOT_ALLOWED`. The item forbids skipping ahead, and the rule "
-            + "was one the player had already been told about.",
+        description = "`SEEK_NOT_ALLOWED` or `INTERSTITIAL_UNANSWERED`. Both mean the "
+            + "batch reports playback past a boundary the player had already been told "
+            + "about: the end of what has been watched on an item that forbids skipping "
+            + "ahead, or an unanswered blocking interstitial (T-5.4). Show the learner "
+            + "what is in the way; resending will not help.",
         content = @Content(mediaType = ProblemDocumentation.PROBLEM_JSON,
             schema = @Schema(ref = ProblemDocumentation.REF)))
     @ApiResponse(responseCode = "413",

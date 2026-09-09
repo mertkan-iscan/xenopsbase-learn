@@ -12,9 +12,10 @@ import org.springframework.http.HttpStatus;
  *
  * <p>Specific rather than generic, for the reason T-3.6 already paid for: a client that cannot
  * tell "split this" from "stop sending this" retries both, and one broken player becomes sustained
- * load. Every one of these is counted, and the two that describe a learner rather than a bug —
- * {@link #IMPLAUSIBLE_RATE} and {@link #SEEK_NOT_ALLOWED} — are also counted on the learner's own
- * progress row, because "why is my progress not moving" is a support question about one person.
+ * load. Every one of these is counted, and the three that describe a learner rather than a bug —
+ * {@link #IMPLAUSIBLE_RATE}, {@link #SEEK_NOT_ALLOWED} and {@link #INTERSTITIAL_UNANSWERED} — are
+ * also counted on the learner's own progress row, because "why is my progress not moving" is a
+ * support question about one person.
  */
 public enum ProgressRejection {
 
@@ -45,7 +46,22 @@ public enum ProgressRejection {
      * <p>A 409 rather than a 400, because the batch is well formed and the caller is not confused:
      * it is telling us about a seek the same rules told the player not to make.
      */
-    SEEK_NOT_ALLOWED(HttpStatus.CONFLICT);
+    SEEK_NOT_ALLOWED(HttpStatus.CONFLICT),
+
+    /**
+     * Something inside the item is waiting to be answered, and this batch is entirely past it
+     * (T-5.4).
+     *
+     * <p>A 409 for the same reason {@link #SEEK_NOT_ALLOWED} is one: the batch is well formed and
+     * the caller is not confused. It is reporting playback that the frontier the player was handed
+     * said would not be credited.
+     *
+     * <p><b>Only a batch that is WHOLLY past the frontier gets this.</b> A heartbeat straddling it
+     * — [290, 301) against a marker at 300 — is the ordinary shape of an honest player pausing on
+     * the right second, and it is clipped and credited to 300 with a 200. Refusing that would make
+     * every correct player look broken once per interstitial.
+     */
+    INTERSTITIAL_UNANSWERED(HttpStatus.CONFLICT);
 
     private final HttpStatus status;
 

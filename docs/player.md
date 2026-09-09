@@ -126,8 +126,8 @@ untrusted; the channel id is what makes another of *our own* players on the same
 
 ### Progress is read from the server, never computed here (T-3.7).
 
-Where to resume, how much has been watched, whether it is complete, and whether this item allows
-skipping ahead all arrive from `GET /api/v1/me/nodes/{id}/progress` and from the answer to every
+Where to resume, how much has been watched, whether it is complete, whether this item allows
+skipping ahead, and where an unanswered interstitial is holding the learner (T-5.4) all arrive from `GET /api/v1/me/nodes/{id}/progress` and from the answer to every
 progress post. **None of it is derived in the browser.** A player that kept its own idea of
 completion would be a second answer to the question a compliance report answers, and the two would
 disagree the first time a heartbeat was lost — which is exactly the disagreement
@@ -146,6 +146,33 @@ Three consequences worth stating, because each of them looks like a bug from the
 - **Progress lags by up to one flush.** Completion is derived on the server from a batch posted
   every ten seconds, so a learner who finishes and immediately looks for their certificate may wait
   that long. The UI says what it knows rather than guessing ahead of it.
+
+### An interstitial is a frontier, and the pause is the visible half of it (T-5.4).
+
+An author can pin a question inside a video's timeline. A blocking one stops playback until it is
+answered — and **the stop is arithmetic, not a pause**. `blockedAfterSecond` arrives on the same
+progress reads as everything else, and the server does not credit coverage past it. A player with
+the pause code deleted plays to the end and the item still does not complete, because the seconds
+past the marker were never counted.
+
+That is what makes this rule different from seek-forward, which is enforced on both sides. There is
+nothing to enforce on this side: the player renders the question because that is the only way the
+learner can move the frontier, not because the rule depends on it.
+
+Three consequences, again because each one looks like a bug from the outside:
+
+- **A heartbeat that straddles the marker is accepted and trimmed.** `[290, 301)` against a marker
+  at 300 is what a correct player produces — the heartbeat window will never align with the marker
+  — so it is credited to 300 and answered `200`. A batch *wholly* past the marker is a `409`
+  `INTERSTITIAL_UNANSWERED`, which is the player reporting playback from beyond a frontier it was
+  handed.
+- **`resumeSecond` never goes past the frontier.** A learner who reloads mid-interruption returns
+  to the question rather than past it, even though their furthest second is beyond it. Resuming
+  them where they got to would hand them a video that credits them nothing, with no sign of why.
+- **Answering it is not something the player can assert.** The answer is an assessment attempt, and
+  the frontier moves when catalog hears about it. There is no request a browser can make that says
+  "I answered that" — the same reason there is no request that says "I completed that"
+  ([ADR-0107](adr/0107-completion-is-derived-by-the-server.md)).
 
 ### The batch goes to two services, and that is on purpose (T-3.6, T-3.7).
 

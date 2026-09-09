@@ -37,6 +37,12 @@ import { usePlaybackToken } from './usePlaybackToken.ts';
  * answer to the question a compliance report answers, and the two would disagree the first time a
  * heartbeat was lost.
  */
+/** Seconds as a learner reads them on the scrubber, so the notice and the video agree. */
+function clockOf(second: number): string {
+  const minutes = Math.floor(second / 60);
+  return `${minutes}:${String(Math.floor(second % 60)).padStart(2, '0')}`;
+}
+
 export function VideoPlayer({ nodeId, title }: { nodeId: string; title: string }) {
   const token = usePlaybackToken(nodeId);
   const playback = token.status === 'ready' || token.status === 'renewing' ? token.playback : undefined;
@@ -68,6 +74,7 @@ export function VideoPlayer({ nodeId, title }: { nodeId: string; title: string }
     // Only when the item forbids it. `?? 0` rather than a fallback that lets everything through:
     // a missing ceiling on an item that forbids skipping means nothing has been watched yet.
     seekCeiling: progress && !progress.allowSeekForward ? (progress.seekCeilingSecond ?? 0) : undefined,
+    holdAt: progress?.blockedAfterSecond ?? undefined,
   });
 
   // What was actually watched (T-3.6, T-3.7): raw samples to `reporting`, the same batch to
@@ -136,6 +143,18 @@ export function VideoPlayer({ nodeId, title }: { nodeId: string; title: string }
             ))}
           </select>
         </label>
+
+        {/* WHAT IS IN THE WAY, NAMED (T-5.4). The question itself cannot be rendered here yet --
+            asking one and taking an answer is the attempt, which is T-6.6 (#65) -- and a silent
+            stop at 5:00 with no explanation is the worst of the available states. So the player
+            says what stopped it and where, which is true now and is the caption this becomes when
+            the question renders in its place. */}
+        {progress?.blockedAfterSecond != null ? (
+          <p className="player__held" role="status">
+            {`A question at ${clockOf(progress.blockedAfterSecond)} has to be answered before this
+              goes on. Nothing after it counts until it is.`}
+          </p>
+        ) : null}
 
         {progress ? (
           <p className="player__progress" aria-live="polite">

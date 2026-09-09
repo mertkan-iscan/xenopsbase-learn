@@ -82,6 +82,16 @@ class CatalogCoverageTest extends PostgresTestHarness {
             + "bounced and windows missed while the service was down. It is about this tenant's "
             + "operational health and is scoped to it, and it needs a permission for the same "
             + "reason everything else on this list does (T-9.11)"),
+        Map.entry("InterstitialResource#on", AUTHZ_GAP),
+        Map.entry("InterstitialResource#add", AUTHZ_GAP),
+        Map.entry("InterstitialResource#edit", AUTHZ_GAP),
+        Map.entry("InterstitialResource#remove", AUTHZ_GAP),
+        Map.entry("InterstitialResource#forMe",
+            "answers about the CALLER and nobody else (T-5.4): it takes no learner id, and the "
+            + "frontier it reports is the one streaming already enforces for that caller. A "
+            + "permission would add nothing authentication has not decided -- and note there is "
+            + "deliberately no endpoint here that ANSWERS an interstitial, because a learner who "
+            + "could assert one would have a one-request path past every blocking marker"),
         Map.entry("HomeResource#home",
             "answers about the CALLER and nobody else (T-5.8): it takes no learner id, and the "
             + "identity comes from the token by way of identity's own /me. There is nothing a "

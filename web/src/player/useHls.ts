@@ -106,6 +106,10 @@ type Engine = { destroy: () => void; currentLevel: number };
  *
  * @property resumeFrom where to start. Applied once — a learner who seeks back after resuming has
  *   not asked to be moved again, and a hook that re-applied this on every update would fight them.
+ * @property holdAt the second an unanswered blocking interstitial stops playback at (T-5.4), or
+ *   undefined when nothing does. Unlike `seekCeiling` this is NOT half of a rule: the server does
+ *   not credit coverage past it whatever this player does, so pausing here is what lets the
+ *   learner see the question that moves it rather than watch on and silently earn nothing.
  * @property seekCeiling the furthest second the learner may seek to, when the item forbids
  *   skipping past unwatched content. Undefined when seeking is allowed, which is the ordinary
  *   case. The SERVER enforces the same rule by refusing to credit coverage that could only have
@@ -115,6 +119,7 @@ type Engine = { destroy: () => void; currentLevel: number };
 export type PlaybackHistory = {
   resumeFrom?: number | undefined;
   seekCeiling?: number | undefined;
+  holdAt?: number | undefined;
 };
 
 export function useHls(
@@ -145,12 +150,14 @@ export function useHls(
   // once per heartbeat.
   const resumeFrom = useRef(history.resumeFrom ?? 0);
   const seekCeiling = useRef(history.seekCeiling);
+  const holdAt = useRef(history.holdAt);
   const resumed = useRef(false);
 
   useEffect(() => {
     resumeFrom.current = history.resumeFrom ?? 0;
     seekCeiling.current = history.seekCeiling;
-  }, [history.resumeFrom, history.seekCeiling]);
+    holdAt.current = history.holdAt;
+  }, [history.resumeFrom, history.seekCeiling, history.holdAt]);
 
   useEffect(() => {
     selection.current = selectedQualityId;
@@ -193,14 +200,40 @@ export function useHls(
       return;
     }
     function refuseSkippingAhead() {
-      const ceiling = seekCeiling.current;
+      // Whichever is nearer: an item that forbids skipping has a ceiling, and an unanswered
+      // interstitial holds everyone. Seeking past a marker is one of the ways it is reached
+      // (T-5.4), so the seek lands ON it rather than past it.
+      const limit = Math.min(seekCeiling.current ?? Infinity, holdAt.current ?? Infinity);
       const target = element?.currentTime ?? 0;
-      if (element && ceiling !== undefined && target > ceiling) {
-        element.currentTime = ceiling;
+      if (element && limit !== Infinity && target > limit) {
+        element.currentTime = limit;
       }
     }
     element.addEventListener('seeking', refuseSkippingAhead);
     return () => element.removeEventListener('seeking', refuseSkippingAhead);
+  }, [element]);
+
+  // THE PAUSE AT AN INTERSTITIAL (T-5.4). On `timeupdate` rather than on a timer, because the
+  // marker has to be met however playback arrived at it -- played into, seeked into, or resumed
+  // into after a reload.
+  //
+  // This is the visible half of a rule that does not depend on it. The server credits nothing past
+  // the frontier whatever this player does, so deleting this code does not let anybody through; it
+  // only takes away their chance to see the question and move it.
+  useEffect(() => {
+    const element = video.current;
+    if (!element) {
+      return;
+    }
+    function stopAtTheQuestion() {
+      const held = holdAt.current;
+      if (element && held !== undefined && element.currentTime > held) {
+        element.pause();
+        element.currentTime = held;
+      }
+    }
+    element.addEventListener('timeupdate', stopAtTheQuestion);
+    return () => element.removeEventListener('timeupdate', stopAtTheQuestion);
   }, [element]);
 
   useEffect(() => {
