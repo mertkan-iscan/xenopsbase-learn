@@ -90,7 +90,23 @@ images:
     # `application/problem+json;charset=ISO-8859-1`, because setContentType with
     # no charset lets Tomcat pick -- found by reading the headers off this very
     # deployment, with every unit test green.
-    digest: sha256:c0b346dd8a78d513a57da0eb081c35852ef1b8e3551498cb825ec80291b306f2
+    #
+    # 2026-09-09 — moved to 335e473. TWO THINGS, and the second is why the first
+    # is worth reading carefully.
+    #
+    # A MISSING CACHE NOW COSTS ONE TIMEOUT PER WINDOW (#126, #127). The cooldown
+    # this service already had is now `DegradableCache` in platform-common, so
+    # the two callers that never wrote one -- the tenant status gate, on every
+    # request in every service but this one, and the playback mint limit -- have
+    # it too. The permission cache loses its private copy and its health
+    # indicator now prints the shared document: `mode` is `ok`, `degraded` or
+    # `absent` rather than a sentence.
+    #
+    # Also carries the OpenAPI error schemas (T-9.10, #123) and T-6.1's share of
+    # the permission model -- PermissionScope, Reach and ScopeResolver gained the
+    # bank scope, which this service owns even though the service that uses it is
+    # not deployed here.
+    digest: sha256:f0a60c141d58c48e67be0dba8ec84ebc21c2f5a8423663b591188410c09fb605
   - name: ghcr.io/mertkan-iscan/xenopsbase-learn/streaming
     # Commit 0747e6c — the MediaProvider port and its fake and Cloudflare
     # adapters (T-3.1), tus upload targets with quota enforced before issuance
@@ -127,7 +143,22 @@ images:
     #
     # 2026-09-08 — moved to e3d30b5 for the UTF-8 fix in the shared filter path.
     # No change of its own; see the note on identity.
-    digest: sha256:c510ee360b157e0c99bccc49d2d4bb13d2d3ef1f8dfe4629b51889e73cb9cbb4
+    #
+    # 2026-09-09 — moved to 335e473. The mint rate limiter no longer asks an
+    # unreachable Valkey on every playback token (#126, #127): it fails open as
+    # before, and now stops asking for a cooldown window, which is the difference
+    # between a limiter that is off and a token endpoint that is slow.
+    #
+    # THE STOCK REDIS HEALTH INDICATOR IS OFF IN THIS IMAGE. Until now this
+    # service's aggregate /management/health was the only thing that would have
+    # said Valkey was unreachable -- and it did say so, 503, for the whole life
+    # of the previous deployment, with nobody reading it. `caches` replaces it:
+    # always UP, one entry per cache, and it names which are being skipped.
+    #
+    # Also carries the OpenAPI error schemas (T-9.10, #123): the playback and
+    # progress refusals are documented, and the undisclosed 404 is declared with
+    # an empty content so the spec stops claiming it returns a token.
+    digest: sha256:d47bbc739afab98ae1202488520223daa75bf1b7dc2acacce20a27c7e468d600
   - name: ghcr.io/mertkan-iscan/xenopsbase-learn/reporting
     # Commit 0747e6c — the service and its own database with nothing else
     # reading it (T-9.7), and the playback heartbeat ingest path (T-3.6):
@@ -154,4 +185,16 @@ images:
     # documents now; MALFORMED_BATCH survives as the code.
     #
     # 2026-09-08 — moved to e3d30b5 with the other two, for the same shared fix.
-    digest: sha256:4d084b3b49f236e0233f28066f04c7efd2d4db490893213d66341493c16f95a6
+    #
+    # 2026-09-09 — moved to 335e473, and this is the service the whole of #126
+    # was found on. Its tenant status read is on every request, so an unreachable
+    # Valkey queued every caller behind one connection: ~1 req/s at 20-60m of
+    # CPU, and at 64 concurrent the liveness probe restarted the container. The
+    # read now costs one attempt per cooldown window.
+    #
+    # THE STOCK REDIS HEALTH INDICATOR IS OFF IN THIS IMAGE, for the reason
+    # written on streaming above. Its 503 was accurate and unread for five hours.
+    #
+    # Also carries the OpenAPI error schemas (T-9.10, #123) for the two ingest
+    # refusals.
+    digest: sha256:788d2186078b3565b1d6dabd2324a54543c71da3cc6ce6101899b21bcaefc0b9
