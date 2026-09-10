@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router';
+import { arrivalFor, forgetTheAttempt, rememberTheAttempt } from '../shared/auth/arrival.ts';
 import { signIn, signOut } from '../shared/auth/session.ts';
 import { useSession } from '../shared/auth/useSession.ts';
 import { Loading } from '../shared/state/States.tsx';
@@ -35,6 +37,25 @@ export function Shell() {
   const session = useSession();
   const { pathname } = useLocation();
   const inTheConsole = pathname.startsWith('/admin');
+
+  // The front door opens the issuer's login page rather than a panel saying what the person
+  // already knows. `arrivalFor` is where the exception lives -- see arrival.ts for why bouncing
+  // every signed-out render would be the more expensive bug.
+  // Held as one value rather than re-narrowed at each use: `arrival` is non-null exactly when
+  // this is, and TypeScript cannot see that relationship across a JSX closure.
+  const signedOut = session !== null && !session.signedIn ? session : null;
+  const arrival = signedOut !== null ? arrivalFor(signedOut) : null;
+
+  useEffect(() => {
+    if (session?.signedIn) {
+      forgetTheAttempt();
+      return;
+    }
+    if (signedOut !== null && arrival?.kind === 'sign-in-now') {
+      rememberTheAttempt();
+      signIn(signedOut);
+    }
+  }, [session?.signedIn, signedOut, arrival?.kind]);
 
   return (
     <div className={inTheConsole ? 'shell shell--console' : 'shell shell--learner'}>
@@ -77,19 +98,35 @@ export function Shell() {
       <main id="main" tabIndex={-1} className="shell__main">
         {session === null ? <Loading what="your session" /> : null}
         {session?.signedIn ? <Outlet /> : null}
-        {session !== null && !session.signedIn ? (
+        {/*
+          * Only ever shown for the two cases arrival.ts singles out. An ordinary first visit does
+          * not reach here: the effect above has already sent that person to the issuer, and what
+          * they see meanwhile is the loading state, not a panel they have to dismiss.
+          */}
+        {arrival?.kind === 'explain' && signedOut !== null ? (
           <section aria-labelledby="signed-out" className="panel signed-out">
             <h1 id="signed-out" className="u-display">
-              You are signed out
+              {arrival.because === 'parked-work' ? 'Your work is saved' : 'You are signed out'}
             </h1>
             <p>
-              Sign in to see your learning. Anything you were part-way through is still here when
-              you come back.
+              {arrival.because === 'parked-work'
+                ? 'Your session ended before this could be sent. Nothing was lost — sign in again and it will be submitted for you.'
+                : 'Signing in did not complete. Try again, and if it keeps happening tell whoever administers your training.'}
             </p>
-            <button type="button" className="btn btn-primary" onClick={() => signIn(session)}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                rememberTheAttempt();
+                signIn(signedOut);
+              }}
+            >
               Sign in
             </button>
           </section>
+        ) : null}
+        {arrival?.kind === 'sign-in-now' ? (
+          <Loading what="the sign-in page" />
         ) : null}
       </main>
 
