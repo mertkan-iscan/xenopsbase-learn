@@ -1,14 +1,18 @@
 package com.xenopsoftware.learn.gateway.config;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.net.URI;
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProvider;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProviderBuilder;
@@ -17,6 +21,9 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
+import org.springframework.security.web.savedrequest.SavedRequest;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
@@ -71,15 +78,34 @@ public class SecurityConfiguration {
      */
     private static final Duration REFRESH_BEFORE_EXPIRY = Duration.ofMinutes(5);
 
+    private final GatewayProperties properties;
+
+    /**
+     * The saved request, read WITHOUT Spring's replay marker.
+     *
+     * <p>`HttpSessionRequestCache` appends a `continue` parameter to the URL it hands back, so
+     * that `RequestCacheAwareFilter` can recognise the request coming round again and replay the
+     * original body and headers. Nothing here replays anything: what is being served is a static
+     * application that will route on the path itself. The marker would have no consumer and would
+     * appear in the learner's address bar, on the first screen they see after signing in.
+     */
+    private final HttpSessionRequestCache savedRequests = new HttpSessionRequestCache();
+
+    SecurityConfiguration(GatewayProperties properties) {
+        this.properties = properties;
+        this.savedRequests.setMatchingRequestParameterName(null);
+    }
+
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        AuthenticationSuccessHandler signedIn = this::backToTheApp;
         http
             .authorizeHttpRequests(requests -> requests
                 // The probes and the sign-in machinery. Everything else needs a session.
                 .requestMatchers("/management/health/**", "/management/info").permitAll()
                 .requestMatchers("/auth/session").permitAll()
                 .anyRequest().authenticated())
-            .oauth2Login(Customizer.withDefaults())
+            .oauth2Login(login -> login.successHandler(signedIn))
             // Logout is a POST to /auth/logout that answers with JSON, not a form post that
             // redirects -- see SessionResource#logout for why a redirect is wrong for fetch.
             .logout(logout -> logout.disable())
@@ -122,6 +148,65 @@ public class SecurityConfiguration {
             new DefaultOAuth2AuthorizedClientManager(registrations, clients);
         manager.setAuthorizedClientProvider(providers);
         return manager;
+    }
+
+    /**
+     * Where a person lands after signing in, built from the app's ORIGIN rather than from the
+     * request (T-10.2).
+     *
+     * <p>Spring's default is {@code SavedRequestAwareAuthenticationSuccessHandler}, which returns
+     * the saved request's ABSOLUTE url — reconstructed from scheme, host and port as this process
+     * saw them. Behind the tunnel and the ingress that reconstruction produced
+     * {@code https://learn-dev.xenopsoftware.com:80/}: the scheme from {@code X-Forwarded-Proto}
+     * and the port from {@code X-Forwarded-Port}, which disagree. A browser sent there speaks TLS
+     * to a plaintext port and shows ERR_SSL_PROTOCOL_ERROR — after a successful login, which is
+     * the worst place to fail, because the person has already authenticated and the address bar
+     * says something that looks right.
+     *
+     * <p>{@code server.forward-headers-strategy} does not fix this one. The filter it installs
+     * drops a port only when it is the default for the scheme, and 80 is not the default for
+     * https — so the pair survives normalisation intact.
+     *
+     * <p>This is the same decision the {@code redirect-uri} in application.yml already makes, in
+     * the same words: the app's origin, not this process's. THE PATH IS STILL THE SAVED ONE, so a
+     * learner who was sent to sign in from a deep link comes back to it; only the origin is
+     * replaced, because the origin is the part this process cannot observe correctly.
+     */
+    void backToTheApp(
+            HttpServletRequest request, HttpServletResponse response, Authentication authentication)
+            throws IOException {
+        SavedRequest saved = savedRequests.getRequest(request, response);
+        String path = "/";
+        if (saved != null) {
+            URI original = URI.create(saved.getRedirectUrl());
+            path = original.getRawPath() == null || original.getRawPath().isEmpty()
+                ? "/"
+                : original.getRawPath();
+            String query = withoutTheReplayMarker(original.getRawQuery());
+            if (!query.isEmpty()) {
+                path = path + "?" + query;
+            }
+        }
+        // No slash doubling: appUrl is an origin and every path here starts with one.
+        response.sendRedirect(properties.appUrl().replaceAll("/+$", "") + path);
+    }
+
+    /**
+     * Drops Spring's {@code continue} marker from a saved query string.
+     *
+     * <p>`HttpSessionRequestCache` appends it when it SAVES, so it is already in the stored URL by
+     * the time this reads it — configuring the read side does not help. Its purpose is to let
+     * `RequestCacheAwareFilter` recognise the request coming round again and replay it; nothing
+     * here replays anything, because what gets served is a static application that routes on the
+     * path. Left in, it is a stray parameter in the address bar on the first screen after sign-in.
+     */
+    private static String withoutTheReplayMarker(String rawQuery) {
+        if (rawQuery == null || rawQuery.isEmpty()) {
+            return "";
+        }
+        return Arrays.stream(rawQuery.split("&"))
+            .filter(parameter -> !parameter.equals("continue") && !parameter.startsWith("continue="))
+            .collect(Collectors.joining("&"));
     }
 
     private static void writeSessionEnded(HttpServletResponse response) throws IOException {
