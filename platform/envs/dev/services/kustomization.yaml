@@ -78,7 +78,23 @@ images:
     # The digest is byte-identical to the one 9c78041 published, because #147
     # touched only assessment's configuration and this module's inputs did not
     # move.
-    digest: sha256:452d7a5c945176222e20c8210cdaed93693d119ab1b36d1e095a6f9dc8b43ec4
+    #
+    # 2026-09-10 — moved to 5c3e77e. NO BEHAVIOUR CHANGES; the published
+    # DESCRIPTION of /api/v1/me/home was wrong and now is not.
+    #
+    # springdoc keys components.schemas on a record's simple name, so HomeView's
+    # CourseView, ModuleView, NodeView and ItemView were silently replaced by
+    # the authoring records of the same names. `locked`, `lockedReason`,
+    # `percent`, `resumeSecond` and `state` -- the fields the home screen is
+    # built from -- appeared in no schema at all, and a comment in Home.tsx said
+    # the endpoint did not carry a locked reason. It always did.
+    #
+    # Nothing failed. The spec generated, and the contract gate passed because
+    # it compares the spec to the SERVICE and the service really did serve what
+    # the spec described for the one name that survived. Only a client generated
+    # from it was wrong, which is a frontend bug with its cause three services
+    # away.
+    digest: sha256:ed6546c9a808c0f8fe6e6331213715ca6d77c79dee8a30efc9dece78bc540632
   - name: ghcr.io/mertkan-iscan/xenopsbase-learn/assessment
     # Commit 2f93663, and the first one.
     #
@@ -105,7 +121,23 @@ images:
     # Both halves are now checked before a merge -- StreamsTest for the stream,
     # scripts/verify_messaging.py for the wiring -- and both were confirmed to
     # fail with their fix removed.
-    digest: sha256:71c2f068b65cbd292093e92373f45ee7124e47834b2208f5e0a359360971dbf9
+    #
+    # 2026-09-10 — MOVED TO 5c3e77e, AND WITHOUT IT NO TEST CAN BE SAT.
+    #
+    # A form records the question VERSION and never the question (ADR-0106), and
+    # every endpoint that returns a body needs both ids -- so an attempt in
+    # progress named a `questionVersionId` that nothing could resolve, and a
+    # learner could not be shown the questions at all. QuestionResource's own
+    # comment says an id recorded against an attempt "has to be dereferenceable
+    # by something"; it was not.
+    #
+    # The sitting view carries the body now, answer key removed through the same
+    # `ServedQuestion.withoutTheKey` the review uses -- extracted rather than
+    # copied, because two of these would be two places to forget the same field.
+    #
+    # Also fixes a schema collision that made POST /api/v1/banks ask for a
+    # `bankId` to create a bank with.
+    digest: sha256:6e62fbe6994b2b9d61dafae2cec5262bcaeabc8a7eb587be63959031bf00e9f4
   # GATEWAY, STREAMING, IDENTITY AND REPORTING STAY AT 2f93663, one commit
   # behind the three above.
   #
@@ -217,7 +249,24 @@ images:
     # ended has to be told their answers are safe, on the screen that says so.
     # `arrivalFor` asks whether anything is parked before sending anyone away,
     # and keeps a loop guard so a browser cannot ping-pong between two hosts.
-    digest: sha256:7873b171afd2777126aef7877af51f0106dbea7c16830dcf5343f5193c2ecb46
+    #
+    # 2026-09-10 — MOVED TO 5c3e77e: the console stops being a drawing of one
+    # (#157), and a test can be sat (#158).
+    #
+    # Four console screens made no API call between them, and there was no link
+    # to /admin from anywhere -- so the product looked like a placeholder
+    # because the half that does the work was unreachable. Authoring, Assign,
+    # Marking and Roles are real now; Compliance says there is no reporting API
+    # rather than rendering a company of 5,182 invented learners, which was the
+    # most convincing and the most misleading thing in it.
+    #
+    # The learner side gains the screen the product exists for: sitting a test.
+    # The disclosure before the first question, the clock as a display of a
+    # deadline it does not own, "I don't know" as a real button because an empty
+    # response is unanswered and not an error, and the submit through
+    # `withSessionRecovery` -- written for the forty-minute exam and until now
+    # used by nothing.
+    digest: sha256:db81b1b51de02b5301fa1ab8df781b7f0604f65dc4ebc4aac63dda96732b185a
   - name: ghcr.io/mertkan-iscan/xenopsbase-learn/identity
     # Commit 0747e6c — the first images this repository has ever published
     # (T-9.3, #11). Carries everything through T-3.6: the tenant boundary and
