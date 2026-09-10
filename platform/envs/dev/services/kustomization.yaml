@@ -151,7 +151,32 @@ images:
     # service. `Route.matches` is segment-wise now rather than a prefix test,
     # which is what makes the wildcard mean one segment instead of "anything
     # after here".
-    digest: sha256:c3fd162b9cdd0d1675989aefefcaf6aad233ac1ca8ac84f4a2fcfd3e86e3e846
+    #
+    # 2026-09-10 — MOVED TO f52626f. SIGNING IN DID NOT WORK ON THIS CLUSTER, and
+    # the image above is the one it did not work on (#150).
+    #
+    # Keycloak authenticated, redirected back, the callback succeeded -- and then
+    # this service answered
+    #
+    #     Location: https://learn-dev.xenopsoftware.com:80/
+    #
+    # a browser speaking TLS to a plaintext port. Chrome says
+    # ERR_SSL_PROTOCOL_ERROR, AFTER a successful login, with an address bar that
+    # looks right.
+    #
+    # `oauth2Login(withDefaults())` uses Spring's saved-request success handler,
+    # which returns an absolute url rebuilt from scheme, host and port as this
+    # process saw them. Behind the tunnel and the ingress those disagree: the
+    # scheme arrives on one forwarded header and the port on another, so https
+    # and 80 are each faithfully reported and wrong together.
+    #
+    # `server.forward-headers-strategy` does NOT fix it, which is worth knowing
+    # because it is the obvious first reach: that filter drops a port only when
+    # it matches the scheme's default, and 80 is not the default for https.
+    #
+    # The address is built from APP_URL now -- the same decision application.yml
+    # already made one property above, for redirect-uri, in the same words.
+    digest: sha256:c6779dee8f4798c593b29ceb74b9f027a1db4fd506d905bbef9d589f88b65ff1
   - name: ghcr.io/mertkan-iscan/xenopsbase-learn/frontend
     # Commit d04d4b6, and the first one. nginx and the Vite build -- no Node in
     # any request path, which is what lets a learner's page load when none of
@@ -179,7 +204,20 @@ images:
     # image's home screen calls catalog's /api/v1/me/home, and shipping it
     # against a crash-looping catalog would have put the design on the cluster
     # as an error state.
-    digest: sha256:34fc931e03c9362c4b49d03ae525616d10ec67cf5266efd966c56ee177589b0f
+    #
+    # 2026-09-10 — moved to f52626f: the front door opens the login page (#151).
+    #
+    # Arriving at / with no session showed a panel headed "You are signed out"
+    # with one button. The person knew, and the button did the only thing
+    # available.
+    #
+    # NOT A BLANKET REDIRECT, because that is the more expensive bug. Signing in
+    # again is a full-page navigation, so anything in memory is gone -- and the
+    # learner who submits a forty-minute exam thirty seconds after their session
+    # ended has to be told their answers are safe, on the screen that says so.
+    # `arrivalFor` asks whether anything is parked before sending anyone away,
+    # and keeps a loop guard so a browser cannot ping-pong between two hosts.
+    digest: sha256:7873b171afd2777126aef7877af51f0106dbea7c16830dcf5343f5193c2ecb46
   - name: ghcr.io/mertkan-iscan/xenopsbase-learn/identity
     # Commit 0747e6c — the first images this repository has ever published
     # (T-9.3, #11). Carries everything through T-3.6: the tenant boundary and
