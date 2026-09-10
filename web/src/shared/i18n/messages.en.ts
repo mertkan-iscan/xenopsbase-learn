@@ -137,6 +137,7 @@ export const en = {
   'home.due': 'Due',
   'home.next': 'Next',
   'home.courses': 'Your courses',
+  'home.also-assigned': 'Also assigned to you',
   'home.start': 'Start',
   'home.resume': 'Resume',
   'home.resume-at': 'Resume at {at}',

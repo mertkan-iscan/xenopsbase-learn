@@ -48,6 +48,18 @@ export function HomeScreen({ home, name }: { home: HomeView; name?: string | nul
   const next = home.nextUp;
   const summary = home.summary ?? {};
   const courses = home.courses ?? [];
+  /*
+   * ASSIGNMENTS THAT ARE NOT WHOLE COURSES, and until now nothing rendered them.
+   *
+   * `courses` is only the obligations whose reference is a COURSE. A company can equally assign a
+   * single module, a single node, or one content item, and those arrive here in `items` instead.
+   * Found against the live stack: the learner had `assigned: 2` and `overdue: 1` in the summary,
+   * one course in `courses`, and the overdue thing -- a content item called "Fire safety
+   * refresher" -- was an `items` entry that appeared on no screen at all. A compliance product
+   * that counts an overdue obligation in a tile and then shows it nowhere is worse than one that
+   * never counted it.
+   */
+  const items = home.items ?? [];
 
   // Started or not is what decides which of the two shapes `nextUp` becomes -- the API returns one
   // "next up" and the design shows DUE and IN PROGRESS as different things, which they are: one
@@ -66,7 +78,7 @@ export function HomeScreen({ home, name }: { home: HomeView; name?: string | nul
   // carries `displayName` and nothing finer.
   const firstName = name?.trim().split(/\s+/)[0];
 
-  if (!next && courses.length === 0) {
+  if (!next && courses.length === 0 && items.length === 0) {
     return (
       // Two genuinely different empty states, because the server distinguishes them and a learner
       // certainly does: ALL_DONE means finished, NOTHING_ASSIGNED means nobody has given you
@@ -191,6 +203,64 @@ export function HomeScreen({ home, name }: { home: HomeView; name?: string | nul
             title={firstLocked.title ?? t('home.locked.fallback-title')}
             reason={firstLocked.lockedReason ?? t('home.locked.fallback-reason')}
           />
+        </Section>
+      ) : null}
+
+      {items.length > 0 ? (
+        <Section title={t('home.also-assigned')}>
+          <ul className="flex flex-col gap-2">
+            {items.map((item) => {
+              const percent = item.percent ?? 0;
+              /*
+               * ONLY A NODE HAS A SCREEN. `referenceType` is MODULE, NODE or CONTENT_ITEM
+               * (`HomeService.itemView`), and the router has a route for a node and nothing for
+               * the other two -- a content item is not a node, so `/watch/<contentItemId>` would
+               * be a link to a player that cannot resolve it. The row is plain text in that case
+               * rather than a link that fails.
+               */
+              const openable = item.referenceType === 'NODE' ? item.referenceId : undefined;
+              return (
+                <li key={`${item.referenceType ?? ''}-${item.referenceId ?? ''}`}>
+                  <Card className="relative flex items-center gap-4 p-4">
+                    <div className="flex min-w-0 flex-1 flex-col gap-2">
+                      {openable ? (
+                        <Link
+                          to={`/watch/${openable}`}
+                          className="truncate font-semibold after:absolute after:inset-0 hover:text-brand"
+                        >
+                          {item.title}
+                        </Link>
+                      ) : (
+                        <span className="truncate font-semibold">{item.title}</span>
+                      )}
+                      {percent > 0 ? (
+                        <div className="flex items-center gap-2">
+                          <Progress
+                            percent={percent}
+                            label={t('home.progress-label', {
+                              course: item.title ?? t('home.this-course'),
+                              percent,
+                            })}
+                            dense
+                          />
+                          <span className="text-xs text-muted tabular-nums">
+                            {formatPercent(locale, percent)}
+                          </span>
+                        </div>
+                      ) : null}
+                    </div>
+                    <span className="shrink-0">
+                      {item.overdue ? (
+                        <StateChip state="overdue" detail={day(locale, item.dueOn)} />
+                      ) : item.dueOn ? (
+                        <StateChip state="due" detail={day(locale, item.dueOn)} />
+                      ) : null}
+                    </span>
+                  </Card>
+                </li>
+              );
+            })}
+          </ul>
         </Section>
       ) : null}
 

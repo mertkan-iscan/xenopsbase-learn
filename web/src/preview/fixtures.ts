@@ -47,15 +47,18 @@ const home = {
   },
   items: [
     {
-      referenceId: 'n-yangin-1',
-      referenceType: 'NODE',
-      title: 'Yangın Güvenliği Tazeleme',
+      // A CONTENT ITEM, not a node, and that is the point of this entry. The live stack
+      // produced exactly this shape and it appeared on no screen: `courses` holds only
+      // course-level obligations, so an assigned content item lives here or nowhere.
+      referenceId: 'i-yangin',
+      referenceType: 'CONTENT_ITEM',
+      title: 'Yangın Güvenliği Tazeleme · Tekrar',
       state: 'AVAILABLE',
       percent: 0,
       dueOn: inDays(-6),
       overdue: true,
       cycleNumber: 2,
-      sources: ['GROUP'],
+      sources: ['a-assignment-id'],
     },
   ],
   courses: [
@@ -67,7 +70,7 @@ const home = {
       overdue: false,
       completed: false,
       cycleNumber: 1,
-      sources: ['DIRECT'],
+      sources: ['a-assignment-id'],
       modules: [
         {
           moduleId: 'm-kvkk-1',
@@ -108,7 +111,8 @@ const home = {
               state: 'LOCKED',
               percent: 0,
               required: true,
-              lockedReason: 'Bölüm 2 videosunu bitirdiğinizde açılır.',
+              // The NODE's sentence, which the server words differently from its module's above.
+              lockedReason: 'Değerlendirme bölümü henüz kullanıma açık değil.',
             },
           ],
         },
@@ -122,7 +126,7 @@ const home = {
       overdue: true,
       completed: false,
       cycleNumber: 2,
-      sources: ['GROUP'],
+      sources: ['a-assignment-id'],
       modules: [
         {
           moduleId: 'm-yangin-1',
@@ -148,7 +152,7 @@ const home = {
       overdue: false,
       completed: true,
       cycleNumber: 1,
-      sources: ['COMPANY'],
+      sources: ['a-assignment-id'],
       modules: [
         {
           moduleId: 'm-isg-1',
@@ -175,7 +179,7 @@ const home = {
       overdue: false,
       completed: false,
       cycleNumber: 1,
-      sources: ['GROUP'],
+      sources: ['a-assignment-id'],
       modules: [
         {
           moduleId: 'm-bilgi-1',
@@ -205,7 +209,7 @@ const home = {
       overdue: false,
       completed: false,
       cycleNumber: 1,
-      sources: ['DIRECT'],
+      sources: ['a-assignment-id'],
       modules: [
         {
           moduleId: 'm-yonetici-1',

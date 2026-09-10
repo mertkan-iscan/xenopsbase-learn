@@ -137,6 +137,7 @@ export const tr: Record<MessageKey, string> = {
   'home.due': 'Bekleyen',
   'home.next': 'Sırada',
   'home.courses': 'Kurslarınız',
+  'home.also-assigned': 'Size ayrıca atananlar',
   'home.start': 'Başla',
   'home.resume': 'Devam et',
   'home.resume-at': '{at} konumundan devam et',
