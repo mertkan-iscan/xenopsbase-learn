@@ -100,6 +100,30 @@ platform:
   outbox:
     enabled: true
 
+  # THE HALF T-6.7 FORGOT. `outbox.enabled: true` above turns on the table, the
+  # relay and its scheduled drain. It does not connect anything to a broker --
+  # that is this block, and without it MessagingConfiguration wires
+  # RecordingPublisher instead, which records every message and delivers none.
+  #
+  # Found on the dev cluster, where this service came up healthy and logged
+  # "NO MESSAGE BUS CONFIGURED" once at startup while NATS_URL was set on the
+  # pod the whole time. Nothing read the variable, because nothing here mapped
+  # it.
+  #
+  # What it cost: every graded attempt was written to the outbox, drained, and
+  # delivered nowhere. A learner passing a certification exam did not open the
+  # gate behind it, and no error was raised anywhere -- the shape of failure
+  # this service's own pom predicted when it said the outbox arrives "with the
+  # first thing that has to be announced, which is an attempt being graded".
+  messaging:
+    # EMPTY BY DEFAULT, and that is the local default rather than the only one.
+    # Without it the outbox still fills and drains, and messages are delivered
+    # nowhere -- with a WARN at every startup, because a green run against that
+    # proves the outbox works and nothing at all about the bus.
+    nats-url: ${NATS_URL:}
+    poll-interval: PT1S
+    batch-size: 50
+
 server:
   port: ${SERVER_PORT:8086}
 
