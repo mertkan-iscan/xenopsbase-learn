@@ -1,6 +1,6 @@
 # The API surface, in one page
 
-**Generated** by `scripts/api_surface.py` from the OpenAPI descriptions in `web/api/`, which `npm run api:check` proves match the running services. Regenerate it rather than editing it: a hand-kept inventory of 151 endpoints is one that stops matching the code, and the first person to notice is whoever designed a screen around a call that does not exist.
+**Generated** by `scripts/api_surface.py` from the OpenAPI descriptions in `web/api/`, which `npm run api:check` proves match the running services. Regenerate it rather than editing it: a hand-kept inventory of 161 endpoints is one that stops matching the code, and the first person to notice is whoever designed a screen around a call that does not exist.
 
 ## What a browser talks to
 
@@ -19,7 +19,7 @@
 | `GET /oauth2/authorization/oidc` | starts sign-in (a redirect to the issuer) |
 | `POST /auth/logout` | ends the session |
 
-## The five services, and how many endpoints each owns
+## The six services, and how many endpoints each owns
 
 | service | endpoints | owns |
 |---|---|---|
@@ -28,7 +28,8 @@
 | **Streaming** | 9 | Playback tokens and watched-interval progress. |
 | **Assessment** | 56 | Banks, questions, tests, attempts and marking. |
 | **Reporting** | 2 | Telemetry ingest. |
-| | **151** | |
+| **Packaging** | 10 | Uploaded SCORM, cmi5 and slide packages. **The two `/served/` routes are not reachable from a browser on the application's origin, and that is the whole decision:** they answer the tenant's CONTENT ORIGIN, which proxies to them, and the gateway has no route to them at all (ADR-0105, `UpstreamsTest`). They are listed because this service serves them, not because a page here may call them. |
+| | **161** | |
 
 ## Learner-facing endpoints, all of them
 
@@ -52,6 +53,8 @@ Everything under `/me/` answers **only about the caller** and takes no learner i
 | `GET` | `/api/v1/me/monitoring` | Assessment | The integrity signals this platform records during an attempt, what a person may do with them, what nothing does with them, and how long they are kept. Generated from the same values the recorder accepts, so a signal cannot be collected without appearing here. |
 | `GET` | `/api/v1/me/tests/{testId}/attempts` | Assessment | history |
 | `POST` | `/api/v1/me/tests/{testId}/attempts` | Assessment | The attempt and the form assembled for it. A second call while one is open resumes it rather than starting another, and does not move the deadline. |
+| `GET` | `/api/v1/me/runtime/{packageId}` | Packaging | Their place in this package |
+| `PUT` | `/api/v1/me/runtime/{packageId}` | Packaging | Saved, with what this platform derived from it |
 
 ## Identity
 
@@ -238,4 +241,21 @@ _Telemetry ingest._
 |---|---|---|---|
 | `GET` | `/api/v1/internal/whoami` | whoami | 403 |
 | `POST` | `/api/v1/telemetry/playback` | playback | 400, 403, 413 |
+
+## Packaging
+
+_Uploaded SCORM, cmi5 and slide packages. **The two `/served/` routes are not reachable from a browser on the application's origin, and that is the whole decision:** they answer the tenant's CONTENT ORIGIN, which proxies to them, and the gateway has no route to them at all (ADR-0105, `UpstreamsTest`). They are listed because this service serves them, not because a page here may call them._
+
+| method | path | what it returns | refusals |
+|---|---|---|---|
+| `GET` | `/api/v1/internal/whoami` | whoami | 403 |
+| `GET` | `/api/v1/me/runtime/{packageId}` | Their place in this package | 403, 409 |
+| `PUT` | `/api/v1/me/runtime/{packageId}` | Saved, with what this platform derived from it | 403, 409, 413, 429 |
+| `GET` | `/api/v1/uploads` | list | 403 |
+| `POST` | `/api/v1/uploads` | The package is reserved and the target issued | 403, 413 |
+| `GET` | `/api/v1/uploads/{id}` | one | 403 |
+| `DELETE` | `/api/v1/uploads/{id}` | Accepted. `state` is DELETED once the objects are actually gone, and DELETING while they are not | 403 |
+| `POST` | `/api/v1/uploads/{id}/ingest` | The archive was processed. `state` is READY, REJECTED or FAILED; on the last two, `error` says why | 403, 409 |
+| `GET` | `/served/{tenantId}/{packageId}/files/**` | file | — |
+| `GET` | `/served/{tenantId}/{packageId}/launch` | launch | — |
 

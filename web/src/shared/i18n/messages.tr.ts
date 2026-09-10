@@ -394,6 +394,54 @@ export const tr: Record<MessageKey, string> = {
   'roles.add': 'Ekle',
   'roles.code-placeholder': 'resource:action',
 
+
+  // ------------------------------------------------------------------------------- uploading
+  'upload.video.heading': 'Video y\u00fckleyin',
+  'upload.video.body':
+    'Dosya do\u011frudan yay\u0131n sa\u011flay\u0131c\u0131s\u0131na gider, bu uygulamadan ge\u00e7mez. Kodlama bitti\u011finde videoyu bir kursa video \u00f6\u011fesi olarak ekleyin.',
+  'upload.package.heading': 'SCORM, cmi5 veya slayt paketi y\u00fckleyin',
+  'upload.package.body':
+    'Yazar ara\u00e7lar\u0131n\u0131z\u0131n \u00fcretti\u011fi .zip dosyas\u0131n\u0131 y\u00fckleyin. Kimse a\u00e7amadan \u00f6nce denetlenir ve kodu bu uygulamaya asla ula\u015famas\u0131n diye ayr\u0131 bir adresten sunulur.',
+  'upload.choose-file': 'Dosya se\u00e7in',
+  'upload.no-file': 'Hen\u00fcz dosya se\u00e7ilmedi.',
+  'upload.start': 'Y\u00fckle',
+  'upload.creating': 'Bu y\u00fckleme i\u00e7in yer ayr\u0131l\u0131yor\u2026',
+  'upload.sending': 'Dosya g\u00f6nderiliyor\u2026 {percent}',
+  'upload.processing': 'Dosya denetleniyor ve a\u00e7\u0131l\u0131yor\u2026',
+  'upload.encoding': 'Sa\u011flay\u0131c\u0131 bu videoyu kodluyor. \u015eimdiden bir kursa eklenebilir.',
+  'upload.ready': 'Haz\u0131r. Kimli\u011fi a\u015fa\u011f\u0131ya yaz\u0131ld\u0131.',
+  'upload.rejected': 'Bu paket kabul edilmedi: {reason}',
+  'upload.failed': 'Y\u00fckleme tamamlanmad\u0131: {reason}',
+  'upload.failed.unknown': 'Y\u00fckleme tamamlanmad\u0131.',
+  'upload.wrong-type': 'Paketin, yazar ara\u00e7lar\u0131n\u0131z\u0131n \u00fcretti\u011fi bir .zip dosyas\u0131 olmas\u0131 gerekir.',
+  'upload.packages': 'Y\u00fckledi\u011finiz paketler',
+  'upload.packages.none': 'Hen\u00fcz paket y\u00fcklenmedi.',
+  'upload.preview': 'A\u00e7\u0131n',
+  'upload.remove': 'Sil',
+  'upload.use-id': 'Bu kimli\u011fi kullan',
+  'upload.state.PENDING_UPLOAD': 'Dosya bekleniyor',
+  'upload.state.PROCESSING': 'Denetleniyor',
+  'upload.state.READY': 'Haz\u0131r',
+  'upload.state.REJECTED': 'Kabul edilmedi',
+  'upload.state.FAILED': 'Tamamlanmad\u0131',
+  'upload.state.DELETING': 'Siliniyor',
+  'upload.state.DELETED': 'Silindi',
+  'upload.video.state.PENDING_UPLOAD': 'Dosya bekleniyor',
+  'upload.video.state.PROCESSING': 'Kodlan\u0131yor',
+  'upload.video.state.READY': 'Haz\u0131r',
+  'upload.video.state.ERRORED': 'Kodlanamad\u0131',
+
+
+  // --------------------------------------------------------------- an uploaded package
+  'package.started': '\u0130lk kez a\u00e7\u0131ld\u0131.',
+  'package.resumed': 'Kald\u0131\u011f\u0131n\u0131z yerden devam ediyorsunuz.',
+  'package.unavailable':
+    'Bu kurs \u015fu anda a\u00e7\u0131lamad\u0131. \u015eimdiye kadar yapt\u0131klar\u0131n\u0131z\u0131n hi\u00e7biri kaybolmad\u0131 \u2014 birazdan yeniden deneyin.',
+  'package.superseded':
+    'Bu kurs ba\u015fka bir pencerede a\u00e7\u0131ld\u0131, bu y\u00fczden bu pencere kaydetmeyi durdurdu. Di\u011fer pencereden devam edin veya burada s\u00fcrd\u00fcrmek i\u00e7in bu sayfay\u0131 yenileyin.',
+  'loading.package': 'Kurs a\u00e7\u0131l\u0131yor\u2026',
+  'item.type.html5': 'Etkile\u015fimli kurs',
+
   // ---------------------------------------------------------------------------- the player
   'player.untitled': 'Video',
   'player.no-node': 'Bu oynatıcı, oynatılacak bir video olmadan açıldı.',

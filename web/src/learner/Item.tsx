@@ -7,9 +7,9 @@ import { useT } from '../shared/i18n/useLocale.ts';
 /**
  * The item shell — one screen for every content type (T-10.3).
  *
- * <p>A video, an uploaded SCORM or cmi5 package, a set of slides and a test are five different
- * things inside one frame, and the frame is the design: a new content type must not mean a new
- * screen. {@link ItemShell} is that frame, and it knows nothing about what it is hosting beyond
+ * <p>A video, an uploaded SCORM, cmi5 or HTML5 package, a set of slides and a test are six
+ * different things inside one frame, and the frame is the design: a new content type must not mean
+ * a new screen. {@link ItemShell} is that frame, and it knows nothing about what it is hosting beyond
  * its name.
  *
  * <p><b>WHAT THIS USED TO DO, AND WHY IT WAS WRONG.</b> Every value in this header was a literal
@@ -21,7 +21,7 @@ import { useT } from '../shared/i18n/useLocale.ts';
  */
 
 /**
- * The five content types the product ships with (T-5.1, `BuiltInContentTypes.java`).
+ * The six content types the product ships with (T-5.1, T-4.8, `BuiltInContentTypes.java`).
  *
  * <p>These are the registry's own codes and they are LOWER CASE — `video`, not `VIDEO`. The
  * OpenAPI description types `HomeNode.type` as a bare `string` because on the server it is a
@@ -36,6 +36,7 @@ const typeNames: Record<string, MessageKey> = {
   video: 'item.type.video',
   scorm: 'item.type.scorm',
   cmi5: 'item.type.cmi5',
+  html5: 'item.type.html5',
   slides: 'item.type.slides',
   test: 'item.type.test',
 };

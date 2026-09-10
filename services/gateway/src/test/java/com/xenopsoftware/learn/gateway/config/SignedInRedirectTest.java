@@ -29,7 +29,8 @@ class SignedInRedirectTest {
 
     private final SecurityConfiguration configuration = new SecurityConfiguration(
         new GatewayProperties("http://identity:8082", "http://streaming:8083",
-            "http://reporting:8084", "http://catalog:8085", "http://assessment:8086", APP));
+            "http://reporting:8084", "http://catalog:8085", "http://assessment:8086",
+            "http://packaging:8087", APP));
 
     /** A request as the gateway sees it behind the proxy: https claimed, port 80 reported. */
     private static MockHttpServletRequest asTheProxyPresentsIt(String path) {

@@ -160,6 +160,25 @@ What follows from it, and is worth knowing before writing a screen:
   sends everything to it. That is the point: sign-in, cookies, CSRF and relaying are exercised in
   development instead of first meeting reality in a cluster.
 
+## Uploading, which the console could not do at all until now (T-3.2, T-4.1)
+
+The authoring screen had a field labelled `assetId` and no way in the product to produce one. Both
+flows are now in `admin/upload.ts`, and they are the same three steps: reserve, send **directly to
+a signed target**, then ask the service to look at what arrived.
+
+- **No byte passes through this application or the gateway.** A 200MB course going through the
+  gateway is a request thread held for minutes on the process every learner's API call goes
+  through.
+- **No credential of ours is attached to the upload itself.** The signed URL *is* the
+  authorisation; `withCredentials` is explicitly false, so this origin's session cookie is not sent
+  to a host that is not this origin.
+- **`XMLHttpRequest`, not `fetch`**, for the one thing `fetch` still cannot do in a shipping
+  browser: report upload progress.
+- **A refused package is not an error status.** `POST /api/v1/uploads/{id}/ingest` answers 200 with
+  a state, because the call worked and the verdict is the answer. `REJECTED` is the author's
+  problem and the service's sentence names the entry that broke the rule; `FAILED` is ours and
+  must never be reported as their fault.
+
 ## What is deliberately not here yet
 
 - **CI.** The `verify` script is what a pipeline would run, and there is no pipeline (T-9.3 was

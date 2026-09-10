@@ -379,6 +379,10 @@
       },
       "HomeNode": {
         "properties": {
+          "contentRef": {
+            "format": "uuid",
+            "type": "string"
+          },
           "lockedReason": {
             "type": "string"
           },

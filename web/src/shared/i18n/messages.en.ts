@@ -412,6 +412,54 @@ export const en = {
   // words either side of the colon are the API's. Identical in both catalogues on purpose.
   'roles.code-placeholder': 'resource:action',
 
+
+  // ------------------------------------------------------------------------------- uploading
+  'upload.video.heading': 'Upload a video',
+  'upload.video.body':
+    'The file goes straight to the delivery provider and never through this application. Once it has finished encoding, add it to a course as a video item.',
+  'upload.package.heading': 'Upload a SCORM, cmi5 or slides package',
+  'upload.package.body':
+    'Upload the .zip your authoring tool exported. It is checked before anybody can open it, and it is served from a separate address so its code can never reach this application.',
+  'upload.choose-file': 'Choose a file',
+  'upload.no-file': 'No file chosen yet.',
+  'upload.start': 'Upload',
+  'upload.creating': 'Reserving space for this upload\u2026',
+  'upload.sending': 'Sending the file\u2026 {percent}',
+  'upload.processing': 'Checking and unpacking the file\u2026',
+  'upload.encoding': 'The provider is encoding this video. It can be added to a course now.',
+  'upload.ready': 'Ready. Its id has been filled in below.',
+  'upload.rejected': 'This package was refused: {reason}',
+  'upload.failed': 'The upload did not finish: {reason}',
+  'upload.failed.unknown': 'The upload did not finish.',
+  'upload.wrong-type': 'A package has to be a .zip file exported by your authoring tool.',
+  'upload.packages': 'Packages you have uploaded',
+  'upload.packages.none': 'No packages have been uploaded yet.',
+  'upload.preview': 'Open it',
+  'upload.remove': 'Delete',
+  'upload.use-id': 'Use this id',
+  'upload.state.PENDING_UPLOAD': 'Waiting for the file',
+  'upload.state.PROCESSING': 'Being checked',
+  'upload.state.READY': 'Ready',
+  'upload.state.REJECTED': 'Refused',
+  'upload.state.FAILED': 'Did not finish',
+  'upload.state.DELETING': 'Being deleted',
+  'upload.state.DELETED': 'Deleted',
+  'upload.video.state.PENDING_UPLOAD': 'Waiting for the file',
+  'upload.video.state.PROCESSING': 'Encoding',
+  'upload.video.state.READY': 'Ready',
+  'upload.video.state.ERRORED': 'Did not encode',
+
+
+  // --------------------------------------------------------------- an uploaded package
+  'package.started': 'Opened for the first time.',
+  'package.resumed': 'Picked up where you left off.',
+  'package.unavailable':
+    'This course could not be opened right now. Nothing you have already done has been lost \u2014 try again in a moment.',
+  'package.superseded':
+    'This course was opened in another window, so this one has stopped saving. Carry on there, or reload this page to continue here.',
+  'loading.package': 'Opening the course\u2026',
+  'item.type.html5': 'Interactive course',
+
   // ---------------------------------------------------------------------------- the player
   // The player is a separate document in a customer's iframe, so its language arrives in its
   // URL like everything else it needs. These are the only two sentences it says itself.

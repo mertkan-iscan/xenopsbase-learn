@@ -8,6 +8,7 @@ import { StateChip } from '../shared/design/State.tsx';
 import { useT } from '../shared/i18n/useLocale.ts';
 import { Empty, ErrorState, Loading } from '../shared/state/States.tsx';
 import { NotEnforcedYet } from './NotEnforcedYet.tsx';
+import { UploadPanel } from './Upload.tsx';
 
 type CourseView = components['schemas']['CourseView'];
 type TreeView = components['schemas']['TreeView'];
@@ -369,7 +370,22 @@ function AddNode({ items, onAdd }: { items: ItemView[]; onAdd: (contentItemId: s
  * Content is created on its own and attached by id — there is no "create content inside a node".
  *
  * <p>The payload is always a REFERENCE and never bytes: `{"assetId": …}` for a video,
- * `{"testId": …}` for a test. The bytes live in streaming, and the test lives in assessment.
+ * `{"packageId": …}` for SCORM, `{"testId": …}` for a test. The bytes live in streaming and in
+ * packaging; the test lives in assessment. Catalog stores the id and asks the owner when it needs
+ * anything else, which is the data-ownership rule (ADR-0109) at the one table most likely to break
+ * it.
+ *
+ * <h2>The reference field is still typeable, and that is not laziness</h2>
+ *
+ * <p>{@link UploadPanel} fills it in for the two kinds this product can now upload. It is left
+ * editable because the id is the contract: an author re-attaching a video that was uploaded last
+ * month, or pointing at a test somebody built in the assessment screens, has an id and no file. A
+ * field that only a fresh upload could fill would make the second case impossible in the product,
+ * which is the state this screen was in before the panel existed.
+ *
+ * <p><b>`test` deliberately has no upload panel</b> — a test is built in the assessment screens,
+ * not uploaded — and neither does anything else the registry might grow. A panel appears for a
+ * type only when there is a real upload behind it.
  */
 function NewContentItem({
   types,
@@ -387,9 +403,26 @@ function NewContentItem({
     video: 'assetId',
     scorm: 'packageId',
     cmi5: 'packageId',
+    html5: 'packageId',
     slides: 'documentId',
     test: 'testId',
   };
+
+  /**
+   * The types that can be uploaded from here, and the ones that cannot.
+   *
+   * <p>A closed lookup rather than a check for "is it not a test", so that adding a sixth content
+   * type has to say explicitly whether a file can be sent for it — the default is no panel, which
+   * is the honest default for a type whose bytes nothing yet accepts.
+   */
+  const uploadable: Record<string, 'video' | 'scorm' | 'cmi5' | 'html5' | 'slides'> = {
+    video: 'video',
+    scorm: 'scorm',
+    cmi5: 'cmi5',
+    html5: 'html5',
+    slides: 'slides',
+  };
+  const canUpload = uploadable[type];
 
   async function create(event: React.FormEvent) {
     event.preventDefault();
@@ -438,6 +471,24 @@ function NewContentItem({
         value={title}
         onChange={(event) => setTitle(event.target.value)}
       />
+      {canUpload ? (
+        <UploadPanel
+          kind={canUpload}
+          onUploaded={(id, suggested) => {
+            setReference(id);
+            /*
+             * The package's own title is a SUGGESTION and only fills an empty field.
+             *
+             * Authoring tools call things "Untitled Course 3", and a customer's catalogue should
+             * not inherit that -- but neither should an author who typed a title watch it be
+             * overwritten by the file they just attached.
+             */
+            if (suggested) {
+              setTitle((was) => (was.trim() ? was : suggested));
+            }
+          }}
+        />
+      ) : null}
       {type ? (
         <>
           <label className="label-caps" htmlFor="content-reference">
