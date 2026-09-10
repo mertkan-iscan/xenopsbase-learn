@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../test/axe.ts';
-import { rememberTheAttempt } from '../shared/auth/arrival.ts';
+import { rememberTheAttempt, rememberTheSignOut } from '../shared/auth/arrival.ts';
 import { parkWork } from '../shared/auth/recovery.ts';
 import { Shell } from './Shell.tsx';
 
@@ -109,6 +109,19 @@ describe('the application shell', () => {
     expect(await screen.findByRole('heading', { name: 'Your work is saved' })).toBeInTheDocument();
     expect(screen.getByText(/Nothing was lost/)).toBeInTheDocument();
     // And it did NOT navigate away from the screen saying so.
+    expect(assign).not.toHaveBeenCalled();
+    await expectNoAxeViolations(container);
+  });
+
+  it('says so after a deliberate sign-out instead of signing them back in', async () => {
+    rememberTheSignOut();
+    signedIn(false);
+    const { container } = renderShell();
+
+    expect(await screen.findByRole('heading', { name: 'You are signed out' })).toBeInTheDocument();
+    expect(screen.getByText(/Sign in again whenever you need to/)).toBeInTheDocument();
+    // The whole point: it did not bounce to the issuer, where an SSO session that has not gone
+    // would have signed them straight back in.
     expect(assign).not.toHaveBeenCalled();
     await expectNoAxeViolations(container);
   });

@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { arrivalFor, forgetTheAttempt, rememberTheAttempt } from './arrival.ts';
+import {
+  arrivalFor,
+  forgetTheAttempt,
+  rememberTheAttempt,
+  rememberTheSignOut,
+} from './arrival.ts';
 import { parkWork } from './recovery.ts';
 import type { Session } from './session.ts';
 
@@ -28,6 +33,31 @@ describe('arriving signed out', () => {
     parkWork('attempt-submission', { answers: ['a', 'b'] }, '/review/an-attempt');
 
     expect(arrivalFor(SIGNED_OUT)).toEqual({ kind: 'explain', because: 'parked-work' });
+  });
+
+  it('does not sign somebody back in straight after they signed out', () => {
+    // The regression this fixes: sign-out ends the session here, sends the browser to the
+    // issuer's end-session endpoint, and it comes back. Arriving signed out is exactly what the
+    // automatic sign-in exists for -- so the person went back to the issuer, whose SSO session
+    // had not gone, and was signed in again without ever seeing a form. The button did nothing.
+    rememberTheSignOut();
+
+    expect(arrivalFor(SIGNED_OUT)).toEqual({ kind: 'explain', because: 'signed-out' });
+  });
+
+  it('only holds that once, so the next arrival is ordinary', () => {
+    rememberTheSignOut();
+    arrivalFor(SIGNED_OUT);
+
+    expect(arrivalFor(SIGNED_OUT)).toEqual({ kind: 'sign-in-now' });
+  });
+
+  it('clears the loop guard, because signing out is not a failed sign-in', () => {
+    rememberTheAttempt();
+    rememberTheSignOut();
+    arrivalFor(SIGNED_OUT);
+
+    expect(arrivalFor(SIGNED_OUT)).toEqual({ kind: 'sign-in-now' });
   });
 
   it('stops after one automatic attempt, rather than looping between two hosts', () => {

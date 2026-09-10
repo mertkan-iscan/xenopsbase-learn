@@ -11,6 +11,10 @@
  */
 const CHANNEL = 'learn.session';
 
+// `arrival.ts` imports only `type { Session }` from here, and a type-only import is
+// erased at compile time -- so this is not a runtime cycle.
+import { rememberTheSignOut } from './arrival.ts';
+
 export type Session = { signedIn: boolean; name: string | null; signInUrl: string };
 
 const signedOut: Session = {
@@ -73,6 +77,9 @@ export async function signOut(): Promise<void> {
     // Nothing to do but tell the other tabs and stop showing a signed-in shell.
   }
   announceSignedOut();
+  // Before the navigation, because after it this tab is gone. See arrival.ts: without this the
+  // return from the issuer looks like an ordinary arrival and the person is signed back in.
+  rememberTheSignOut();
   window.location.assign(endSessionUrl ?? '/');
 }
 

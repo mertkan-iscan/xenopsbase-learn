@@ -109,9 +109,18 @@ export function Shell() {
               {arrival.because === 'parked-work' ? 'Your work is saved' : 'You are signed out'}
             </h1>
             <p>
-              {arrival.because === 'parked-work'
-                ? 'Your session ended before this could be sent. Nothing was lost — sign in again and it will be submitted for you.'
-                : 'Signing in did not complete. Try again, and if it keeps happening tell whoever administers your training.'}
+              {
+                {
+                  'parked-work':
+                    'Your session ended before this could be sent. Nothing was lost — sign in again and it will be submitted for you.',
+                  // A deliberate sign-out. Said plainly, because the alternative -- bouncing
+                  // straight back to the issuer -- signs the person in again without a form and
+                  // makes the button they just pressed look broken.
+                  'signed-out': 'You have been signed out. Sign in again whenever you need to.',
+                  'came-back-signed-out':
+                    'Signing in did not complete. Try again, and if it keeps happening tell whoever administers your training.',
+                }[arrival.because]
+              }
             </p>
             <button
               type="button"
