@@ -42,6 +42,51 @@ REALM_FILE="${REALM_FILE:-$ROOT/local/keycloak/realm-xenopslearn.json}"
 [ -f "$REALM_FILE" ] || { echo "No realm file at $REALM_FILE" >&2; exit 1; }
 REALM="$("$PY" -c "import json,sys;print(json.load(open(sys.argv[1],encoding='utf-8'))['realm'])" "$REALM_FILE")"
 
+# ------------------------------------------------------------------ the guard
+#
+# REFUSING THE LOCAL REALM FILE AGAINST A REMOTE KEYCLOAK.
+#
+# This script partial-imports clients with ifResourceExists=OVERWRITE, so it
+# replaces a client's redirect URIs with whatever the file says. Point it at a
+# cluster with the DEFAULT file -- the local one, whose gateway client lists
+# http://localhost:8080 -- and it removes the cluster's own hostname from the
+# realm.
+#
+# That happened. Sign-in then fails at Keycloak with "Invalid parameter:
+# redirect_uri" AFTER a successful login, which is the worst place for it: the
+# person has authenticated, and the error names something only an administrator
+# can fix.
+#
+# The cluster realm lives in xenopsbase-stemcell
+# (platform/envs/dev/keycloak/learn-realm-import.yaml). Applying it means
+# rendering that file's spec.realm and naming it here.
+if [ "${REALM_FILE}" = "$ROOT/local/keycloak/realm-xenopslearn.json" ]; then
+    case "$KEYCLOAK_URL" in
+        http://localhost:*|http://127.0.0.1:*|https://localhost:*)
+            ;;
+        *)
+            cat >&2 <<REFUSED
+This is the LOCAL realm file, and $KEYCLOAK_URL is not a local Keycloak.
+
+Its gateway client lists http://localhost:8080 and nothing else. Applying it
+here would overwrite that realm's redirect URIs with localhost ones, and every
+sign-in afterwards fails with "Invalid parameter: redirect_uri" -- after the
+person has already authenticated.
+
+The realm for a cluster is defined in xenopsbase-stemcell at
+platform/envs/dev/keycloak/learn-realm-import.yaml. Render its spec.realm to a
+file and name it:
+
+    REALM_FILE=/path/to/that.json KEYCLOAK_URL=$KEYCLOAK_URL make realm-apply
+
+Set REALM_FILE explicitly to this same path if you genuinely mean to apply the
+local realm to a remote Keycloak.
+REFUSED
+            exit 1
+            ;;
+    esac
+fi
+
 admin_token() {
     curl -sf -X POST "$KEYCLOAK_URL/realms/master/protocol/openid-connect/token" \
         -d grant_type=password -d client_id=admin-cli \
