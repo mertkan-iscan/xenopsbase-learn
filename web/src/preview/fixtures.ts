@@ -77,7 +77,7 @@ const home = {
             {
               nodeId: 'n-kvkk-1',
               title: 'Veri sorumlusu kimdir?',
-              type: 'VIDEO',
+              type: 'video',
               state: 'COMPLETE',
               percent: 100,
               required: true,
@@ -85,7 +85,7 @@ const home = {
             {
               nodeId: 'n-kvkk-2',
               title: 'Bölüm 2 · Hukuka uygunluk sebepleri',
-              type: 'VIDEO',
+              type: 'video',
               state: 'IN_PROGRESS',
               percent: 62,
               resumeSecond: 860,
@@ -104,7 +104,7 @@ const home = {
             {
               nodeId: 'n-kvkk-test',
               title: 'Kişisel verilerin işlenmesi · Sınav',
-              type: 'TEST',
+              type: 'test',
               state: 'LOCKED',
               percent: 0,
               required: true,
@@ -132,7 +132,7 @@ const home = {
             {
               nodeId: 'n-yangin-1',
               title: 'Tahliye tatbikatı',
-              type: 'VIDEO',
+              type: 'video',
               state: 'AVAILABLE',
               percent: 0,
               required: true,
@@ -158,7 +158,7 @@ const home = {
             {
               nodeId: 'n-isg-1',
               title: 'Risk değerlendirmesi',
-              type: 'SLIDES',
+              type: 'slides',
               state: 'COMPLETE',
               percent: 100,
               required: true,
@@ -185,7 +185,7 @@ const home = {
             {
               nodeId: 'n-bilgi-1',
               title: 'Şüpheli e-postayı tanımak',
-              type: 'SCORM',
+              type: 'scorm',
               state: 'AVAILABLE',
               percent: 0,
               required: true,
@@ -216,7 +216,7 @@ const home = {
             {
               nodeId: 'n-yonetici-1',
               title: 'Yasal çerçeve',
-              type: 'VIDEO',
+              type: 'video',
               state: 'LOCKED',
               percent: 0,
               required: true,
@@ -227,6 +227,29 @@ const home = {
       ],
     },
   ],
+};
+
+/**
+ * The questions pinned inside one video, keyed by node.
+ *
+ * <p>Only `n-kvkk-2` has any, deliberately: the other nodes exercise the "this video plays straight
+ * through" state, which is the common one and the one nobody remembers to look at.
+ *
+ * <p>Note what an `InterstitialView` does NOT carry — no question text, no options. That is the
+ * real shape (docs/api-surface.md), and it is why the player lists these rather than opening them.
+ */
+const interstitials: Record<string, unknown> = {
+  'n-kvkk-2': {
+    nodeId: 'n-kvkk-2',
+    frontierSecond: 1_140,
+    // One already answered and two not, so the list shows both halves of its own design.
+    answered: ['i-1'],
+    markers: [
+      { id: 'i-2', nodeId: 'n-kvkk-2', questionId: 'q-2', positionSeconds: 1_140, blocking: true, askAgain: false },
+      { id: 'i-1', nodeId: 'n-kvkk-2', questionId: 'q-1', positionSeconds: 372, blocking: false, askAgain: false },
+      { id: 'i-3', nodeId: 'n-kvkk-2', questionId: 'q-3', positionSeconds: 1_608, blocking: false, askAgain: true },
+    ],
+  },
 };
 
 const answers: Record<string, unknown> = {
@@ -266,6 +289,17 @@ export function serveFixtures() {
     // Anything not under our own API is left alone -- the Google Fonts stylesheet, above all.
     if (!url.pathname.startsWith('/api') && !url.pathname.startsWith('/auth')) {
       return real(input as RequestInfo, init);
+    }
+
+    // The one path with a variable in it. A `PlayerView` for a node with no pinned questions is
+    // an empty object rather than a 404: the endpoint answers for every node the caller may see.
+    const pinned = /^\/api\/v1\/me\/nodes\/([^/]+)\/interstitials$/.exec(url.pathname);
+    if (pinned) {
+      return Promise.resolve(
+        new Response(JSON.stringify(interstitials[pinned[1] ?? ''] ?? {}), {
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
     }
 
     const body = answers[url.pathname];

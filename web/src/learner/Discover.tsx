@@ -58,7 +58,9 @@ export function DiscoverScreen({ home }: { home: HomeView }) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Facet | 'all'>('all');
 
-  const courses = home.courses ?? [];
+  // `home.courses ?? []` written outside the memo is a NEW array every render, so it would make
+  // the memo recompute on every one -- which lint catches and which would also defeat the point.
+  const courses = useMemo(() => home.courses ?? [], [home.courses]);
 
   const shown = useMemo(() => {
     // `toLocaleLowerCase` with the reader's locale, not `toLowerCase`. Turkish is one of the two

@@ -48,11 +48,15 @@ export function Drawer({
   useEffect(() => {
     panel.current?.focus();
 
+    // Captured here, not in the cleanup. A ref read during cleanup is a ref read at an unknown
+    // later time, which lint flags and which would be a real bug if the trigger were swapped while
+    // the drawer was open. The menu button is the same element for as long as this is mounted.
+    const back = returnFocusTo.current;
+
     return () => {
       // `isConnected` rather than a bare call: a route change while the drawer was open can have
       // removed the trigger from the document, and focusing a detached node silently does nothing
       // rather than throwing -- which would leave focus lost with no sign of why.
-      const back = returnFocusTo.current;
       if (back?.isConnected) {
         back.focus();
       }
