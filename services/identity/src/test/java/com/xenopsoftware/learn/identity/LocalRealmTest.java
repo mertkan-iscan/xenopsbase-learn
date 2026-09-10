@@ -137,9 +137,44 @@ class LocalRealmTest {
             }
         }
         assertThat(broken).isEmpty();
+
+        // ONE PER CLIENT THAT ASKS FOR ONE, counted rather than written down.
+        //
+        // This assertion used to read `isEqualTo(3)`, and the literal is why catalog and
+        // assessment reached a cluster without service accounts: their CLIENTS were added, their
+        // users were not, and a test counting only declared users still found three. The symptom
+        // was a token request answered "The associated service account for the client does not
+        // exist" -- from Keycloak, hours later, in a service that had done nothing wrong.
+        List<String> withoutAnAccount = new ArrayList<>();
+        int wanting = 0;
+        for (JsonNode client : realm.path("clients")) {
+            String clientId = client.path("clientId").asText("");
+            // `svc-*` rather than every client with serviceAccountsEnabled, and `gateway` is the
+            // reason. It carries the flag and never uses it: it authenticates PEOPLE through the
+            // authorization-code flow and relays their token inward, so it never asks for one as
+            // itself. Requiring an account for it would be requiring a principal that nothing
+            // authenticates as.
+            if (!clientId.startsWith("svc-") || !client.path("serviceAccountsEnabled").asBoolean(false)) {
+                continue;
+            }
+            wanting++;
+            boolean declared = false;
+            for (JsonNode user : realm.path("users")) {
+                declared |= clientId.equals(user.path("serviceAccountClientId").asText(""));
+            }
+            if (!declared) {
+                withoutAnAccount.add(clientId);
+            }
+        }
+        assertThat(withoutAnAccount)
+            .as("every client with serviceAccountsEnabled needs a declared service account")
+            .isEmpty();
+
         // Never pass by finding nothing. A realm with no service accounts declared would satisfy
         // every assertion above having checked nothing at all.
-        assertThat(found).as("the realm declares a service account per svc-* client").isEqualTo(3);
+        assertThat(found).as("the realm declares a service account per svc-* client")
+            .isEqualTo(wanting)
+            .isNotZero();
     }
 
     private static boolean isUuid(String value) {
