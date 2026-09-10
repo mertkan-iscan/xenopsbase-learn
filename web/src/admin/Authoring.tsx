@@ -253,6 +253,16 @@ function CourseTree({
         </div>
       </div>
 
+      {/*
+       * A CONTENT ITEM IS CREATED DRAFT AND A COURSE WILL NOT REFERENCE ONE.
+       *
+       * Found by walking the journey: creating a content item and adding it to a module answered
+       * 409 -- "is DRAFT and cannot be added to a course. Only PUBLISHED items accept new
+       * references (T-5.1); publish it first". The refusal is a good one; the console simply had
+       * no way to do what it asked.
+       */}
+      <Drafts items={items} onPublished={(published) => setItems(published)} />
+
       {(tree.modules ?? []).length === 0 ? (
         <Empty title="This course has no modules yet.">
           <p className="u-meta">A module holds the ordered nodes a learner walks through.</p>
@@ -283,6 +293,64 @@ function CourseTree({
 
       <AddModule onAdd={(title) => void addModule(title)} />
       <NewContentItem types={types} onCreated={(item) => setItems((was) => [...was, item])} />
+    </section>
+  );
+}
+
+/**
+ * Content that is written but not yet publishable into a course (T-5.1).
+ *
+ * <p>Every content item starts DRAFT, and catalog refuses a node that points at one: "Only
+ * PUBLISHED items accept new references." That is a good rule -- a course must not be able to
+ * reference something half-written -- and the console had no way to satisfy it, so an author could
+ * create content and then find it missing from the picker with no explanation.
+ */
+function Drafts({
+  items,
+  onPublished,
+}: {
+  items: ItemView[];
+  onPublished: (items: ItemView[]) => void;
+}) {
+  const drafts = items.filter((item) => item.state === 'DRAFT');
+  if (drafts.length === 0) {
+    return null;
+  }
+
+  async function publish(id: string) {
+    const { data } = await catalog.PUT('/api/v1/content-items/{id}/state', {
+      params: { path: { id } },
+      body: { state: 'PUBLISHED' },
+    });
+    if (data) {
+      onPublished(items.map((item) => (item.id === id ? data : item)));
+    }
+  }
+
+  return (
+    <section className="drafts panel" aria-labelledby="drafts">
+      <h3 id="drafts" className="u-caps">
+        Not published yet
+      </h3>
+      <p className="u-meta">
+        A course will not reference a draft. Publish it here and it becomes available as a node.
+      </p>
+      <ul className="drafts__list">
+        {drafts.map((item) => (
+          <li key={item.id}>
+            <span>
+              {item.title} <span className="u-meta">({item.type})</span>
+            </span>
+            <button
+              type="button"
+              className="btn btn-secondary btn-dense"
+              onClick={() => item.id && void publish(item.id)}
+            >
+              Publish
+            </button>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
@@ -340,11 +408,15 @@ function AddNode({ items, onAdd }: { items: ItemView[]; onAdd: (contentItemId: s
         onChange={(event) => setChosen(event.target.value)}
       >
         <option value="">Choose content…</option>
-        {items.map((item) => (
-          <option key={item.id} value={item.id}>
-            {item.title} ({item.type})
-          </option>
-        ))}
+        {items
+          // A draft cannot be attached, so it is not offered. `Drafts` above is where it is
+          // published; a disabled option nobody can explain is worse than an absent one.
+          .filter((item) => item.state === 'PUBLISHED')
+          .map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.title} ({item.type})
+            </option>
+          ))}
       </select>
       <button type="submit" className="btn btn-secondary" disabled={!chosen}>
         Add

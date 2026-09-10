@@ -285,14 +285,37 @@ public class HomeService {
             required > 0 && done == required, obligation.sources(), List.copyOf(moduleViews));
     }
 
+    /**
+     * Is this node finished, as a learner would say it?
+     *
+     * <p><b>PASSED counts, and it did not.</b> Both places above asked only for
+     * {@code COMPLETED}, so somebody who sat a test and passed it saw the node still AVAILABLE,
+     * the course at 0%, and their home screen reporting nothing completed. The row was in
+     * {@code node_completion} the whole time, written by {@code AttemptGradedHandler}, saying
+     * PASSED.
+     *
+     * <p>The two states are genuinely different TO A GATE — "complete Module 1" and "pass the
+     * safety test" are different requirements, which is why {@link RequiredState} has both and why
+     * the gate evaluator must keep asking for exactly the one it was given. They are not different
+     * to the question this screen asks, which is only ever "is there anything left for me to do
+     * here". Passing a test is finishing the node that holds it.
+     *
+     * <p>Found by sitting a test on the cluster: everything up to the verdict worked, the verdict
+     * reached the learner, and their home screen went on saying they had done nothing.
+     */
+    private static boolean isDone(Set<RequiredState> satisfied) {
+        return satisfied != null
+            && (satisfied.contains(RequiredState.COMPLETED)
+                || satisfied.contains(RequiredState.PASSED));
+    }
+
     private HomeView.NodeView nodeView(CourseNode node, Structure structure,
             Map<UUID, Reachability> reachable, Map<UUID, Set<RequiredState>> satisfied,
             Map<UUID, NodeProgressProjection.Progress> howFar) {
         NodeProgressProjection.Progress made = howFar.get(node.getId());
         Reachability answer = reachable.get(node.getId());
         boolean locked = answer != null && !answer.reachable();
-        boolean complete = satisfied.getOrDefault(node.getId(), Set.of())
-            .contains(RequiredState.COMPLETED);
+        boolean complete = isDone(satisfied.get(node.getId()));
         int percent = made == null ? 0 : made.percent();
         String state = complete ? "COMPLETE"
             : locked ? "LOCKED"
@@ -319,7 +342,7 @@ public class HomeService {
         NodeProgressProjection.Progress made =
             obligation.referenceType() == ReferenceKind.NODE ? howFar.get(id) : null;
         boolean complete = obligation.referenceType() == ReferenceKind.NODE
-            && satisfied.getOrDefault(id, Set.of()).contains(RequiredState.COMPLETED);
+            && isDone(satisfied.get(id));
         int percent = made == null ? 0 : made.percent();
         String state = complete ? "COMPLETE" : percent > 0 ? "IN_PROGRESS" : "AVAILABLE";
         return new HomeView.ItemView(obligation.referenceType().name(), id, title, state,
