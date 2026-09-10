@@ -90,6 +90,16 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - run: python scripts/verify_messaging.py
 
+  # A service the gateway can route to but has no address for answers 500 from
+  # the relay, which reads as the service being broken rather than as a missing
+  # line in a manifest. See the script's header.
+  upstreams:
+    name: gateway upstreams (T-9.11)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - run: python scripts/verify_gateway_upstreams.py
+
   services:
     name: services (Maven)
     runs-on: ubuntu-latest

@@ -126,9 +126,22 @@ spec:
 
             # Where the relay sends things. The routing table itself is in
             # `Upstreams`; these are only the addresses.
+            #
+            # EVERY SERVICE THE TABLE KNOWS MUST BE NAMED HERE. A missing one
+            # does not fail to start: GatewayProperties defaults it to
+            # http://localhost:<port>, which inside this pod is nothing at all,
+            # so the first request to that service answers 500 with a
+            # ClosedChannelException from the relay. That is what happened to
+            # catalog and assessment -- routed in code by #143, deployed by
+            # #144, and unreachable because these two lines were never written.
+            #
+            # scripts/verify_gateway_upstreams.py compares this list against
+            # GatewayProperties and fails the build when they disagree.
             - {name: IDENTITY_URL, value: http://identity.learn.svc.cluster.local:8082}
             - {name: STREAMING_URL, value: http://streaming.learn.svc.cluster.local:8083}
             - {name: REPORTING_URL, value: http://reporting.learn.svc.cluster.local:8084}
+            - {name: CATALOG_URL, value: http://catalog.learn.svc.cluster.local:8085}
+            - {name: ASSESSMENT_URL, value: http://assessment.learn.svc.cluster.local:8086}
           readinessProbe:
             httpGet: {path: /management/health/readiness, port: http}
             periodSeconds: 10
