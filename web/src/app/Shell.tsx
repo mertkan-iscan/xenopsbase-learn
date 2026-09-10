@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router';
 import { arrivalFor, forgetTheAttempt, rememberTheAttempt } from '../shared/auth/arrival.ts';
 import { signIn, signOut } from '../shared/auth/session.ts';
+import { useMe } from '../shared/auth/useMe.ts';
 import { useSession } from '../shared/auth/useSession.ts';
 import { Loading } from '../shared/state/States.tsx';
 
@@ -37,6 +38,9 @@ export function Shell() {
   const session = useSession();
   const { pathname } = useLocation();
   const inTheConsole = pathname.startsWith('/admin');
+  // Asked once a session exists, and not before: an unauthenticated /api/v1/me is a 401 the
+  // relay would answer with SESSION_ENDED, which is not what is happening.
+  const who = useMe(session?.signedIn === true);
 
   // The front door opens the issuer's login page rather than a panel saying what the person
   // already knows. `arrivalFor` is where the exception lives -- see arrival.ts for why bouncing
@@ -65,29 +69,44 @@ export function Shell() {
 
       <header className="shell__bar">
         {/*
-         * The design puts the company's name here, and it is NOT DRAWN YET, deliberately.
+         * The company's name, from `/api/v1/me` — `/auth/session` does not carry it and the
+         * gateway keeps it that small on purpose (T-10.2).
          *
-         * `/auth/session` answers with one boolean, a name and a sign-in URL — the gateway keeps
-         * it that small on purpose (T-10.2). The company's name lives in `identity`, and the
-         * screens that already load `/api/v1/me` can show it. Reading it here would mean a second
-         * request on every route or a copy of the tenant in the browser, and a copy is the thing
-         * that goes stale silently.
-         *
-         * Whichever way it lands, it is not a switcher: tenant is never a parameter (T-8.2), so
-         * there is no dropdown beside it and never will be.
+         * NOT A SWITCHER, and there will never be one beside it: tenant is never a parameter
+         * (T-8.2). You are in a company because of who you signed in as.
          */}
-        <span className="shell__tenant u-caps">{inTheConsole ? 'Console' : 'Your training'}</span>
+        <span className="shell__tenant u-caps">
+          {who.state === 'tenant' ? who.me.tenant : inTheConsole ? 'Console' : 'Your training'}
+        </span>
         {inTheConsole ? (
           <nav aria-label="Main" className="shell__nav">
+            <NavLink to="/admin/authoring">Authoring</NavLink>
+            <NavLink to="/admin/assign">Assign</NavLink>
+            <NavLink to="/admin/grading">Marking</NavLink>
             <NavLink to="/admin/people">Users</NavLink>
             <NavLink to="/admin/roles">Roles</NavLink>
-            <NavLink to="/admin/authoring">Authoring</NavLink>
             <NavLink to="/admin/compliance">Reports</NavLink>
           </nav>
         ) : null}
         {session?.signedIn ? (
           <span className="shell__person">
             <span className="u-caps">{session.name}</span>
+            {/*
+             * THE CONSOLE IS OFFERED TO EVERYONE, and that is honest rather than lax. Catalog and
+             * assessment carry no `@PreAuthorize` at all yet (ADR-0109 / T-9.11), so a link shown
+             * only to some people would hide the console without securing anything — and the
+             * person it hid it from could still type the address. The screens themselves say the
+             * API is open; see `NotEnforcedYet`.
+             */}
+            {inTheConsole ? (
+              <NavLink to="/" end className="shell__console">
+                Your training
+              </NavLink>
+            ) : (
+              <NavLink to="/admin/authoring" className="shell__console">
+                Console
+              </NavLink>
+            )}
             <button type="button" className="btn btn-ghost btn-dense" onClick={() => void signOut()}>
               Sign out
             </button>

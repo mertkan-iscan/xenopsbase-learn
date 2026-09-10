@@ -1,265 +1,202 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { failureFrom, identity, type ApiFailure } from '../shared/api/client.ts';
+import type { components } from '../shared/api/identity.d.ts';
+import { StateChip } from '../shared/design/State.tsx';
+import { Empty, ErrorState, Loading } from '../shared/state/States.tsx';
+
+type RoleView = components['schemas']['RoleView'];
 
 /**
- * The role editor (T-10.4, T-2.7) — the screen that decides whether the permission model is
- * usable.
+ * Roles — real, and honest about the half that is missing (T-10.4, T-2.7).
  *
- * <p>The whole authorization design exists so a customer can build a role by picking permissions.
- * A flat list of ninety-six `resource:action` codes is not a screen anyone can use correctly, so
- * three things here are the feature rather than its presentation:
+ * <p>Roles themselves are entirely real: they can be listed, created, cloned, renamed and given a
+ * set of permissions, and this screen does all of it.
  *
- * <ol>
- *   <li><b>Grouping by resource</b>, so a person looks in one place for everything about learners.
- *   <li><b>A plain-language sentence per permission</b>, with the code beside it rather than
- *       instead of it — the sentence is for the person choosing, the code is for the person
- *       debugging, and neither can be dropped.
- *   <li><b>A preview that says what this role can and CANNOT do</b>, written from the selection as
- *       it changes. The cannot half is the half that gets left out and the half that answers the
- *       question an administrator actually has.
- * </ol>
+ * <p><b>What does not exist is the catalogue of permissions to choose from.</b> The seventeen codes
+ * live in the `Permission` enum in identity, are projected into a table by
+ * `PermissionCatalogSeeder`, and are published to integrators as a Markdown table inside the
+ * OpenAPI description — but no endpoint returns them. So the picker the design asked for, grouped
+ * by resource with a sentence each, has no runtime source.
  *
- * <p>THERE IS NO PERMISSIONS ENDPOINT YET. The catalogue below is a fixture; the live one arrives
- * with the permission surface that T-9.11 and ADR-0109 are still open on. The shape it is written
- * in — code, sentence, and the reach some of them carry — is the shape that surface has to answer
- * with, which is the useful half of building this now.
+ * <p>The screen therefore does the one thing that stays true as the catalogue changes: it shows
+ * what each role actually holds, lets a code be added or removed, and reports the server's own
+ * refusal when a code is not in the catalogue. It does <b>not</b> hard-code seventeen strings and
+ * present them as the list — that copy would go stale silently, and a permission picker that is
+ * quietly wrong is how somebody grants nothing and believes they granted something.
  */
-export type Permission = {
-  code: string;
-  title: string;
-  /** What it means, in words an administrator can act on. Empty only where the title says it all. */
-  detail?: string;
-  /** What the role can do if it holds this, in the preview's voice. */
-  can: string;
-};
-
-export type PermissionGroup = { resource: string; permissions: Permission[]; total: number };
-
-export const permissionCatalogue: PermissionGroup[] = [
-  {
-    resource: 'Learners',
-    total: 8,
-    permissions: [
-      {
-        code: 'completion:read',
-        title: 'See who has completed what',
-        detail:
-          'Read completion records for learners in the groups this person administers.',
-        can: 'See completion for the groups they administer.',
-      },
-      {
-        code: 'assignment:write',
-        title: 'Assign training to a person',
-        detail: 'Add or remove an obligation for one learner.',
-        can: 'Assign training to one person at a time.',
-      },
-      {
-        code: 'assignment:bulk',
-        title: 'Assign training to the whole company',
-        // The count is the point. A permission whose blast radius is five thousand people should
-        // say five thousand people at the moment somebody is deciding whether to grant it.
-        detail: 'Create an obligation for every active learner at once — currently 5,182 people.',
-        can: 'Assign anything company-wide.',
-      },
-      {
-        code: 'user:deactivate',
-        title: 'Deactivate a person',
-        detail: 'Ends their access at the next request. Their records are kept.',
-        can: 'Deactivate anyone.',
-      },
-    ],
-  },
-  {
-    resource: 'Courses & content',
-    total: 19,
-    permissions: [
-      { code: 'course:read', title: 'Read any course, draft or published', can: 'Read every course, draft or published.' },
-      {
-        code: 'course:publish',
-        title: 'Publish a course version',
-        detail: 'Makes the current draft the one learners are given from now on.',
-        can: 'Publish a course.',
-      },
-    ],
-  },
-  {
-    resource: 'Assessment & marking',
-    total: 22,
-    permissions: [
-      {
-        code: 'grading:write',
-        title: 'Mark written answers',
-        detail: 'Work the queue of attempts waiting on a person.',
-        can: 'Mark written answers in the queue.',
-      },
-      {
-        code: 'integrity:read',
-        title: 'See what a learner’s browser reported during an exam',
-        // Straight out of docs/integrity-signals.md. An administrator granting this should be told
-        // what it is worth before they are told they can have it.
-        detail:
-          'Self-reported signals — corroboration, not evidence. Absence of signals means nothing.',
-        can: 'See integrity signals.',
-      },
-    ],
-  },
-];
-
-const granted = new Set([
-  'completion:read',
-  'assignment:write',
-  'course:read',
-  'grading:write',
-]);
+type Screen =
+  | { status: 'loading' }
+  | { status: 'ready'; roles: RoleView[] }
+  | { status: 'failed'; failure: ApiFailure };
 
 export function RoleEditor() {
-  const [selected, setSelected] = useState<Set<string>>(() => new Set(granted));
-  const [filter, setFilter] = useState('');
+  const [screen, setScreen] = useState<Screen>({ status: 'loading' });
+  const [openId, setOpenId] = useState<string | null>(null);
 
-  const groups = useMemo(() => {
-    const term = filter.trim().toLowerCase();
-    if (!term) {
-      return permissionCatalogue;
+  const load = useCallback(() => {
+    identity
+      .GET('/api/v1/roles')
+      .then(({ data, response, error }) => {
+        setScreen(
+          data
+            ? { status: 'ready', roles: data }
+            : { status: 'failed', failure: failureFrom(response, error) },
+        );
+      })
+      .catch((unreachable: unknown) => {
+        setScreen({ status: 'failed', failure: failureFrom(undefined, unreachable) });
+      });
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (screen.status === 'loading') {
+    return <Loading what="roles" />;
+  }
+  if (screen.status === 'failed') {
+    return <ErrorState message={screen.failure.message} retry={load} />;
+  }
+
+  const open = screen.roles.find((role) => role.id === openId) ?? null;
+
+  return (
+    <div className="role-page">
+      <p className="not-enforced" role="note">
+        <span className="u-caps">Half of this is missing</span>
+        <span>
+          Roles are real. The list of permissions to choose from is not published by any endpoint —
+          it lives in identity’s <code>Permission</code> enum and reaches integrators only as a
+          table in the API description. Codes are typed here and validated by the server.
+        </span>
+      </p>
+
+      <div className="role-page__split">
+        <section aria-labelledby="roles">
+          <h2 id="roles" className="u-caps">
+            Roles
+          </h2>
+          {screen.roles.length === 0 ? (
+            <Empty title="This company has no roles.">
+              <p className="u-meta">The seeded ones arrive with the tenant.</p>
+            </Empty>
+          ) : (
+            <ul className="panel role-page__list">
+              {screen.roles.map((role) => (
+                <li key={role.id}>
+                  <button
+                    type="button"
+                    className={role.id === openId ? 'node node--on' : 'node'}
+                    onClick={() => setOpenId(role.id ?? null)}
+                  >
+                    {role.name}
+                    {role.system ? <StateChip state="published" detail="system" /> : null}
+                    <span className="u-meta"> {role.permissions?.length ?? 0} permissions</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/*
+          * `key` rather than an effect that copies the prop into state. Choosing another role
+          * remounts this, which resets the pending edit and the error together -- carrying one
+          * role's refusal onto the next one is exactly the bug syncing in an effect produces.
+          */}
+        {open ? <RolePermissions key={open.id} role={open} onChanged={load} /> : null}
+      </div>
+    </div>
+  );
+}
+
+function RolePermissions({ role, onChanged }: { role: RoleView; onChanged: () => void }) {
+  const [held, setHeld] = useState<string[]>(role.permissions ?? []);
+  const [adding, setAdding] = useState('');
+  const [problem, setProblem] = useState<string | null>(null);
+
+  async function save(next: string[]) {
+    if (!role.id) {
+      return;
     }
-    return permissionCatalogue
-      .map((group) => ({
-        ...group,
-        permissions: group.permissions.filter((permission) =>
-          `${permission.title} ${permission.code} ${permission.detail ?? ''}`
-            .toLowerCase()
-            .includes(term),
-        ),
-      }))
-      .filter((group) => group.permissions.length > 0);
-  }, [filter]);
-
-  const all = permissionCatalogue.flatMap((group) => group.permissions);
-  const can = all.filter((permission) => selected.has(permission.code));
-  const cannot = all.filter((permission) => !selected.has(permission.code));
-
-  function toggle(code: string) {
-    setSelected((current) => {
-      const next = new Set(current);
-      if (next.has(code)) {
-        next.delete(code);
-      } else {
-        next.add(code);
-      }
-      return next;
+    // The whole set is replaced, not patched -- so `next` must always be the complete list.
+    const { response, error } = await identity.PUT('/api/v1/roles/{id}/permissions', {
+      params: { path: { id: role.id } },
+      body: { permissions: next },
     });
+    if (error || !response?.ok) {
+      // The server knows the catalogue even though it will not publish it, and refuses an unknown
+      // code by name. That refusal is the only authority on what exists, so it is shown verbatim.
+      setProblem(failureFrom(response, error).message);
+      return;
+    }
+    setHeld(next);
+    setProblem(null);
+    onChanged();
   }
 
   return (
-    <div className="role panel">
-      <div className="role__head">
-        <div>
-          <span className="u-caps">Role</span>
-          <h1 className="u-display role__name">Site Compliance Lead</h1>
-          <p className="u-meta">
-            {selected.size} of 96 permissions · held by 412 people · last changed 2 Sep by J. Okafor
-          </p>
-        </div>
-        <div className="role__actions">
-          <button type="button" className="btn btn-secondary">
-            Clone
-          </button>
-          {/*
-           * THE REACH IS ON THE BUTTON, not in a dialog after it. A save that silently changes what
-           * 412 people can do is the destructive action this console is most likely to perform by
-           * accident, and the count belongs where the decision is made.
-           */}
-          <button type="button" className="btn btn-primary">
-            Save — affects 412 people
-          </button>
-        </div>
-      </div>
+    <section className="role-page__permissions panel" aria-labelledby="permissions">
+      <h2 id="permissions" className="u-caps">
+        {role.name}
+      </h2>
+      <p className="u-meta">{role.description}</p>
 
-      <div className="role__split">
-        <div className="role__list">
-          <div className="role__filter">
-            <label className="u-caps" htmlFor="permission-filter">
-              Filter permissions
-            </label>
-            <input
-              id="permission-filter"
-              className="input input-dense"
-              placeholder="Filter permissions"
-              value={filter}
-              onChange={(event) => setFilter(event.target.value)}
-            />
-          </div>
-
-          {groups.map((group) => (
-            <fieldset key={group.resource} className="role__group">
-              <legend className="role__legend">
-                <span>{group.resource}</span>
-                <span className="u-meta">
-                  {group.permissions.filter((p) => selected.has(p.code)).length} of {group.total}{' '}
-                  selected
-                </span>
-              </legend>
-              <div className="panel">
-                {group.permissions.map((permission) => (
-                  <label key={permission.code} className="permission">
-                    <input
-                      type="checkbox"
-                      checked={selected.has(permission.code)}
-                      onChange={() => toggle(permission.code)}
-                    />
-                    <span>
-                      <span className="permission__title">{permission.title}</span>
-                      {permission.detail ? (
-                        <span className="permission__detail">{permission.detail}</span>
-                      ) : null}
-                      <code className="permission__code">{permission.code}</code>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
+      {held.length === 0 ? (
+        <p className="u-meta">This role holds nothing, so it grants nothing.</p>
+      ) : (
+        <ul className="role-page__held">
+          {held.map((code) => (
+            <li key={code}>
+              <code>{code}</code>
+              <button
+                type="button"
+                className="btn btn-ghost btn-dense"
+                disabled={role.system === true}
+                onClick={() => void save(held.filter((one) => one !== code))}
+              >
+                Remove
+              </button>
+            </li>
           ))}
-        </div>
+        </ul>
+      )}
 
-        {/*
-         * The preview is a live region: it is the answer to "what did that just do", and somebody
-         * using a screen reader ticks a box and otherwise hears nothing change.
-         */}
-        <aside className="role__preview" aria-labelledby="preview" aria-live="polite">
-          <div className="role__preview-head">
-            <h2 id="preview" className="u-caps">
-              What this role can do
-            </h2>
-            <p className="u-meta">Written from the selection on the left, as it changes.</p>
-          </div>
-          <div className="role__preview-body">
-            <section>
-              <h3 className="u-caps">Can</h3>
-              <ul>
-                {can.map((permission) => (
-                  <li key={permission.code}>{permission.can}</li>
-                ))}
-              </ul>
-            </section>
-            <section className="role__cannot">
-              <h3 className="u-caps">Cannot</h3>
-              <ul>
-                {cannot.map((permission) => (
-                  <li key={permission.code}>{permission.can}</li>
-                ))}
-              </ul>
-            </section>
-            {/*
-             * ABSENT, NOT GREYED OUT. A group admin holding this role does not see a disabled view
-             * of the rest of the company -- they see their own people, because the API answers 404
-             * rather than saying whether the others exist (T-2.4). A screen that draws them dimmed
-             * has leaked the thing the disclosure rule refuses to say.
-             */}
-            <p className="u-meta role__reach">
-              Reach is still limited by their groups: a group admin holding this role sees their own
-              people, and the rest of the company is <strong>absent</strong>, not greyed out.
-            </p>
-          </div>
-        </aside>
-      </div>
-    </div>
+      {role.system ? (
+        <p className="u-meta">A seeded role. Clone it rather than changing what every tenant gets.</p>
+      ) : (
+        <form
+          className="role-page__add"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (adding.trim()) {
+              void save([...held, adding.trim()]);
+              setAdding('');
+            }
+          }}
+        >
+          <label className="u-caps" htmlFor="add-permission">
+            Add a permission
+          </label>
+          <input
+            id="add-permission"
+            className="input input-dense"
+            value={adding}
+            onChange={(event) => setAdding(event.target.value)}
+            placeholder="resource:action"
+          />
+          <button type="submit" className="btn btn-secondary" disabled={!adding.trim()}>
+            Add
+          </button>
+        </form>
+      )}
+
+      {problem ? (
+        <p className="authoring__short" role="alert">
+          {problem}
+        </p>
+      ) : null}
+    </section>
   );
 }

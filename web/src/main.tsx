@@ -22,6 +22,8 @@ const People = consoleScreen(() => import('./admin/People.tsx'), 'People');
 const RoleEditor = consoleScreen(() => import('./admin/RoleEditor.tsx'), 'RoleEditor');
 const Authoring = consoleScreen(() => import('./admin/Authoring.tsx'), 'Authoring');
 const Compliance = consoleScreen(() => import('./admin/Compliance.tsx'), 'Compliance');
+const Assign = consoleScreen(() => import('./admin/Assign.tsx'), 'Assign');
+const Grading = consoleScreen(() => import('./admin/Grading.tsx'), 'Grading');
 
 // The player is lazy for the same reason and a stronger one: it pulls hls.js, which is larger
 // than everything else in this application put together.
@@ -51,6 +53,8 @@ const router = createBrowserRouter([
       { path: 'admin/people', element: deferred(<People />, 'the console') },
       { path: 'admin/roles', element: deferred(<RoleEditor />, 'the role editor') },
       { path: 'admin/authoring', element: deferred(<Authoring />, 'the course') },
+      { path: 'admin/assign', element: deferred(<Assign />, 'assignments') },
+      { path: 'admin/grading', element: deferred(<Grading />, 'the marking queue') },
       { path: 'admin/compliance', element: deferred(<Compliance />, 'the report') },
     ],
   },
