@@ -770,6 +770,7 @@ export interface components {
             scoreScaled?: number;
         };
         ItemView: {
+            body?: components["schemas"]["JsonNode"];
             /** Format: uuid */
             formItemId?: string;
             optionOrder?: {
@@ -848,6 +849,10 @@ export interface components {
         MoveForm: {
             /** Format: uuid */
             afterSectionId?: string;
+        };
+        NewBankForm: {
+            description?: string;
+            name?: string;
         };
         NewSectionForm: {
             /** Format: int32 */
@@ -1169,7 +1174,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BankForm"];
+                "application/json": components["schemas"]["NewBankForm"];
             };
         };
         responses: {
@@ -1347,7 +1352,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BankForm"];
+                "application/json": components["schemas"]["NewBankForm"];
             };
         };
         responses: {

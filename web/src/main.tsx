@@ -30,6 +30,7 @@ const Grading = consoleScreen(() => import('./admin/Grading.tsx'), 'Grading');
 const Watch = lazy(async () => ({ default: (await import('./learner/Watch.tsx')).Watch }));
 
 const Progress = lazy(async () => ({ default: (await import('./learner/Progress.tsx')).Progress }));
+const Sit = lazy(async () => ({ default: (await import('./learner/Sit.tsx')).Sit }));
 const ReviewScreen = lazy(async () => ({
   default: (await import('./learner/ReviewScreen.tsx')).ReviewScreen,
 }));
@@ -49,6 +50,7 @@ const router = createBrowserRouter([
       { index: true, Component: Home },
       { path: 'progress', element: deferred(<Progress />, 'your progress') },
       { path: 'watch/:nodeId', element: deferred(<Watch />, 'the video') },
+      { path: 'test/:testId', element: deferred(<Sit />, 'your test') },
       { path: 'review/:attemptId', element: deferred(<ReviewScreen />, 'your result') },
       { path: 'admin/people', element: deferred(<People />, 'the console') },
       { path: 'admin/roles', element: deferred(<RoleEditor />, 'the role editor') },

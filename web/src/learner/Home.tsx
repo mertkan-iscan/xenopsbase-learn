@@ -80,6 +80,13 @@ export function HomeScreen({ home }: { home: HomeView }) {
   // needs a Start and the other needs a Resume with a second in it.
   const started = (next?.percent ?? 0) > 0 || (next?.resumeSecond ?? 0) > 0;
 
+  // The first locked node anywhere in the assigned courses. One is enough: a learner needs to know
+  // what is next and why, not an inventory of everything shut.
+  const firstLocked = courses
+    .flatMap((course) => course.modules ?? [])
+    .flatMap((module) => module.nodes ?? [])
+    .find((node) => node.state === 'LOCKED');
+
   if (!next && courses.length === 0) {
     return (
       <Empty title="Nothing is assigned to you.">
@@ -143,26 +150,49 @@ export function HomeScreen({ home }: { home: HomeView }) {
       ) : null}
 
       {/*
-       * NEXT — the locked item and its reason — IS NOT DRAWN, because the endpoint does not carry
-       * it yet.
+       * NEXT — the locked node and the gate's own sentence.
        *
-       * `HomeView` returns `courses`, `items`, `nextUp` and `summary`. A locked node's own
-       * learner-facing sentence is produced by the gate evaluation (T-5.3) and is not on this
-       * response. `LockedNext` below is written and used by the tests, so the screen is ready for
-       * the field the moment T-5.8 carries it — what is deliberately absent is a padlock drawn
-       * from a guess. A lock with no reason is a support ticket, and one with an invented reason
-       * is worse.
+       * This used to say the endpoint did not carry it. It always did: `HomeNode.lockedReason` is
+       * right there, and the generated client could not see it because four records collided by
+       * name during spec generation and the home shapes lost. The comment that was here is a fair
+       * record of how convincing a wrong type is.
        */}
+      {firstLocked ? (
+        <section className="home__section" aria-labelledby="next-up">
+          <h2 id="next-up" className="u-caps">
+            Next
+          </h2>
+          <LockedNext
+            title={firstLocked.title ?? 'The next item'}
+            reason={firstLocked.lockedReason ?? 'It unlocks when the item before it is finished.'}
+          />
+        </section>
+      ) : null}
 
       {courses.length > 0 ? (
-        <section className="home__section" aria-labelledby="earlier">
-          <h2 id="earlier" className="u-caps">
+        <section className="home__section" aria-labelledby="your-courses">
+          <h2 id="your-courses" className="u-caps">
             Your courses
           </h2>
           <ul className="home__list">
             {courses.map((course) => (
-              <li key={course.id} className="home__row">
-                <span>{course.title}</span>
+              <li key={course.courseId} className="home__row">
+                <Link className="home__course-link" to={`/course/${course.courseId ?? ''}`}>
+                  {course.title}
+                </Link>
+                <span className="home__row-meta">
+                  {course.completed ? (
+                    <StateChip state="passed" detail="complete" />
+                  ) : course.overdue ? (
+                    <StateChip state="overdue" detail={due(course.dueOn)} />
+                  ) : (
+                    <Progress
+                      percent={course.percentComplete ?? 0}
+                      label={`${course.title ?? 'This course'}, ${course.percentComplete ?? 0} per cent complete`}
+                      dense
+                    />
+                  )}
+                </span>
               </li>
             ))}
           </ul>

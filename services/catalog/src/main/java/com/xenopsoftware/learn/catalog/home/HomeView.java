@@ -1,6 +1,7 @@
 package com.xenopsoftware.learn.catalog.home;
 
 import java.time.Instant;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -29,6 +30,21 @@ import java.util.UUID;
  *                    item — flat, because there is no structure to draw around them
  * @param generatedAt when this answer was assembled. Exposed because it may be served from a cache
  *                    and a screen that shows a time should show the one it is describing
+ */
+/*
+ * THE NESTED RECORDS CARRY EXPLICIT SCHEMA NAMES, AND IT IS NOT DECORATION.
+ *
+ * springdoc keys components.schemas on a record's SIMPLE name. Four of the records below
+ * -- CourseView, ModuleView, NodeView, ItemView -- share theirs with the authoring records
+ * in `course` and `content`, so whichever springdoc reached last won and the other was
+ * silently replaced. The published description said the home screen returns authoring
+ * shapes, and the fields it is actually built from (locked, lockedReason, percent,
+ * resumeSecond, state) appeared in no schema at all.
+ *
+ * Nothing failed. The spec generated, the contract gate passed -- it compares the spec to
+ * the service, and the service really did serve what the spec described for the ONE name
+ * that survived. Only a client generated from it was wrong, which is a frontend bug with
+ * its cause three services away.
  */
 public record HomeView(String state, Summary summary, NextUp nextUp, List<CourseView> courses,
                        List<ItemView> items, Instant generatedAt) {
@@ -64,10 +80,12 @@ public record HomeView(String state, Summary summary, NextUp nextUp, List<Course
      * @param sources         the assignments this obligation came from, so "why do I have this" is
      *                        answerable (T-5.5)
      */
+    @Schema(name = "HomeCourse")
     public record CourseView(UUID courseId, String title, LocalDate dueOn, boolean overdue,
                              Integer cycleNumber, int percentComplete, boolean completed,
                              List<UUID> sources, List<ModuleView> modules) {}
 
+    @Schema(name = "HomeModule")
     public record ModuleView(UUID moduleId, String title, boolean locked, String lockedReason,
                              List<NodeView> nodes) {}
 
@@ -77,10 +95,12 @@ public record HomeView(String state, Summary summary, NextUp nextUp, List<Course
      * @param lockedReason T-5.3's sentence, verbatim, or null when nothing is in the way
      * @param resumeSecond where playback picks up, from the same derivation reporting uses (T-3.7)
      */
+    @Schema(name = "HomeNode")
     public record NodeView(UUID nodeId, String title, String type, boolean required, String state,
                            String lockedReason, int percent, int resumeSecond) {}
 
     /** An assignment that is not a course: a module, a node, or a content item on its own. */
+    @Schema(name = "HomeItem")
     public record ItemView(String referenceType, UUID referenceId, String title, String state,
                            LocalDate dueOn, boolean overdue, Integer cycleNumber, int percent,
                            int resumeSecond, List<UUID> sources) {}

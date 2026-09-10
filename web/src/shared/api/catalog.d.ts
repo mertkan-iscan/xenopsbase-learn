@@ -559,11 +559,64 @@ export interface components {
             targetId?: string;
             targetPart?: string;
         };
+        HomeCourse: {
+            completed?: boolean;
+            /** Format: uuid */
+            courseId?: string;
+            /** Format: int32 */
+            cycleNumber?: number;
+            /** Format: date */
+            dueOn?: string;
+            modules?: components["schemas"]["HomeModule"][];
+            overdue?: boolean;
+            /** Format: int32 */
+            percentComplete?: number;
+            sources?: string[];
+            title?: string;
+        };
+        HomeItem: {
+            /** Format: int32 */
+            cycleNumber?: number;
+            /** Format: date */
+            dueOn?: string;
+            overdue?: boolean;
+            /** Format: int32 */
+            percent?: number;
+            /** Format: uuid */
+            referenceId?: string;
+            referenceType?: string;
+            /** Format: int32 */
+            resumeSecond?: number;
+            sources?: string[];
+            state?: string;
+            title?: string;
+        };
+        HomeModule: {
+            locked?: boolean;
+            lockedReason?: string;
+            /** Format: uuid */
+            moduleId?: string;
+            nodes?: components["schemas"]["HomeNode"][];
+            title?: string;
+        };
+        HomeNode: {
+            lockedReason?: string;
+            /** Format: uuid */
+            nodeId?: string;
+            /** Format: int32 */
+            percent?: number;
+            required?: boolean;
+            /** Format: int32 */
+            resumeSecond?: number;
+            state?: string;
+            title?: string;
+            type?: string;
+        };
         HomeView: {
-            courses?: components["schemas"]["CourseView"][];
+            courses?: components["schemas"]["HomeCourse"][];
             /** Format: date-time */
             generatedAt?: string;
-            items?: components["schemas"]["ItemView"][];
+            items?: components["schemas"]["HomeItem"][];
             nextUp?: components["schemas"]["NextUp"];
             state?: string;
             summary?: components["schemas"]["Summary"];
