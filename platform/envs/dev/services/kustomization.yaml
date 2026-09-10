@@ -266,7 +266,33 @@ images:
     # response is unanswered and not an error, and the submit through
     # `withSessionRecovery` -- written for the forty-minute exam and until now
     # used by nothing.
-    digest: sha256:db81b1b51de02b5301fa1ab8df781b7f0604f65dc4ebc4aac63dda96732b185a
+    #
+    # 2026-09-10 — MOVED TO 9a64e4b: indigo and glass, because "severe" was
+    # reading as "unfinished" (#161).
+    #
+    # Tailwind v4 with a CSS-first `@theme` replaces the ink-on-paper system
+    # across all eleven route screens, plus a new /discover. The old system had
+    # not failed -- it was being read as a half-built product -- and
+    # `docs/design-prompt.md` records that reversal in its own words rather than
+    # being left to argue with the code.
+    #
+    # FOUR INVENTED VALUES LEAVE THE PRODUCT WITH THIS IMAGE, and that is the
+    # part worth remembering. A course title, a position "3 of 6", a passMark of
+    # 70 on a Review that carries no pass mark, and an attempts ALLOWANCE set to
+    # the attempt NUMBER -- all shown to learners as though the server had sent
+    # them. The lint rule forbidding English in a component caught none of them,
+    # because they arrived as JSX ATTRIBUTES rather than as text between tags.
+    #
+    # Discover is NOT a catalogue. There is no price, rating, instructor or
+    # enrolment endpoint in any of the 151, so it is search and filter over what
+    # is already assigned, on the same /api/v1/me/home response Home fetched.
+    #
+    # NOT VERIFIED, AND IT IS THE PATH EVERY LEARNER TAKES: nobody has signed in
+    # through Keycloak and clicked these screens end to end. Every API shape was
+    # checked against the live services with a dev token, which is a different
+    # thing from a cookie session. A dev cluster is where that should be found,
+    # but look there first when something here is wrong.
+    digest: sha256:5000a8a0a7c6e8a6effc2e6733bb2c67dc2a8e1a742a075e1d40ea485e11f657
   - name: ghcr.io/mertkan-iscan/xenopsbase-learn/identity
     # Commit 0747e6c — the first images this repository has ever published
     # (T-9.3, #11). Carries everything through T-3.6: the tenant boundary and
@@ -342,7 +368,22 @@ images:
     # the permission model -- PermissionScope, Reach and ScopeResolver gained the
     # bank scope, which this service owns even though the service that uses it is
     # not deployed here.
-    digest: sha256:f0a60c141d58c48e67be0dba8ec84ebc21c2f5a8423663b591188410c09fb605
+    #
+    # 2026-09-10 — moved to 9a64e4b, AND NOTHING IN THIS SERVICE CHANGED.
+    # `services/identity/src/main` has no commit between 335e473 and here. The
+    # only commit under `services/identity` at all is d2dfbc5, and it is a test.
+    #
+    # It moves because platform-common does: 9c78041 (T-9.8, #146) changed
+    # `Streams`, and this image was pinned at a commit that predates it. THREE
+    # IMAGES WERE IN THAT POSITION -- this one, streaming and reporting -- and
+    # catalog, assessment and gateway were not. That is how it was found: the
+    # run that built #161 rebuilt all seven, and those three came back byte for
+    # byte identical to the digests already pinned here while these three did
+    # not. Reproducible builds make that difference mean something.
+    #
+    # So the finding is one shared-module commit and three images that were
+    # never rolled after it, and it is only visible from this file.
+    digest: sha256:445a627bf15d7ef9641ea9ecb6fb10d0e2c13b1451aecaaeede3701870c75c0d
   - name: ghcr.io/mertkan-iscan/xenopsbase-learn/streaming
     # Commit 0747e6c — the MediaProvider port and its fake and Cloudflare
     # adapters (T-3.1), tus upload targets with quota enforced before issuance
@@ -405,7 +446,16 @@ images:
     #
     # The frontier is re-read only when a batch crosses the cached value, so a
     # video with no pinned questions costs no calls at all.
-    digest: sha256:2e38a5a9e68112e5dbeb3228c11859130afbae9c420e7ffece05a385d846e731
+    #
+    # 2026-09-10 — moved to 9a64e4b. No change of its own; see the note on
+    # identity. `services/streaming` has no commit at all between 2f93663 and
+    # here, and it moves for the platform-common `Streams` change in 9c78041.
+    #
+    # THE INTERSTITIAL HOLD ABOVE HAS ITS CALLEE NOW. The entry for 2f93663 says
+    # `ProgressService` reads a frontier from a service that does not exist on
+    # this cluster until the digests below land -- catalog went out with #159,
+    # so that read is answered rather than promised.
+    digest: sha256:d0228e8534cd3f701a2b5ffff2f06cd6262f92634beda8718db6ed7b23cae9a7
   - name: ghcr.io/mertkan-iscan/xenopsbase-learn/reporting
     # Commit 0747e6c — the service and its own database with nothing else
     # reading it (T-9.7), and the playback heartbeat ingest path (T-3.6):
@@ -444,4 +494,14 @@ images:
     #
     # Also carries the OpenAPI error schemas (T-9.10, #123) for the two ingest
     # refusals.
-    digest: sha256:788d2186078b3565b1d6dabd2324a54543c71da3cc6ce6101899b21bcaefc0b9
+    #
+    # 2026-09-10 — moved to 9a64e4b, and NOTHING IN THIS SERVICE CHANGED, which
+    # this block has now said four times. `services/reporting` has no commit
+    # between 335e473 and here. It moves for 9c78041 (T-9.8, #146) touching
+    # `Streams` in platform-common -- the same commit that moves identity and
+    # streaming, and the same shape as the c21e960 entry above.
+    #
+    # Reporting neither publishes nor consumes on the bus, so it gains nothing
+    # observable from that change either. It is rebuilt so that a deployment
+    # names one commit rather than three.
+    digest: sha256:2c6b88cf8c73d3191a53a7d6788ad9a572538dfc29f821d8dd9c2da942797cb2
