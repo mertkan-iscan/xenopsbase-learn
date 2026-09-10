@@ -174,7 +174,21 @@ print(f\"{r.get('overwritten', 0)} overwritten, {r.get('added', 0)} added, {r.ge
 # returned -- and it is idempotent, because the second run finds the account
 # already there.
 # ---------------------------------------------------------------------------
-for CLIENT_ID in $("$PY" - "$REALM_FILE" <<'SVC'
+#
+# `tr -d '\r'` IS LOAD-BEARING, AND IT IS NOT DEFENSIVE PROGRAMMING.
+#
+# A Windows Python writes CRLF to a text stream. Read back by the shell, every
+# client id here carried a trailing carriage return, so the lookup below asked
+# for `clientId=svc-catalog%0D`, matched nothing, and `continue`d -- silently,
+# for every client, on every run from Git Bash. That is why the service accounts
+# this step exists to create were never created, and the failure surfaced hours
+# later, in another service, as "The associated service account for the client
+# does not exist".
+#
+# Stripped in the SHELL rather than in the Python, for two reasons: the shell is
+# what has to be right whichever interpreter `python.sh` finds, and a Windows
+# Python cannot resolve Git Bash's /tmp to pass over the file afterwards.
+for CLIENT_ID in $("$PY" - "$REALM_FILE" <<'SVC' | tr -d '\r'
 import json, sys
 realm = json.load(open(sys.argv[1], encoding="utf-8"))
 for client in realm.get("clients", []):
@@ -216,7 +230,11 @@ done
 # them. This does not touch a person, and it does not remove a role somebody
 # granted by hand -- it adds what is declared and leaves the rest alone.
 # ---------------------------------------------------------------------------
-"$PY" - "$REALM_FILE" <<'ROLES' > /tmp/realm-svc-roles.txt
+# The same carriage returns as step 4, and the same reason. Without this the role
+# is looked up as `svc-caller%0D`, which does not exist -- and the warning that
+# prints is itself mangled by the carriage return, so the output reads
+# " does not exist; svc-identity cannot be granted it" with the role name gone.
+"$PY" - "$REALM_FILE" <<'ROLES' | tr -d '\r' > /tmp/realm-svc-roles.txt
 import json, sys
 
 realm = json.load(open(sys.argv[1], encoding="utf-8"))
