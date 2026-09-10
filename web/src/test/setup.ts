@@ -36,3 +36,54 @@ if (!window.matchMedia) {
     dispatchEvent: () => false,
   })) as typeof window.matchMedia;
 }
+
+/**
+ * `localStorage` and `sessionStorage`, which this jsdom provides as an object with no methods.
+ *
+ * <p>Not a convenience. Two things in this application remember a choice in the browser — the
+ * language (`i18n/locale.ts`) and the palette (`theme/theme.ts`) — and both wrap every access in a
+ * `try`/`catch`, because a private window or a browser set to block site data throws on the
+ * accessor itself. That is correct, and it means a suite with no storage silently exercises only
+ * the degraded path: every test passes, and nothing ever asserts that a preference is actually
+ * remembered.
+ *
+ * <p>So this is a real implementation, backed by a `Map`, installed only when the environment has
+ * not provided one. It is cleared between tests by the tests that care; a shared reset here would
+ * be a hidden dependency for every test that does not.
+ *
+ * <p>The `Storage` contract is small enough to implement honestly: values are strings (a number
+ * stored and read back is `"1"`, which is where a lazy stub diverges from a browser), a missing key
+ * is `null` and not `undefined`, and `length` and `key` exist because code that enumerates storage
+ * is code this stub should not quietly break.
+ */
+function memoryStorage(): Storage {
+  const values = new Map<string, string>();
+  return {
+    get length() {
+      return values.size;
+    },
+    clear() {
+      values.clear();
+    },
+    getItem(key: string) {
+      // `null`, never `undefined`: the difference is invisible under `??` and very visible under
+      // `=== null`, which is what a guard against "nothing stored" is usually written as.
+      return values.has(key) ? (values.get(key) as string) : null;
+    },
+    key(index: number) {
+      return [...values.keys()][index] ?? null;
+    },
+    removeItem(key: string) {
+      values.delete(key);
+    },
+    setItem(key: string, value: string) {
+      values.set(key, String(value));
+    },
+  };
+}
+
+for (const name of ['localStorage', 'sessionStorage'] as const) {
+  if (typeof window[name]?.setItem !== 'function') {
+    Object.defineProperty(window, name, { configurable: true, value: memoryStorage() });
+  }
+}

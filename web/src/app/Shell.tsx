@@ -1,6 +1,6 @@
-import { Bell, GraduationCap, LogOut, Menu } from 'lucide-react';
+import { Bell, GraduationCap, LogOut, Menu, Palette } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router';
+import { Navigate, NavLink, Outlet, useLocation } from 'react-router';
 import { arrivalFor, forgetTheAttempt, rememberTheAttempt } from '../shared/auth/arrival.ts';
 import { signIn, signOut } from '../shared/auth/session.ts';
 import { useMe } from '../shared/auth/useMe.ts';
@@ -8,8 +8,9 @@ import { useSession } from '../shared/auth/useSession.ts';
 import { Button, buttonClasses } from '../shared/design/Button.tsx';
 import { Drawer } from '../shared/design/Drawer.tsx';
 import { adoptServerLocale } from '../shared/i18n/locale.ts';
+import { adoptServerTheme, themeFrom } from '../shared/theme/theme.ts';
+import { Appearance } from '../shared/theme/Appearance.tsx';
 import { localeFrom } from '../shared/i18n/locales.ts';
-import type { MessageKey } from '../shared/i18n/messages.en.ts';
 import { useLocale, useT } from '../shared/i18n/useLocale.ts';
 import { forgetHome } from '../learner/useHome.ts';
 import { Loading } from '../shared/state/States.tsx';
@@ -18,24 +19,6 @@ import { Sidebar } from './Sidebar.tsx';
 
 /** Below this the side panel is a drawer. Stated once here, and matched by `--breakpoint-desk`. */
 const WIDE = '(min-width: 60rem)';
-
-/**
- * The two sentences a signed-out arrival can be met with, keyed by why they are here.
- *
- * <p>A lookup rather than three ternaries in the markup: `arrival.because` is a closed set, and
- * this is where a fourth reason would have to be given its words before it could be rendered.
- */
-const arrivalWords: Record<
-  'parked-work' | 'signed-out' | 'came-back-signed-out',
-  { title: MessageKey; body: MessageKey }
-> = {
-  'parked-work': { title: 'signed-out.parked.title', body: 'signed-out.parked.body' },
-  // A deliberate sign-out. Said plainly, because the alternative -- bouncing straight back to the
-  // issuer -- signs the person in again without a form and makes the button they just pressed
-  // look broken.
-  'signed-out': { title: 'signed-out.deliberate.title', body: 'signed-out.deliberate.body' },
-  'came-back-signed-out': { title: 'signed-out.failed.title', body: 'signed-out.failed.body' },
-};
 
 /**
  * The frame both route trees sit in (T-10.1), and the one place that knows whether anybody is
@@ -111,13 +94,18 @@ export function Shell() {
   // relay would answer with SESSION_ENDED, which is not what is happening.
   const who = useMe(session?.signedIn === true);
 
-  // WHERE THE LANGUAGE ACTUALLY ARRIVES. Everything above renders in whatever this browser
-  // guessed; this is the point the person's own answer reaches the page. `adopt` ignores null,
-  // which is the "they have not told us" case and is deliberately not the same as English.
+  // WHERE THE LANGUAGE AND THE PALETTE ACTUALLY ARRIVE. Everything above renders in whatever this
+  // browser guessed or last remembered; this is the point the person's own answers reach the page.
+  // Both `adopt` calls ignore null, which is the "they have not told us" case and is deliberately
+  // not the same as a choice of English or of following the device (T-10.9).
   const said = who.state === 'tenant' ? localeFrom(who.me.language) : null;
+  const looks = who.state === 'tenant' ? themeFrom(who.me.theme) : null;
   useEffect(() => {
     adoptServerLocale(said);
   }, [said]);
+  useEffect(() => {
+    adoptServerTheme(looks);
+  }, [looks]);
 
   // The front door opens the issuer's login page rather than a panel saying what the person
   // already knows. `arrivalFor` is where the exception lives -- see arrival.ts for why bouncing
@@ -137,6 +125,23 @@ export function Shell() {
       signIn(signedOut);
     }
   }, [session?.signedIn, signedOut, arrival?.kind]);
+
+  /*
+   * A REASON WORTH SAYING GOES TO THE SIGN-IN SCREEN, and everything else is unchanged.
+   *
+   * `arrivalFor` still decides. An ordinary first-time visitor is still sent straight to the
+   * issuer by the effect above and never meets a panel — that argument is `arrival.ts`'s and it
+   * has not changed. What HAS changed is where the other three cases are shown: they used to be a
+   * card rendered inside the signed-in frame, next to a side panel of six destinations nobody
+   * could go to and a menu for an account nobody was in. They are now a screen of their own.
+   *
+   * `replace`, so the browser's back button does not return to a route that will only redirect
+   * here again. The reason travels in the router's state because `arrivalFor` consumed the flag it
+   * came from — see Login.tsx.
+   */
+  if (arrival?.kind === 'explain') {
+    return <Navigate to="/login" replace state={{ because: arrival.because }} />;
+  }
 
   const brand = (
     <div className="flex min-h-16 items-center gap-2.5 border-b border-hairline px-4">
@@ -200,6 +205,7 @@ export function Shell() {
 
             {session?.signedIn ? (
               <>
+                <Appearances />
                 <Notifications />
                 {/*
                  * THE CONSOLE IS OFFERED TO EVERYONE, and that is honest rather than lax. Catalog
@@ -263,32 +269,6 @@ export function Shell() {
               {session?.signedIn ? (
                 <Outlet context={{ name: session.name } satisfies ShellContext} />
               ) : null}
-              {/*
-               * Only ever shown for the two cases arrival.ts singles out. An ordinary first visit
-               * does not reach here: the effect above has already sent that person to the issuer,
-               * and what they see meanwhile is the loading state, not a panel they have to
-               * dismiss.
-               */}
-              {arrival?.kind === 'explain' && signedOut !== null ? (
-                <section
-                  aria-labelledby="signed-out"
-                  className="card mx-auto flex max-w-lg flex-col items-start gap-4 p-6"
-                >
-                  <h1 id="signed-out" className="font-display text-xl font-bold">
-                    {t(arrivalWords[arrival.because].title)}
-                  </h1>
-                  <p className="text-sm text-muted">{t(arrivalWords[arrival.because].body)}</p>
-                  <Button
-                    voice="primary"
-                    onClick={() => {
-                      rememberTheAttempt();
-                      signIn(signedOut);
-                    }}
-                  >
-                    {t('shell.sign-in')}
-                  </Button>
-                </section>
-              ) : null}
               {arrival?.kind === 'sign-in-now' ? <Loading what="loading.sign-in" /> : null}
             </div>
           </main>
@@ -333,6 +313,75 @@ function Avatar({ name }: { name: string }) {
     >
       {initials}
     </span>
+  );
+}
+
+/**
+ * Appearance and language, from the header (T-10.9).
+ *
+ * <p><b>In the header rather than on a settings page, and that is the whole reason it gets used.</b>
+ * Somebody who needs the light theme needs it now, on the screen they are looking at, not after
+ * finding a preferences page. The same goes for a learner whose browser guessed the wrong
+ * language: the control has to be reachable from wherever they are stuck.
+ *
+ * <p>The panel's open/close behaviour is {@link Notifications}'s, deliberately duplicated rather
+ * than extracted: two call sites is not yet a component, and the day there is a third the shape to
+ * extract will be obvious. What is NOT duplicated is the decision inside it — Escape and
+ * `focusout` rather than an outside click, so it is operable by a keyboard.
+ */
+function Appearances() {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const wrapper = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    }
+    function onFocusOut(event: FocusEvent) {
+      const next = event.relatedTarget;
+      if (next instanceof Node && wrapper.current?.contains(next)) {
+        return;
+      }
+      setOpen(false);
+    }
+    document.addEventListener('keydown', onKeyDown);
+    wrapper.current?.addEventListener('focusout', onFocusOut);
+    const held = wrapper.current;
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      held?.removeEventListener('focusout', onFocusOut);
+    };
+  }, [open]);
+
+  return (
+    <div ref={wrapper} className="relative">
+      <Button
+        voice="ghost"
+        size="sm"
+        aria-label={t('prefs.open')}
+        aria-expanded={open}
+        onClick={() => setOpen((was) => !was)}
+        className="px-2"
+      >
+        <Palette aria-hidden="true" className="size-4" />
+      </Button>
+      {open ? (
+        <div
+          role="group"
+          aria-label={t('prefs.title')}
+          className="card absolute end-0 top-full z-40 mt-2 w-72 p-4 shadow-float"
+        >
+          {/* Signed in by construction: the header only renders this beside the sign-out control. */}
+          <Appearance signedIn />
+        </div>
+      ) : null}
+    </div>
   );
 }
 

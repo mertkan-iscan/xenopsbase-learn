@@ -394,6 +394,34 @@ export const tr: Record<MessageKey, string> = {
   'roles.add': 'Ekle',
   'roles.code-placeholder': 'resource:action',
 
+
+  // ------------------------------------------------------------------- the sign-in screen
+  'login.heading': 'XenOpsBase Learn\u2019e giri\u015f yap\u0131n',
+  'login.body':
+    'E\u011fitimleriniz, ilerlemeniz ve sertifikalar\u0131n\u0131z burada. \u015eirketinizin verdi\u011fi hesapla giri\u015f yap\u0131n.',
+  'login.button': '\u015eirket hesab\u0131n\u0131zla giri\u015f yap\u0131n',
+  'login.sso':
+    '\u015eirketinizin giri\u015f sayfas\u0131na y\u00f6nlendirileceksiniz. Bu \u00fcr\u00fcn parolan\u0131z\u0131 hi\u00e7bir zaman g\u00f6rmez.',
+  'login.trouble':
+    'Hesab\u0131n\u0131z yoksa veya giri\u015f s\u00fcrekli ba\u015far\u0131s\u0131z oluyorsa e\u011fitimlerinizi y\u00f6neten ki\u015fiye ba\u015fvurun.',
+  'login.already': 'Zaten giri\u015f yapt\u0131n\u0131z.',
+  'login.continue': 'E\u011fitimlerinize gidin',
+
+  // ----------------------------------------------------------------------------- appearance
+  'prefs.title': 'G\u00f6r\u00fcn\u00fcm ve dil',
+  'prefs.open': 'G\u00f6r\u00fcn\u00fcm ve dil',
+  'prefs.theme': 'Tema',
+  'prefs.theme.light': 'A\u00e7\u0131k',
+  'prefs.theme.dark': 'Koyu',
+  'prefs.theme.system': 'Cihaz\u0131mla ayn\u0131',
+  'prefs.language': 'Dil',
+  'prefs.language.en': 'English',
+  'prefs.language.tr': 'T\u00fcrk\u00e7e',
+  'prefs.saved-to-account':
+    'Hesab\u0131n\u0131za kaydedildi; giri\u015f yapt\u0131\u011f\u0131n\u0131z her cihazda ge\u00e7erli olur.',
+  'prefs.saved-here':
+    'Bu taray\u0131c\u0131da saklan\u0131yor. Telefonunuzda ve ortak bilgisayarlarda da ge\u00e7erli olmas\u0131 i\u00e7in giri\u015f yap\u0131n.',
+
   // ---------------------------------------------------------------------------- the player
   'player.untitled': 'Video',
   'player.no-node': 'Bu oynatıcı, oynatılacak bir video olmadan açıldı.',

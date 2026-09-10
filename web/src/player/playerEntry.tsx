@@ -1,6 +1,7 @@
 import { StrictMode, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { forceLocale } from '../shared/i18n/locale.ts';
+import { applyRememberedTheme } from '../shared/theme/theme.ts';
 import { localeFrom } from '../shared/i18n/locales.ts';
 import { useT } from '../shared/i18n/useLocale.ts';
 import { ErrorState } from '../shared/state/States.tsx';
@@ -40,6 +41,17 @@ const title = parameters.get('title') ?? '';
  * preference the way any other page would.
  */
 forceLocale(localeFrom(parameters.get('lang')));
+
+/*
+ * The palette is NOT taken from the URL, and that asymmetry with the language above is deliberate.
+ *
+ * A host page decides what language its own page is in, so it tells us. It does not decide what a
+ * viewer's eyes need: somebody who chose the light theme in this product chose it about
+ * themselves, and it is stored per person and per browser rather than per embedding. So the player
+ * uses whatever this origin already remembers, which is the same value the application uses, and a
+ * host that has never seen this viewer gets the operating system's preference.
+ */
+applyRememberedTheme();
 
 function post(message: Event) {
   // `parent` and not `window.top`: nested framing is the host's business, and addressing the top

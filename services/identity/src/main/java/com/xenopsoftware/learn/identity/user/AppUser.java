@@ -67,6 +67,28 @@ public class AppUser extends TenantOwned {
     @Column(name = "time_zone", length = 64)
     private String timeZone;
 
+    /**
+     * The language they read this product in, or null when they have not told us (T-10.9).
+     *
+     * <p>A BCP-47 tag, normalised but not checked against the set the product currently ships in.
+     * That set is a frontend decision that changes without a migration, and a column that refused
+     * anything outside today's two would start refusing valid rows on the day a third arrives.
+     * An unrecognised tag falls back where it is read, which is what {@code localeFrom} in the
+     * web application already does.
+     */
+    @Column(name = "language", length = 16)
+    private String language;
+
+    /**
+     * Which palette they read it in, or null when they have not told us (T-10.9).
+     *
+     * <p>Null and {@link Theme#SYSTEM} render the same way and are still different answers — see
+     * {@link Theme}. Nothing may treat the null as a choice of anything.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "theme", length = 16)
+    private Theme theme;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -199,6 +221,46 @@ public class AppUser extends TenantOwned {
     }
 
     /**
+     * Sets the language this product is rendered in for them (T-10.9).
+     *
+     * <p>Normalised through {@link java.util.Locale}, which lowercases the language subtag and
+     * canonicalises the rest, so {@code TR}, {@code tr} and {@code tr-TR} do not become three
+     * different stored answers to one question. Blank clears it, for the same reason
+     * {@link #moveTo} accepts an empty zone: somebody should be able to stop having told us.
+     *
+     * <p><b>Not validated against the languages the product ships in</b>, deliberately — see the
+     * field, and V14. A tag nothing translates falls back at render time and costs a person the
+     * language they asked for; a column that refused it would cost them the request entirely, and
+     * would do so on the day a third language shipped.
+     */
+    public void prefersLanguage(String tag) {
+        if (tag == null || tag.isBlank()) {
+            this.language = null;
+            return;
+        }
+        java.util.Locale parsed = java.util.Locale.forLanguageTag(tag.strip());
+        if (parsed.getLanguage().isEmpty()) {
+            // `forLanguageTag` does not throw. It answers with an undetermined locale, whose
+            // language subtag is empty -- which is the only signal that the tag was nonsense,
+            // and is easy to store by accident as a row that means nothing.
+            throw new IllegalArgumentException(
+                "\"" + tag + "\" is not a language tag. Use a BCP-47 tag such as tr or en-GB.");
+        }
+        this.language = parsed.toLanguageTag();
+    }
+
+    /**
+     * Sets which palette they read the product in (T-10.9).
+     *
+     * <p>Blank clears it. {@link Theme#SYSTEM} does not: choosing to follow the operating system
+     * is an answer, and storing it as "no answer" would lose the difference the column exists to
+     * keep.
+     */
+    public void prefersTheme(String value) {
+        this.theme = Theme.parse(value).orElse(null);
+    }
+
+    /**
      * The repair ADR-0104 exists for: point this person at their new IdP identity. Everything
      * that references them keeps referencing {@link #id}, so this is the entire migration.
      */
@@ -241,5 +303,15 @@ public class AppUser extends TenantOwned {
     /** Their timezone, or null when they have not told us. */
     public String getTimeZone() {
         return timeZone;
+    }
+
+    /** Their language as a BCP-47 tag, or null when they have not told us. */
+    public String getLanguage() {
+        return language;
+    }
+
+    /** Their palette, or null when they have not told us — which is not {@link Theme#SYSTEM}. */
+    public Theme getTheme() {
+        return theme;
     }
 }
