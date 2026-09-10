@@ -1,6 +1,7 @@
 package com.xenopsoftware.learn.packaging;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.xenopsoftware.learn.packaging.launch.ContentOriginProperties;
 import com.xenopsoftware.learn.packaging.launch.LaunchUrls;
@@ -81,6 +82,38 @@ class PackagingAppTest extends PostgresTestHarness {
         assertThat(acme).startsWith("http://acme.localhost:8090/");
         assertThat(globex).startsWith("http://globex.localhost:8090/");
         assertThat(acme).isNotEqualTo(globex);
+    }
+
+    @Test
+    void theContentOriginServesItsOwnContentSecurityPolicy() {
+        String policy = origins.contentSecurityPolicy();
+
+        // The half of ADR-0105's isolation that stops package code calling anywhere outbound.
+        // It lived only in the local stack's Caddyfile, which is a development file -- so a
+        // cluster would have served packages with no policy at all and nothing would have said so.
+        assertThat(policy).contains("connect-src 'self'");
+        // 'self' is not optional: the launch chain is this origin framing itself, and without it
+        // the wrapper loads, both API objects appear, and the course is refused with a blank frame.
+        assertThat(policy).contains("frame-ancestors 'self' " + origins.appOrigin());
+        // Real authoring tools emit both, and a policy that forbids them forbids SCORM. Survivable
+        // only because of where it runs: the script it permits has nothing within reach.
+        assertThat(policy).contains("'unsafe-inline'").contains("'unsafe-eval'");
+    }
+
+    @Test
+    void aTwoCharacterCompanyIdCannotBecomeAReservedHostnameLabel() {
+        // ADR-0105's amended scheme puts the tenant and the separator in ONE label, and RFC 5891
+        // reserves `--` in a label's third and fourth characters for internationalised names. A
+        // two-character id lands exactly there, and the failure would otherwise arrive as a
+        // customer whose courses do not load, long after the id could be changed.
+        ContentOriginProperties clustered = new ContentOriginProperties(
+            "https://{tenant}--usercontent-dev.example.com", "https://app.example.com", "/packages");
+
+        assertThat(clustered.originFor("acme"))
+            .isEqualTo("https://acme--usercontent-dev.example.com");
+        assertThatThrownBy(() -> clustered.originFor("ab"))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("RFC 5891");
     }
 
     @Test

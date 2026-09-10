@@ -38,7 +38,67 @@ public record ContentOriginProperties(String template, String appOrigin, String 
      * it is, being the identifier a company is created with rather than a name somebody typed.
      */
     public String originFor(String tenantId) {
-        return template.replace("{tenant}", tenantId);
+        String origin = template.replace("{tenant}", tenantId);
+        refuseReservedLabel(origin);
+        return origin;
+    }
+
+    /**
+     * A hostname whose first label has {@code --} in its third and fourth characters is refused.
+     *
+     * <p><b>This exists because of the scheme, not in spite of it.</b> ADR-0105's amended origin is
+     * {@code <tenant>--usercontent-<env>.<domain>} — one label below the apex, because that is what
+     * Cloudflare's Universal SSL covers and anything deeper is a certificate somebody has to buy.
+     * The double hyphen is the separator that keeps it to one label.
+     *
+     * <p>RFC 5891 reserves any label with {@code --} in positions three and four for
+     * internationalised domain names ({@code xn--} being the only assigned one). So a two-character
+     * company id produces {@code ab--usercontent-dev}, which is a name registrars and resolvers are
+     * entitled to refuse and some do — and the failure would arrive as a company whose courses do
+     * not load, months after the id was chosen and long past the point where it can be changed.
+     *
+     * <p>Refused loudly here rather than checked at company creation, because this is the class
+     * that knows the scheme. When tenant ids stop being chosen for us this becomes the rule that
+     * provisioning has to satisfy, and it is better as a thrown exception than as a sentence in a
+     * document.
+     */
+    private static void refuseReservedLabel(String origin) {
+        String withoutScheme = origin.replaceFirst("^[a-zA-Z][a-zA-Z0-9+.-]*://", "");
+        int end = withoutScheme.indexOf('.');
+        String label = end < 0 ? withoutScheme : withoutScheme.substring(0, end);
+        if (label.length() >= 4 && label.charAt(2) == '-' && label.charAt(3) == '-') {
+            throw new IllegalStateException("\"" + label + "\" cannot be a hostname label: RFC 5891"
+                + " reserves \"--\" in the third and fourth characters for internationalised domain"
+                + " names. A company id of two characters produces one under this origin scheme.");
+        }
+    }
+
+    /**
+     * The Content-Security-Policy every response on the content origin carries.
+     *
+     * <p><b>Emitted by this service rather than by whatever proxy is in front of it.</b> The local
+     * stack's Caddy sets the same header, and for a while that was the only place it existed --
+     * which meant the second half of ADR-0105's isolation lived in a development file and would
+     * have been silently absent the first time a package was served from a cluster. A control that
+     * a later convenience can remove is a control with a shelf life; this one now travels with the
+     * thing it protects, and Caddy's copy is defence in depth.
+     *
+     * <p>{@code unsafe-inline} and {@code unsafe-eval} are permitted because real authoring tools
+     * emit both, and a policy that forbids them forbids SCORM. That is survivable precisely because
+     * of WHERE this runs: the script it permits has no session, no token and no cookie in reach.
+     * {@code connect-src 'self'} is the part doing the work -- package code cannot call out.
+     *
+     * <p>{@code frame-ancestors} names the application and <b>{@code 'self'}</b>, and the second is
+     * not optional. The launch chain is two nested frames -- the application frames the wrapper,
+     * the wrapper frames the package -- and the inner one is this origin framing itself, which
+     * {@code frame-ancestors} governs exactly as strictly as it governs a stranger. Without
+     * {@code 'self'} the wrapper loads, both API objects appear, and the course itself is refused
+     * with a blank frame.
+     */
+    public String contentSecurityPolicy() {
+        return "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; "
+            + "connect-src 'self'; "
+            + "frame-ancestors 'self' " + appOrigin;
     }
 
     private static String blankTo(String value, String fallback) {

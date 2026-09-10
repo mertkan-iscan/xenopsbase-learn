@@ -110,6 +110,9 @@ public class ContentOriginResource {
             .contentType(MediaType.valueOf("text/html; charset=utf-8"))
             .cacheControl(CacheControl.noStore())
             .header("X-Content-Type-Options", "nosniff")
+            // The isolation travels with the service rather than with the proxy in front of it --
+            // see ContentOriginProperties.contentSecurityPolicy().
+            .header("Content-Security-Policy", origins.contentSecurityPolicy())
             .body(html);
     }
 
@@ -153,6 +156,7 @@ public class ContentOriginResource {
         ResponseEntity.BodyBuilder response = ResponseEntity.ok()
             .contentType(MediaType.valueOf(contentType))
             .header("X-Content-Type-Options", "nosniff")
+            .header("Content-Security-Policy", origins.contentSecurityPolicy())
             /*
              * A YEAR, IMMUTABLE, AND THAT IS SAFE HERE FOR A REASON WORTH STATING.
              *
