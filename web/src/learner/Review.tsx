@@ -1,4 +1,6 @@
 import { StateChip } from '../shared/design/State.tsx';
+import { formatNumber, formatPercent } from '../shared/i18n/format.ts';
+import { useLocale } from '../shared/i18n/useLocale.ts';
 
 /**
  * What a learner may see after submitting (T-6.9, docs/review.md).
@@ -29,6 +31,7 @@ export function ScoreOnlyReview({
   attemptsUsed: number;
   attemptsAllowed: number;
 }) {
+  const { locale, t } = useLocale();
   return (
     <section className="review panel" aria-labelledby="review-title">
       <h1 id="review-title" className="u-caps review__head">
@@ -36,24 +39,24 @@ export function ScoreOnlyReview({
       </h1>
       <div className="review__body">
         <StateChip state={passed ? 'passed' : 'not-passed'} />
-        <p className="review__score u-display">{percent}%</p>
+        <p className="review__score u-display">{formatPercent(locale, percent)}</p>
         <p>
-          Pass mark {passMark}%. Submitted {submittedAt}.
+          {t('review.pass-mark', { mark: formatPercent(locale, passMark), at: submittedAt })}
         </p>
         {/*
          * SAID AS A POLICY, NOT AS AN APOLOGY. A learner who is shown a score and no questions
          * assumes something failed to load unless the screen tells them otherwise, and support
          * hears about it. "That is this course's policy, not a fault" is the whole message.
          */}
-        <p className="review__policy">
-          This test shows your score only. The questions and answers are not released — that is
-          this course’s policy, not a fault.
-        </p>
+        <p className="review__policy">{t('review.score-only')}</p>
         <div className="panel review__attempts">
-          <span className="u-caps">Attempts</span>
+          <span className="u-caps">{t('review.attempts')}</span>
           <span>
-            {attemptsUsed} of {attemptsAllowed} used.
-            {passed ? ' You do not need another.' : ''}
+            {t('review.attempts-used', {
+              used: formatNumber(locale, attemptsUsed),
+              allowed: formatNumber(locale, attemptsAllowed),
+            })}
+            {passed ? ` ${t('review.no-more-needed')}` : ''}
           </span>
         </div>
       </div>
@@ -83,6 +86,7 @@ export function AwaitingGradingReview({
    */
   disclosure?: string;
 }) {
+  const { t, plural } = useLocale();
   const withAPerson = items.filter((item) => item.outcome === null).length;
 
   return (
@@ -98,12 +102,9 @@ export function AwaitingGradingReview({
          * in a learner's head even when the chip above says otherwise.
          */}
         <p className="u-display review__pending">
-          {withAPerson === 1 ? 'One answer is' : `${withAPerson} answers are`} with a person
+          {plural('review.with-a-person', withAPerson)}
         </p>
-        <p>
-          Everything marked automatically is right so far. There is no result yet — not a pass, not
-          a fail. You do not need to do anything.
-        </p>
+        <p>{t('review.awaiting-body')}</p>
         <ul className="review__items panel">
           {items.map((item) => (
             <li
@@ -111,13 +112,13 @@ export function AwaitingGradingReview({
               className={item.outcome === null ? 'review__item review__item--pending' : 'review__item'}
             >
               <span>{item.label}</span>
-              <span className="review__outcome">{item.outcome ?? 'With a marker'}</span>
+              <span className="review__outcome">
+                {item.outcome ?? t('review.with-a-marker')}
+              </span>
             </li>
           ))}
         </ul>
-        <p className="u-meta">
-          Marking usually finishes within two working days. We will let you know here.
-        </p>
+        <p className="u-meta">{t('review.marking-time')}</p>
         {disclosure ? <p className="u-meta review__disclosure">{disclosure}</p> : null}
       </div>
     </section>

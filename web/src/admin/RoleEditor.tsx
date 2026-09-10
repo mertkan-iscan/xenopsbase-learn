@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { failureFrom, identity, type ApiFailure } from '../shared/api/client.ts';
 import type { components } from '../shared/api/identity.d.ts';
 import { StateChip } from '../shared/design/State.tsx';
+import { formatNumber } from '../shared/i18n/format.ts';
+import { useLocale, useT } from '../shared/i18n/useLocale.ts';
 import { Empty, ErrorState, Loading } from '../shared/state/States.tsx';
 
 type RoleView = components['schemas']['RoleView'];
@@ -30,6 +32,7 @@ type Screen =
   | { status: 'failed'; failure: ApiFailure };
 
 export function RoleEditor() {
+  const { locale, t, plural } = useLocale();
   const [screen, setScreen] = useState<Screen>({ status: 'loading' });
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -53,7 +56,7 @@ export function RoleEditor() {
   }, [load]);
 
   if (screen.status === 'loading') {
-    return <Loading what="roles" />;
+    return <Loading what="loading.roles" />;
   }
   if (screen.status === 'failed') {
     return <ErrorState message={screen.failure.message} retry={load} />;
@@ -64,22 +67,18 @@ export function RoleEditor() {
   return (
     <div className="role-page">
       <p className="not-enforced" role="note">
-        <span className="u-caps">Half of this is missing</span>
-        <span>
-          Roles are real. The list of permissions to choose from is not published by any endpoint —
-          it lives in identity’s <code>Permission</code> enum and reaches integrators only as a
-          table in the API description. Codes are typed here and validated by the server.
-        </span>
+        <span className="u-caps">{t('roles.half-missing.label')}</span>
+        <span>{t('roles.half-missing.body', { enum: 'Permission' })}</span>
       </p>
 
       <div className="role-page__split">
         <section aria-labelledby="roles">
           <h2 id="roles" className="u-caps">
-            Roles
+            {t('roles.title')}
           </h2>
           {screen.roles.length === 0 ? (
-            <Empty title="This company has no roles.">
-              <p className="u-meta">The seeded ones arrive with the tenant.</p>
+            <Empty title={t('roles.empty.title')}>
+              <p className="u-meta">{t('roles.empty.body')}</p>
             </Empty>
           ) : (
             <ul className="panel role-page__list">
@@ -91,8 +90,15 @@ export function RoleEditor() {
                     onClick={() => setOpenId(role.id ?? null)}
                   >
                     {role.name}
-                    {role.system ? <StateChip state="published" detail="system" /> : null}
-                    <span className="u-meta"> {role.permissions?.length ?? 0} permissions</span>
+                    {role.system ? (
+                      <StateChip state="published" detail={t('roles.system')} />
+                    ) : null}
+                    <span className="u-meta">
+                      {' '}
+                      {plural('roles.permission-count', role.permissions?.length ?? 0, {
+                        count: formatNumber(locale, role.permissions?.length ?? 0),
+                      })}
+                    </span>
                   </button>
                 </li>
               ))}
@@ -112,6 +118,7 @@ export function RoleEditor() {
 }
 
 function RolePermissions({ role, onChanged }: { role: RoleView; onChanged: () => void }) {
+  const t = useT();
   const [held, setHeld] = useState<string[]>(role.permissions ?? []);
   const [adding, setAdding] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
@@ -144,7 +151,7 @@ function RolePermissions({ role, onChanged }: { role: RoleView; onChanged: () =>
       <p className="u-meta">{role.description}</p>
 
       {held.length === 0 ? (
-        <p className="u-meta">This role holds nothing, so it grants nothing.</p>
+        <p className="u-meta">{t('roles.holds-nothing')}</p>
       ) : (
         <ul className="role-page__held">
           {held.map((code) => (
@@ -156,7 +163,7 @@ function RolePermissions({ role, onChanged }: { role: RoleView; onChanged: () =>
                 disabled={role.system === true}
                 onClick={() => void save(held.filter((one) => one !== code))}
               >
-                Remove
+                {t('roles.remove')}
               </button>
             </li>
           ))}
@@ -164,7 +171,7 @@ function RolePermissions({ role, onChanged }: { role: RoleView; onChanged: () =>
       )}
 
       {role.system ? (
-        <p className="u-meta">A seeded role. Clone it rather than changing what every tenant gets.</p>
+        <p className="u-meta">{t('roles.seeded')}</p>
       ) : (
         <form
           className="role-page__add"
@@ -177,17 +184,17 @@ function RolePermissions({ role, onChanged }: { role: RoleView; onChanged: () =>
           }}
         >
           <label className="u-caps" htmlFor="add-permission">
-            Add a permission
+            {t('roles.add-permission')}
           </label>
           <input
             id="add-permission"
             className="input input-dense"
             value={adding}
             onChange={(event) => setAdding(event.target.value)}
-            placeholder="resource:action"
+            placeholder={t('roles.code-placeholder')}
           />
           <button type="submit" className="btn btn-secondary" disabled={!adding.trim()}>
-            Add
+            {t('roles.add')}
           </button>
         </form>
       )}

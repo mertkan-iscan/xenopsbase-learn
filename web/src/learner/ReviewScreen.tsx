@@ -74,7 +74,7 @@ export function ReviewScreen() {
   }, [load]);
 
   if (screen.status === 'loading') {
-    return <Loading what="your result" />;
+    return <Loading what="loading.result" />;
   }
   if (screen.status === 'failed') {
     return <ErrorState message={screen.failure.message} retry={load} />;

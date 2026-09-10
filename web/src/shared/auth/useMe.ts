@@ -25,6 +25,17 @@ export type Me = {
   email: string;
   displayName: string;
   status: string;
+  /**
+   * The language they read this product in, or null/absent when they have not told us.
+   *
+   * <p><b>Optional because it is nullable in three different ways</b>, and only one of them is
+   * about the person. `app_user.language` is nullable — "has not told us" is a findable population
+   * and "chose English" is not (V13's comment makes the same argument for the timezone). It is
+   * also absent entirely from an identity that has not yet been deployed with the column. Both
+   * resolve the same way here: fall through to what the browser prefers. Nothing downstream may
+   * treat either as a choice of English.
+   */
+  language?: string | null;
 };
 
 export type WhoAmI =

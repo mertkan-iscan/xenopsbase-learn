@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { catalog, failureFrom, type ApiFailure } from '../shared/api/client.ts';
 import type { components } from '../shared/api/catalog.d.ts';
+import type { MessageKey } from '../shared/i18n/messages.en.ts';
+import { formatNumber } from '../shared/i18n/format.ts';
+import { useLocale, useT } from '../shared/i18n/useLocale.ts';
 import { Empty, ErrorState, Loading } from '../shared/state/States.tsx';
 
 type Summary = components['schemas']['Summary'];
@@ -21,6 +24,7 @@ type Screen =
   | { status: 'failed'; failure: ApiFailure };
 
 export function Progress() {
+  const t = useT();
   const [screen, setScreen] = useState<Screen>({ status: 'loading' });
 
   const load = useCallback(() => {
@@ -43,7 +47,7 @@ export function Progress() {
   }, [load]);
 
   if (screen.status === 'loading') {
-    return <Loading what="your progress" />;
+    return <Loading what="loading.progress" />;
   }
   if (screen.status === 'failed') {
     return <ErrorState message={screen.failure.message} retry={load} />;
@@ -52,31 +56,39 @@ export function Progress() {
   const { summary } = screen;
   if ((summary.assigned ?? 0) === 0) {
     return (
-      <Empty title="Nothing has been assigned to you yet.">
-        <p className="u-meta">There is nothing to show progress against. Nothing to do today.</p>
+      <Empty title={t('progress.empty.title')}>
+        <p className="u-meta">{t('progress.empty.body')}</p>
       </Empty>
     );
   }
 
   return (
     <div className="progress-screen">
-      <h1 className="u-display">Your progress</h1>
+      <h1 className="u-display">{t('progress.title')}</h1>
       <dl className="counts counts--learner">
-        <Figure label="Assigned" value={summary.assigned} />
-        <Figure label="Completed" value={summary.completed} />
-        <Figure label="In progress" value={summary.inProgress} />
-        <Figure label="Due soon" value={summary.dueSoon} />
-        <Figure label="Overdue" value={summary.overdue} />
+        <Figure label="progress.assigned" value={summary.assigned} />
+        <Figure label="progress.completed" value={summary.completed} />
+        <Figure label="progress.in-progress" value={summary.inProgress} />
+        <Figure label="progress.due-soon" value={summary.dueSoon} />
+        <Figure label="progress.overdue" value={summary.overdue} />
       </dl>
     </div>
   );
 }
 
-function Figure({ label, value }: { label: string; value: number | undefined }) {
+/**
+ * One count and its name.
+ *
+ * <p>`label` is a message key rather than a word, so the five call sites above read as a list of
+ * what is counted rather than as a list of English nouns — and a sixth count cannot be added
+ * without a Turkish name for it.
+ */
+function Figure({ label, value }: { label: MessageKey; value: number | undefined }) {
+  const { locale, t } = useLocale();
   return (
     <div className="count">
-      <dt className="u-caps">{label}</dt>
-      <dd className="u-display count__value">{value ?? 0}</dd>
+      <dt className="u-caps">{t(label)}</dt>
+      <dd className="u-display count__value">{formatNumber(locale, value ?? 0)}</dd>
     </div>
   );
 }

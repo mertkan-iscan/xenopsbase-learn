@@ -2,6 +2,7 @@ import { StrictMode, lazy, Suspense, type ComponentType } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router';
 import { Shell } from './app/Shell.tsx';
+import type { LoadingKey } from './shared/i18n/messages.en.ts';
 import { Home } from './learner/Home.tsx';
 import { Loading } from './shared/state/States.tsx';
 import './styles.css';
@@ -35,7 +36,7 @@ const ReviewScreen = lazy(async () => ({
   default: (await import('./learner/ReviewScreen.tsx')).ReviewScreen,
 }));
 
-function deferred(element: React.ReactNode, what: string) {
+function deferred(element: React.ReactNode, what: LoadingKey) {
   return <Suspense fallback={<Loading what={what} />}>{element}</Suspense>;
 }
 
@@ -48,16 +49,16 @@ const router = createBrowserRouter([
       // learner lands on; a chunk boundary in front of it buys nothing and costs a round trip on
       // the connection least able to afford one.
       { index: true, Component: Home },
-      { path: 'progress', element: deferred(<Progress />, 'your progress') },
-      { path: 'watch/:nodeId', element: deferred(<Watch />, 'the video') },
-      { path: 'test/:testId', element: deferred(<Sit />, 'your test') },
-      { path: 'review/:attemptId', element: deferred(<ReviewScreen />, 'your result') },
-      { path: 'admin/people', element: deferred(<People />, 'the console') },
-      { path: 'admin/roles', element: deferred(<RoleEditor />, 'the role editor') },
-      { path: 'admin/authoring', element: deferred(<Authoring />, 'the course') },
-      { path: 'admin/assign', element: deferred(<Assign />, 'assignments') },
-      { path: 'admin/grading', element: deferred(<Grading />, 'the marking queue') },
-      { path: 'admin/compliance', element: deferred(<Compliance />, 'the report') },
+      { path: 'progress', element: deferred(<Progress />, 'loading.progress') },
+      { path: 'watch/:nodeId', element: deferred(<Watch />, 'loading.video') },
+      { path: 'test/:testId', element: deferred(<Sit />, 'loading.test') },
+      { path: 'review/:attemptId', element: deferred(<ReviewScreen />, 'loading.result') },
+      { path: 'admin/people', element: deferred(<People />, 'loading.console') },
+      { path: 'admin/roles', element: deferred(<RoleEditor />, 'loading.role-editor') },
+      { path: 'admin/authoring', element: deferred(<Authoring />, 'loading.course') },
+      { path: 'admin/assign', element: deferred(<Assign />, 'loading.assignments') },
+      { path: 'admin/grading', element: deferred(<Grading />, 'loading.marking') },
+      { path: 'admin/compliance', element: deferred(<Compliance />, 'loading.report') },
     ],
   },
 ]);

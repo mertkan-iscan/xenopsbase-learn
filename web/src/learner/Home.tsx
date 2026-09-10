@@ -3,6 +3,9 @@ import { Link } from 'react-router';
 import { catalog, failureFrom, type ApiFailure } from '../shared/api/client.ts';
 import type { components } from '../shared/api/catalog.d.ts';
 import { Progress, StateChip } from '../shared/design/State.tsx';
+import { formatDay, formatNumber, formatPercent, formatPosition } from '../shared/i18n/format.ts';
+import type { Locale } from '../shared/i18n/locales.ts';
+import { useLocale } from '../shared/i18n/useLocale.ts';
 import { Empty, ErrorState, Loading } from '../shared/state/States.tsx';
 
 type HomeView = components['schemas']['HomeView'];
@@ -56,7 +59,7 @@ export function Home() {
   }
 
   if (screen.status === 'loading') {
-    return <Loading what="your training" />;
+    return <Loading what="loading.training" />;
   }
   if (screen.status === 'failed') {
     return <ErrorState message={screen.failure.message} retry={retry} />;
@@ -64,13 +67,8 @@ export function Home() {
   return <HomeScreen home={screen.home} />;
 }
 
-function minutes(seconds: number) {
-  const whole = Math.floor(seconds / 60);
-  const rest = Math.floor(seconds % 60);
-  return `${whole}:${String(rest).padStart(2, '0')}`;
-}
-
 export function HomeScreen({ home }: { home: HomeView }) {
+  const { locale, t } = useLocale();
   const next = home.nextUp;
   const summary = home.summary ?? {};
   const courses = home.courses ?? [];
@@ -89,34 +87,34 @@ export function HomeScreen({ home }: { home: HomeView }) {
 
   if (!next && courses.length === 0) {
     return (
-      <Empty title="Nothing is assigned to you.">
-        <p className="u-meta">
-          When your manager assigns training it appears here. Nothing to do today.
-        </p>
+      <Empty title={t('home.empty.title')}>
+        <p className="u-meta">{t('home.empty.body')}</p>
       </Empty>
     );
   }
 
   return (
     <div className="home">
-      <h1 className="u-display home__title">Your training</h1>
+      <h1 className="u-display home__title">{t('home.title')}</h1>
 
       {next && !started ? (
         <section className="home__section" aria-labelledby="due">
           <h2 id="due" className="u-caps">
-            Due
+            {t('home.due')}
           </h2>
           {/*
            * OVERDUE ALWAYS CARRIES ITS DATE. "Overdue" on its own is a scolding; "overdue, was due
            * 4 Sep" is information somebody can act on, and it is the difference between a screen
            * that nags and one that helps.
            */}
-          {next.overdue ? <StateChip state="overdue" detail={due(next.dueOn)} /> : null}
-          {!next.overdue && next.dueOn ? <StateChip state="due" detail={due(next.dueOn)} /> : null}
+          {next.overdue ? <StateChip state="overdue" detail={due(locale, next.dueOn)} /> : null}
+          {!next.overdue && next.dueOn ? (
+            <StateChip state="due" detail={due(locale, next.dueOn)} />
+          ) : null}
           <p className="home__course u-display">{next.courseTitle ?? next.title}</p>
           {next.title && next.courseTitle ? <p className="u-meta">{next.title}</p> : null}
           <Link className="btn btn-primary btn-block" to={`/watch/${next.nodeId ?? ''}`}>
-            Start
+            {t('home.start')}
           </Link>
         </section>
       ) : null}
@@ -124,19 +122,24 @@ export function HomeScreen({ home }: { home: HomeView }) {
       {next && started ? (
         <section className="home__section" aria-labelledby="in-progress">
           <h2 id="in-progress" className="u-caps">
-            In progress
+            {t('home.in-progress')}
           </h2>
           <p className="home__course u-display">{next.courseTitle ?? next.title}</p>
           <p className="home__progress">
             <Progress
               percent={next.percent ?? 0}
-              label={`${next.courseTitle ?? 'This course'}, ${next.percent ?? 0} per cent complete`}
+              label={t('home.progress-label', {
+                course: next.courseTitle ?? t('home.this-course'),
+                percent: next.percent ?? 0,
+              })}
             />
-            <span className="home__percent">{next.percent ?? 0}%</span>
+            <span className="home__percent">{formatPercent(locale, next.percent ?? 0)}</span>
           </p>
           <p className="u-meta">
             {next.title}
-            {next.resumeSecond ? ` — you stopped at ${minutes(next.resumeSecond)}` : ''}
+            {next.resumeSecond
+              ? ` — ${t('home.stopped-at', { at: formatPosition(next.resumeSecond) })}`
+              : ''}
           </p>
           {/*
            * The second in this label is the SERVER's record, not this tab's. A learner who resumes
@@ -144,7 +147,9 @@ export function HomeScreen({ home }: { home: HomeView }) {
            * point of not keeping it here.
            */}
           <Link className="btn btn-secondary btn-block" to={`/watch/${next.nodeId ?? ''}`}>
-            {next.resumeSecond ? `Resume at ${minutes(next.resumeSecond)}` : 'Resume'}
+            {next.resumeSecond
+              ? t('home.resume-at', { at: formatPosition(next.resumeSecond) })
+              : t('home.resume')}
           </Link>
         </section>
       ) : null}
@@ -160,11 +165,17 @@ export function HomeScreen({ home }: { home: HomeView }) {
       {firstLocked ? (
         <section className="home__section" aria-labelledby="next-up">
           <h2 id="next-up" className="u-caps">
-            Next
+            {t('home.next')}
           </h2>
+          {/*
+           * `lockedReason` is the SERVER's sentence, and it arrives in the reader's language
+           * because the request carried `Accept-Language` (shared/api/client.ts). The fallback
+           * beside it is ours, for a gate that could not say why — see T-5.3 on a padlock with no
+           * sentence being a support ticket.
+           */}
           <LockedNext
-            title={firstLocked.title ?? 'The next item'}
-            reason={firstLocked.lockedReason ?? 'It unlocks when the item before it is finished.'}
+            title={firstLocked.title ?? t('home.locked.fallback-title')}
+            reason={firstLocked.lockedReason ?? t('home.locked.fallback-reason')}
           />
         </section>
       ) : null}
@@ -172,7 +183,7 @@ export function HomeScreen({ home }: { home: HomeView }) {
       {courses.length > 0 ? (
         <section className="home__section" aria-labelledby="your-courses">
           <h2 id="your-courses" className="u-caps">
-            Your courses
+            {t('home.courses')}
           </h2>
           <ul className="home__list">
             {courses.map((course) => (
@@ -182,13 +193,16 @@ export function HomeScreen({ home }: { home: HomeView }) {
                 </Link>
                 <span className="home__row-meta">
                   {course.completed ? (
-                    <StateChip state="passed" detail="complete" />
+                    <StateChip state="passed" detail={t('home.complete')} />
                   ) : course.overdue ? (
-                    <StateChip state="overdue" detail={due(course.dueOn)} />
+                    <StateChip state="overdue" detail={due(locale, course.dueOn)} />
                   ) : (
                     <Progress
                       percent={course.percentComplete ?? 0}
-                      label={`${course.title ?? 'This course'}, ${course.percentComplete ?? 0} per cent complete`}
+                      label={t('home.progress-label', {
+                        course: course.title ?? t('home.this-course'),
+                        percent: course.percentComplete ?? 0,
+                      })}
                       dense
                     />
                   )}
@@ -200,20 +214,27 @@ export function HomeScreen({ home }: { home: HomeView }) {
       ) : null}
 
       <p className="u-meta home__generated">
-        {summary.assigned ?? 0} assigned · {summary.completed ?? 0} completed ·{' '}
-        {summary.overdue ?? 0} overdue
+        {t('home.summary', {
+          assigned: formatNumber(locale, summary.assigned ?? 0),
+          completed: formatNumber(locale, summary.completed ?? 0),
+          overdue: formatNumber(locale, summary.overdue ?? 0),
+        })}
       </p>
     </div>
   );
 }
 
-function due(dueOn: string | undefined) {
-  if (!dueOn) {
-    return undefined;
-  }
-  // One place for dates, and the viewer's locale rather than ours (T-10.8). `undefined` as the
-  // locale means the browser's, which is the only one that is right for the person reading it.
-  return new Date(dueOn).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+/**
+ * A due date, short.
+ *
+ * <p>The locale is passed in rather than left to the browser. This used to be
+ * `toLocaleDateString(undefined, …)`, and `undefined` there means the BROWSER's language — which
+ * is the wrong one the moment somebody reads in a language their browser is not set to. It
+ * produces one specific half-translated page: Turkish sentences with English month names inside
+ * them, which reads as a fault rather than as a setting.
+ */
+function due(locale: Locale, dueOn: string | undefined) {
+  return dueOn ? formatDay(locale, dueOn) : undefined;
 }
 
 /**

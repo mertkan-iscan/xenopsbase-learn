@@ -4,7 +4,29 @@ import { arrivalFor, forgetTheAttempt, rememberTheAttempt } from '../shared/auth
 import { signIn, signOut } from '../shared/auth/session.ts';
 import { useMe } from '../shared/auth/useMe.ts';
 import { useSession } from '../shared/auth/useSession.ts';
+import { localeFrom } from '../shared/i18n/locales.ts';
+import type { MessageKey } from '../shared/i18n/messages.en.ts';
+import { adoptServerLocale } from '../shared/i18n/locale.ts';
+import { useT } from '../shared/i18n/useLocale.ts';
 import { Loading } from '../shared/state/States.tsx';
+
+/**
+ * The two sentences a signed-out arrival can be met with, keyed by why they are here.
+ *
+ * <p>A lookup rather than three ternaries in the markup: `arrival.because` is a closed set, and
+ * this is where a fourth reason would have to be given its words before it could be rendered.
+ */
+const arrivalWords: Record<
+  'parked-work' | 'signed-out' | 'came-back-signed-out',
+  { title: MessageKey; body: MessageKey }
+> = {
+  'parked-work': { title: 'signed-out.parked.title', body: 'signed-out.parked.body' },
+  // A deliberate sign-out. Said plainly, because the alternative -- bouncing straight back to the
+  // issuer -- signs the person in again without a form and makes the button they just pressed
+  // look broken.
+  'signed-out': { title: 'signed-out.deliberate.title', body: 'signed-out.deliberate.body' },
+  'came-back-signed-out': { title: 'signed-out.failed.title', body: 'signed-out.failed.body' },
+};
 
 /**
  * The frame both route trees sit in (T-10.1), and the one place that knows whether anybody is
@@ -35,12 +57,21 @@ import { Loading } from '../shared/state/States.tsx';
  * saying so plainly rather than about preventing it.
  */
 export function Shell() {
+  const t = useT();
   const session = useSession();
   const { pathname } = useLocation();
   const inTheConsole = pathname.startsWith('/admin');
   // Asked once a session exists, and not before: an unauthenticated /api/v1/me is a 401 the
   // relay would answer with SESSION_ENDED, which is not what is happening.
   const who = useMe(session?.signedIn === true);
+
+  // WHERE THE LANGUAGE ACTUALLY ARRIVES. Everything above renders in whatever this browser
+  // guessed; this is the point the person's own answer reaches the page. `adopt` ignores null,
+  // which is the "they have not told us" case and is deliberately not the same as English.
+  const said = who.state === 'tenant' ? localeFrom(who.me.language) : null;
+  useEffect(() => {
+    adoptServerLocale(said);
+  }, [said]);
 
   // The front door opens the issuer's login page rather than a panel saying what the person
   // already knows. `arrivalFor` is where the exception lives -- see arrival.ts for why bouncing
@@ -64,7 +95,7 @@ export function Shell() {
   return (
     <div className={inTheConsole ? 'shell shell--console' : 'shell shell--learner'}>
       <a className="skip" href="#main">
-        Skip to content
+        {t('shell.skip')}
       </a>
 
       <header className="shell__bar">
@@ -76,16 +107,18 @@ export function Shell() {
          * (T-8.2). You are in a company because of who you signed in as.
          */}
         <span className="shell__tenant u-caps">
-          {who.state === 'tenant' ? who.me.tenant : inTheConsole ? 'Console' : 'Your training'}
+          {who.state === 'tenant'
+            ? who.me.tenant
+            : t(inTheConsole ? 'shell.tenant.console' : 'shell.tenant.learner')}
         </span>
         {inTheConsole ? (
-          <nav aria-label="Main" className="shell__nav">
-            <NavLink to="/admin/authoring">Authoring</NavLink>
-            <NavLink to="/admin/assign">Assign</NavLink>
-            <NavLink to="/admin/grading">Marking</NavLink>
-            <NavLink to="/admin/people">Users</NavLink>
-            <NavLink to="/admin/roles">Roles</NavLink>
-            <NavLink to="/admin/compliance">Reports</NavLink>
+          <nav aria-label={t('shell.nav')} className="shell__nav">
+            <NavLink to="/admin/authoring">{t('shell.nav.authoring')}</NavLink>
+            <NavLink to="/admin/assign">{t('shell.nav.assign')}</NavLink>
+            <NavLink to="/admin/grading">{t('shell.nav.grading')}</NavLink>
+            <NavLink to="/admin/people">{t('shell.nav.people')}</NavLink>
+            <NavLink to="/admin/roles">{t('shell.nav.roles')}</NavLink>
+            <NavLink to="/admin/compliance">{t('shell.nav.compliance')}</NavLink>
           </nav>
         ) : null}
         {session?.signedIn ? (
@@ -100,22 +133,22 @@ export function Shell() {
              */}
             {inTheConsole ? (
               <NavLink to="/" end className="shell__console">
-                Your training
+                {t('shell.to-learner')}
               </NavLink>
             ) : (
               <NavLink to="/admin/authoring" className="shell__console">
-                Console
+                {t('shell.to-console')}
               </NavLink>
             )}
             <button type="button" className="btn btn-ghost btn-dense" onClick={() => void signOut()}>
-              Sign out
+              {t('shell.sign-out')}
             </button>
           </span>
         ) : null}
       </header>
 
       <main id="main" tabIndex={-1} className="shell__main">
-        {session === null ? <Loading what="your session" /> : null}
+        {session === null ? <Loading what="loading.session" /> : null}
         {session?.signedIn ? <Outlet /> : null}
         {/*
           * Only ever shown for the two cases arrival.ts singles out. An ordinary first visit does
@@ -125,22 +158,9 @@ export function Shell() {
         {arrival?.kind === 'explain' && signedOut !== null ? (
           <section aria-labelledby="signed-out" className="panel signed-out">
             <h1 id="signed-out" className="u-display">
-              {arrival.because === 'parked-work' ? 'Your work is saved' : 'You are signed out'}
+              {t(arrivalWords[arrival.because].title)}
             </h1>
-            <p>
-              {
-                {
-                  'parked-work':
-                    'Your session ended before this could be sent. Nothing was lost — sign in again and it will be submitted for you.',
-                  // A deliberate sign-out. Said plainly, because the alternative -- bouncing
-                  // straight back to the issuer -- signs the person in again without a form and
-                  // makes the button they just pressed look broken.
-                  'signed-out': 'You have been signed out. Sign in again whenever you need to.',
-                  'came-back-signed-out':
-                    'Signing in did not complete. Try again, and if it keeps happening tell whoever administers your training.',
-                }[arrival.because]
-              }
-            </p>
+            <p>{t(arrivalWords[arrival.because].body)}</p>
             <button
               type="button"
               className="btn btn-primary"
@@ -149,12 +169,12 @@ export function Shell() {
                 signIn(signedOut);
               }}
             >
-              Sign in
+              {t('shell.sign-in')}
             </button>
           </section>
         ) : null}
         {arrival?.kind === 'sign-in-now' ? (
-          <Loading what="the sign-in page" />
+          <Loading what="loading.sign-in" />
         ) : null}
       </main>
 
@@ -164,12 +184,12 @@ export function Shell() {
        * the console's four sections are not theirs to carry.
        */}
       {!inTheConsole && session?.signedIn ? (
-        <nav aria-label="Main" className="tabbar">
+        <nav aria-label={t('shell.nav')} className="tabbar">
           <NavLink to="/" end className="tabbar__tab">
-            Training
+            {t('shell.tab.training')}
           </NavLink>
           <NavLink to="/progress" className="tabbar__tab">
-            Progress
+            {t('shell.tab.progress')}
           </NavLink>
         </nav>
       ) : null}

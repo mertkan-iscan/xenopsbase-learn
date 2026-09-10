@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router';
 import { EmbeddedPlayer } from '../player/EmbeddedPlayer.tsx';
 import { catalog } from '../shared/api/client.ts';
 import type { components } from '../shared/api/catalog.d.ts';
+import { formatPosition } from '../shared/i18n/format.ts';
+import { useT } from '../shared/i18n/useLocale.ts';
 import { ErrorState } from '../shared/state/States.tsx';
 import { Interstitial, ItemShell } from './Item.tsx';
 
@@ -33,6 +35,7 @@ type InterstitialView = components['schemas']['InterstitialView'];
  * them obvious rather than theoretical.
  */
 export function Watch() {
+  const t = useT();
   const { nodeId } = useParams();
   const navigate = useNavigate();
   const [view, setView] = useState<PlayerView>({});
@@ -56,7 +59,7 @@ export function Watch() {
   }, [load]);
 
   if (!nodeId) {
-    return <ErrorState message="No video was named in the address." />;
+    return <ErrorState message={t('watch.no-node')} />;
   }
 
   const answered = new Set(view.answered ?? []);
@@ -74,7 +77,7 @@ export function Watch() {
       {/* Through the same iframe and the same loader a customer uses (ADR-0110). Rendering the
           player component directly would be one import shorter and would leave the embed path
           exercised by nobody who would notice it break. */}
-      <EmbeddedPlayer nodeId={nodeId} title="Video" />
+      <EmbeddedPlayer nodeId={nodeId} title={t('player.untitled')} />
 
       {open ? (
         <Interstitial
@@ -93,11 +96,11 @@ export function Watch() {
       {outstanding.length > 0 && !open ? (
         <section className="pinned-list" aria-labelledby="pinned-list">
           <h2 id="pinned-list" className="u-caps">
-            Questions in this video
+            {t('watch.pinned-title')}
           </h2>
           {view.frontierSecond !== undefined ? (
             <p className="u-meta">
-              The video plays to {clock(view.frontierSecond)} and waits there for the question.
+              {t('watch.frontier', { at: clock(view.frontierSecond) })}
             </p>
           ) : null}
           <ul>
@@ -105,7 +108,7 @@ export function Watch() {
               <li key={marker.id}>
                 <button type="button" className="btn btn-secondary" onClick={() => setOpen(marker)}>
                   {clock(marker.positionSeconds ?? 0)}
-                  {marker.blocking ? ' · you must answer this to carry on' : ''}
+                  {marker.blocking ? ` · ${t('watch.blocking')}` : ''}
                 </button>
               </li>
             ))}
@@ -116,6 +119,12 @@ export function Watch() {
   );
 }
 
+/**
+ * A timecode, zero-padded to match a player's own scrubber.
+ *
+ * <p>`formatPosition` is the shared one and gives `6:12`; a list of markers reads better aligned,
+ * so this pads the minutes to `06:12`. The seconds and the arithmetic are not duplicated.
+ */
 function clock(seconds: number) {
-  return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+  return formatPosition(seconds).padStart(5, '0');
 }

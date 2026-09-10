@@ -1,3 +1,5 @@
+import { formatNumber } from '../shared/i18n/format.ts';
+import { useLocale } from '../shared/i18n/useLocale.ts';
 import { Empty } from '../shared/state/States.tsx';
 import { NotEnforcedYet } from './NotEnforcedYet.tsx';
 
@@ -14,17 +16,20 @@ import { NotEnforcedYet } from './NotEnforcedYet.tsx';
  * retention curve) is in docs/design-prompt.md waiting for them.
  */
 export function Compliance() {
+  const { locale, t } = useLocale();
   return (
     <div className="compliance-page">
       <NotEnforcedYet />
-      <Empty title="There is no reporting to show.">
-        <p>
-          The <code>reporting</code> service accepts telemetry and cannot answer a query yet. The
-          rollups this screen is built on are T-7.1 to T-7.7.
-        </p>
+      <Empty title={t('compliance.empty.title')}>
+        {/*
+         * The service name is interpolated rather than wrapped in <code>, which loses a little
+         * typography and buys a sentence that can be reordered. Turkish puts the possessed noun
+         * after the possessor ("reporting servisi"), so a name pinned inside markup here would be
+         * a name pinned to English word order.
+         */}
+        <p>{t('compliance.empty.body', { service: 'reporting' })}</p>
         <p className="u-meta">
-          Nothing is hidden here and nothing is loading. This screen had sample figures for a
-          company of 5,182 people; they were invented, so they are gone.
+          {t('compliance.empty.note', { count: formatNumber(locale, 5182) })}
         </p>
       </Empty>
     </div>

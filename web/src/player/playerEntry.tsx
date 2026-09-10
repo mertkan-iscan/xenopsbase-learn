@@ -1,5 +1,8 @@
 import { StrictMode, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
+import { forceLocale } from '../shared/i18n/locale.ts';
+import { localeFrom } from '../shared/i18n/locales.ts';
+import { useT } from '../shared/i18n/useLocale.ts';
 import { ErrorState } from '../shared/state/States.tsx';
 import { PLAYER_PROTOCOL, isCommand, type Event } from './messages.ts';
 import { VideoPlayer } from './VideoPlayer.tsx';
@@ -22,7 +25,17 @@ import '../styles.css';
 const parameters = new URLSearchParams(window.location.search);
 const nodeId = parameters.get('node') ?? '';
 const channel = parameters.get('channel') ?? 'player';
-const title = parameters.get('title') ?? 'Video';
+const title = parameters.get('title') ?? '';
+/*
+ * THE LANGUAGE ARRIVES IN THE URL, like everything else here.
+ *
+ * This document runs inside somebody else's page. It cannot ask `/api/v1/me` what language
+ * the viewer reads — the answer would be the right one for our app and the wrong one for a
+ * host that has already decided what language its own page is in. So the embedder says, via
+ * `embedPlayer({ language })`, and a player opened without one falls back to the browser's
+ * preference the way any other page would.
+ */
+forceLocale(localeFrom(parameters.get('lang')));
 
 function post(message: Event) {
   // `parent` and not `window.top`: nested framing is the host's business, and addressing the top
@@ -36,6 +49,7 @@ function post(message: Event) {
 }
 
 function EmbeddedPlayer() {
+  const t = useT();
   const frame = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -101,11 +115,11 @@ function EmbeddedPlayer() {
   });
 
   if (!nodeId) {
-    return <ErrorState message="This player was opened without a video to play." />;
+    return <ErrorState message={t('player.no-node')} />;
   }
   return (
     <div ref={frame}>
-      <VideoPlayer nodeId={nodeId} title={title} />
+      <VideoPlayer nodeId={nodeId} title={title || t('player.untitled')} />
     </div>
   );
 }

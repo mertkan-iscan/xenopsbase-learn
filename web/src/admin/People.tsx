@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { failureFrom, identity, type ApiFailure } from '../shared/api/client.ts';
+import { formatMoment } from '../shared/i18n/format.ts';
+import { useLocale } from '../shared/i18n/useLocale.ts';
 import { ErrorState } from '../shared/state/States.tsx';
 
 type Invitation = {
@@ -22,6 +24,7 @@ type Invitation = {
  * is a screen that will cause a support ticket nobody can answer.
  */
 export function People() {
+  const { locale, t } = useLocale();
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [invitation, setInvitation] = useState<Invitation | null>(null);
@@ -53,10 +56,10 @@ export function People() {
 
   return (
     <>
-      <h1>People</h1>
+      <h1>{t('people.title')}</h1>
       <form onSubmit={invite}>
         <p>
-          <label htmlFor="invite-email">Email address</label>
+          <label htmlFor="invite-email">{t('people.email')}</label>
           <input
             id="invite-email"
             type="email"
@@ -66,7 +69,7 @@ export function People() {
           />
         </p>
         <p>
-          <label htmlFor="invite-name">Display name</label>
+          <label htmlFor="invite-name">{t('people.name')}</label>
           <input
             id="invite-name"
             type="text"
@@ -76,7 +79,7 @@ export function People() {
           />
         </p>
         <button type="submit" disabled={sending}>
-          {sending ? 'Inviting…' : 'Invite'}
+          {sending ? t('people.inviting') : t('people.invite')}
         </button>
       </form>
 
@@ -85,12 +88,14 @@ export function People() {
       {invitation ? (
         <div className="state" role="status" aria-live="polite">
           <p>
-            Invited <strong>{invitation.displayName}</strong> ({invitation.email}). The invitation
-            expires {new Date(invitation.expiresAt).toLocaleString()}.
+            {t('people.invited', {
+              name: invitation.displayName,
+              email: invitation.email,
+              at: formatMoment(locale, invitation.expiresAt),
+            })}
           </p>
           <p>
-            <strong>This link is shown once.</strong> We keep only a hash of it, so it cannot be
-            looked up again — send it now, or invite them again to issue a new one.
+            <strong>{t('people.once.title')}</strong> {t('people.once.body')}
           </p>
           <code>{invitation.token}</code>
         </div>

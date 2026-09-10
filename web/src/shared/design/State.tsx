@@ -11,6 +11,9 @@
  * with nothing anywhere reporting a fault. It is dashed and unresolved on purpose, and it is the
  * reason this is a component at all rather than a className each screen picks.
  */
+import { useT } from '../i18n/useLocale.ts';
+import type { MessageKey } from '../i18n/messages.en.ts';
+
 export type StateName =
   | 'due'
   | 'overdue'
@@ -22,16 +25,23 @@ export type StateName =
   | 'draft'
   | 'published';
 
-const labels: Record<StateName, string> = {
-  due: 'Due',
-  overdue: 'Overdue',
-  'in-progress': 'In progress',
-  locked: 'Locked',
-  awaiting: 'Awaiting grading',
-  passed: 'Passed',
-  'not-passed': 'Not passed',
-  draft: 'Draft',
-  published: 'Published',
+/**
+ * The key each state is said with, rather than the words themselves.
+ *
+ * <p>A `Record<StateName, MessageKey>` rather than a template string built from the name: the
+ * mapping is explicit, so a state renamed in the union without a sentence written for it does not
+ * compile — the same guarantee the union itself gives, extended to the words.
+ */
+const labels: Record<StateName, MessageKey> = {
+  due: 'state.due',
+  overdue: 'state.overdue',
+  'in-progress': 'state.in-progress',
+  locked: 'state.locked',
+  awaiting: 'state.awaiting',
+  passed: 'state.passed',
+  'not-passed': 'state.not-passed',
+  draft: 'state.draft',
+  published: 'state.published',
 };
 
 /**
@@ -46,9 +56,10 @@ export function StateChip({
   state: StateName;
   detail?: string | undefined;
 }) {
+  const t = useT();
   return (
     <span className={`chip chip--${state}`}>
-      {labels[state]}
+      {t(labels[state])}
       {detail ? ` · ${detail}` : ''}
     </span>
   );

@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { expectNoAxeViolations } from '../../test/axe.ts';
+import { en } from '../i18n/messages.en.ts';
 import { Empty, ErrorState, Loading } from './States.tsx';
 
 /**
@@ -13,20 +14,23 @@ import { Empty, ErrorState, Loading } from './States.tsx';
  */
 describe('shared states', () => {
   it('announces loading politely rather than leaving the page silent', async () => {
-    const { container } = render(<Loading what="your account" />);
+    const { container } = render(<Loading what="loading.session" />);
 
     const status = screen.getByRole('status');
-    expect(status).toHaveTextContent('Loading your account');
+    // Asserted through the catalogue rather than against a copy of the English. A key renamed
+    // out from under this fails the test; a sentence reworded in both languages does not, which is
+    // the right way round -- the test is about the announcement existing, not about its wording.
+    expect(status).toHaveTextContent(en['loading.session']);
     expect(status).toHaveAttribute('aria-busy', 'true');
     await expectNoAxeViolations(container);
   });
 
   it('interrupts for a failure, and offers the retry when there is one', async () => {
-    const { container } = render(<ErrorState message="Could not reach the service." retry={() => {}} />);
+    const { container } = render(<ErrorState message={en['api.unreachable']} retry={() => {}} />);
 
     // role="alert" rather than status: a failure is not an update, it interrupts.
-    expect(screen.getByRole('alert')).toHaveTextContent('Could not reach the service.');
-    expect(screen.getByRole('button', { name: 'Try again' })).toBeVisible();
+    expect(screen.getByRole('alert')).toHaveTextContent(en['api.unreachable']);
+    expect(screen.getByRole('button', { name: en['error.retry'] })).toBeVisible();
     await expectNoAxeViolations(container);
   });
 

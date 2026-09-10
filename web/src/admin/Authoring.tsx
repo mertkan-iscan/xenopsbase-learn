@@ -3,6 +3,7 @@ import { catalog, failureFrom, type ApiFailure } from '../shared/api/client.ts';
 import type { components } from '../shared/api/catalog.d.ts';
 import { useMe } from '../shared/auth/useMe.ts';
 import { StateChip } from '../shared/design/State.tsx';
+import { useT } from '../shared/i18n/useLocale.ts';
 import { Empty, ErrorState, Loading } from '../shared/state/States.tsx';
 import { NotEnforcedYet } from './NotEnforcedYet.tsx';
 
@@ -34,6 +35,7 @@ type Screen =
   | { status: 'failed'; failure: ApiFailure };
 
 export function Authoring() {
+  const t = useT();
   const [screen, setScreen] = useState<Screen>({ status: 'loading' });
   const [open, setOpen] = useState<TreeView | null>(null);
   const who = useMe(true);
@@ -75,7 +77,7 @@ export function Authoring() {
   }
 
   if (screen.status === 'loading') {
-    return <Loading what="your courses" />;
+    return <Loading what="loading.courses" />;
   }
   if (screen.status === 'failed') {
     return <ErrorState message={screen.failure.message} retry={load} />;
@@ -102,8 +104,8 @@ export function Authoring() {
             }}
           />
         ) : (
-          <Empty title="No course open.">
-            <p className="u-meta">Choose one on the left, or create the first.</p>
+          <Empty title={t('authoring.no-course.title')}>
+            <p className="u-meta">{t('authoring.no-course.body')}</p>
           </Empty>
         )}
       </div>
@@ -122,15 +124,16 @@ function CourseList({
   onOpen: (id: string) => void;
   onCreate: (title: string, description: string) => void;
 }) {
+  const t = useT();
   const [title, setTitle] = useState('');
 
   return (
     <section className="course-list" aria-labelledby="courses">
       <h2 id="courses" className="u-caps">
-        Courses
+        {t('authoring.courses')}
       </h2>
       {courses.length === 0 ? (
-        <p className="u-meta">None yet. The first one is below.</p>
+        <p className="u-meta">{t('authoring.none-yet')}</p>
       ) : (
         <ul className="panel course-list__items">
           {courses.map((course) => (
@@ -157,22 +160,22 @@ function CourseList({
         }}
       >
         <label className="u-caps" htmlFor="new-course">
-          New course
+          {t('authoring.new-course')}
         </label>
         <input
           id="new-course"
           className="input input-dense"
           value={title}
           onChange={(event) => setTitle(event.target.value)}
-          placeholder="Fire Safety Refresher"
+          placeholder={t('authoring.new-course.placeholder')}
         />
         {/*
          * A title cannot be changed afterwards -- catalog has no PUT for a course -- so the form
          * says so rather than letting somebody discover it by trying.
          */}
-        <p className="u-meta">A course cannot be renamed once created.</p>
+        <p className="u-meta">{t('authoring.no-rename')}</p>
         <button type="submit" className="btn btn-primary" disabled={!title.trim()}>
-          Create
+          {t('authoring.create')}
         </button>
       </form>
     </section>
@@ -188,6 +191,7 @@ function CourseTree({
   authorId: string | null;
   onChanged: () => void;
 }) {
+  const t = useT();
   const courseId = tree.course?.id;
   const [items, setItems] = useState<ItemView[]>([]);
   const [types, setTypes] = useState<TypeView[]>([]);
@@ -227,7 +231,11 @@ function CourseTree({
       params: { path: { courseId } },
       body: { publishedBy: authorId, notes: '' },
     });
-    setPublished(data?.version ? `Version ${data.version}` : 'Published');
+    setPublished(
+      data?.version
+        ? t('authoring.version', { version: data.version })
+        : t('authoring.published'),
+    );
     onChanged();
   }
 
@@ -248,14 +256,14 @@ function CourseTree({
             onClick={() => void publish()}
             disabled={authorId === null}
           >
-            Publish a version
+            {t('authoring.publish-version')}
           </button>
         </div>
       </div>
 
       {(tree.modules ?? []).length === 0 ? (
-        <Empty title="This course has no modules yet.">
-          <p className="u-meta">A module holds the ordered nodes a learner walks through.</p>
+        <Empty title={t('authoring.no-modules.title')}>
+          <p className="u-meta">{t('authoring.no-modules.body')}</p>
         </Empty>
       ) : null}
 
@@ -271,7 +279,7 @@ function CourseTree({
                   <span className="u-meta">
                     {' '}
                     {items.find((item) => item.id === node.contentItemId)?.type ?? ''}
-                    {node.required ? ' · required' : ' · optional'}
+                    {` · ${t(node.required ? 'authoring.required' : 'authoring.optional')}`}
                   </span>
                 </li>
               ))}
@@ -288,6 +296,7 @@ function CourseTree({
 }
 
 function AddModule({ onAdd }: { onAdd: (title: string) => void }) {
+  const t = useT();
   const [title, setTitle] = useState('');
   return (
     <form
@@ -301,23 +310,24 @@ function AddModule({ onAdd }: { onAdd: (title: string) => void }) {
       }}
     >
       <label className="u-caps" htmlFor="new-module">
-        Add a module
+        {t('authoring.add-module')}
       </label>
       <input
         id="new-module"
         className="input input-dense"
         value={title}
         onChange={(event) => setTitle(event.target.value)}
-        placeholder="Module 1 · Getting started"
+        placeholder={t('authoring.add-module.placeholder')}
       />
       <button type="submit" className="btn btn-secondary" disabled={!title.trim()}>
-        Add
+        {t('authoring.add')}
       </button>
     </form>
   );
 }
 
 function AddNode({ items, onAdd }: { items: ItemView[]; onAdd: (contentItemId: string) => void }) {
+  const t = useT();
   const [chosen, setChosen] = useState('');
   return (
     <form
@@ -331,7 +341,7 @@ function AddNode({ items, onAdd }: { items: ItemView[]; onAdd: (contentItemId: s
       }}
     >
       <label className="u-caps" htmlFor="add-node">
-        Add a node
+        {t('authoring.add-node')}
       </label>
       <select
         id="add-node"
@@ -339,7 +349,7 @@ function AddNode({ items, onAdd }: { items: ItemView[]; onAdd: (contentItemId: s
         value={chosen}
         onChange={(event) => setChosen(event.target.value)}
       >
-        <option value="">Choose content…</option>
+        <option value="">{t('authoring.choose-content')}</option>
         {items.map((item) => (
           <option key={item.id} value={item.id}>
             {item.title} ({item.type})
@@ -347,7 +357,7 @@ function AddNode({ items, onAdd }: { items: ItemView[]; onAdd: (contentItemId: s
         ))}
       </select>
       <button type="submit" className="btn btn-secondary" disabled={!chosen}>
-        Add
+        {t('authoring.add')}
       </button>
     </form>
   );
@@ -366,6 +376,7 @@ function NewContentItem({
   types: TypeView[];
   onCreated: (item: ItemView) => void;
 }) {
+  const t = useT();
   const [type, setType] = useState('');
   const [title, setTitle] = useState('');
   const [reference, setReference] = useState('');
@@ -399,9 +410,9 @@ function NewContentItem({
 
   return (
     <form className="panel new-content" onSubmit={(event) => void create(event)}>
-      <h3 className="u-caps">New content item</h3>
+      <h3 className="u-caps">{t('authoring.new-item')}</h3>
       <label className="u-caps" htmlFor="content-type">
-        Type
+        {t('authoring.type')}
       </label>
       <select
         id="content-type"
@@ -409,7 +420,7 @@ function NewContentItem({
         value={type}
         onChange={(event) => setType(event.target.value)}
       >
-        <option value="">Choose…</option>
+        <option value="">{t('authoring.choose')}</option>
         {types.map((one) => (
           <option key={one.code} value={one.code}>
             {one.displayName}
@@ -417,7 +428,7 @@ function NewContentItem({
         ))}
       </select>
       <label className="u-caps" htmlFor="content-title">
-        Title
+        {t('authoring.title')}
       </label>
       <input
         id="content-title"
@@ -428,23 +439,24 @@ function NewContentItem({
       {type ? (
         <>
           <label className="u-caps" htmlFor="content-reference">
-            {payloadKey[type] ?? 'reference'}
+            {/*
+             * A payload KEY, not a word: `assetId`, `testId`. It names the field the API expects,
+             * so it stays as it is written in the contract and only the fallback is translated.
+             */}
+            {payloadKey[type] ?? t('authoring.reference')}
           </label>
           <input
             id="content-reference"
             className="input input-dense"
             value={reference}
             onChange={(event) => setReference(event.target.value)}
-            placeholder="the id this item points at"
+            placeholder={t('authoring.reference.placeholder')}
           />
-          <p className="u-meta">
-            Content points at something rather than holding it: a video's bytes live in streaming, a
-            test lives in assessment.
-          </p>
+          <p className="u-meta">{t('authoring.points-at')}</p>
         </>
       ) : null}
       <button type="submit" className="btn btn-secondary" disabled={!type || !title.trim()}>
-        Create
+        {t('authoring.create')}
       </button>
     </form>
   );

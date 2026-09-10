@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router';
 import { assessment, failureFrom, type ApiFailure } from '../shared/api/client.ts';
 import type { components } from '../shared/api/assessment.d.ts';
 import { withSessionRecovery } from '../shared/auth/recovery.ts';
+import { formatNumber, formatPosition } from '../shared/i18n/format.ts';
+import { useLocale, useT } from '../shared/i18n/useLocale.ts';
 import { ErrorState, Loading } from '../shared/state/States.tsx';
 import { Question, type QuestionBody, type Response } from './Question.tsx';
 
@@ -39,6 +41,7 @@ type Screen =
   | { status: 'failed'; failure: ApiFailure };
 
 export function Sit() {
+  const { locale, t, plural } = useLocale();
   const { testId } = useParams();
   const navigate = useNavigate();
   const [screen, setScreen] = useState<Screen>({ status: 'loading' });
@@ -73,7 +76,7 @@ export function Sit() {
   useSignals(attemptId, disclosed);
 
   if (screen.status === 'loading') {
-    return <Loading what="your test" />;
+    return <Loading what="loading.test" />;
   }
   if (screen.status === 'failed') {
     return <ErrorState message={screen.failure.message} retry={start} />;
@@ -81,14 +84,14 @@ export function Sit() {
   if (screen.status === 'submitted') {
     return (
       <section className="sit sit__done panel">
-        <h1 className="u-display">Submitted</h1>
-        <p>Your answers are in. Nothing else is needed from you.</p>
+        <h1 className="u-display">{t('sit.submitted.title')}</h1>
+        <p>{t('sit.submitted.body')}</p>
         <button
           type="button"
           className="btn btn-primary"
           onClick={() => void navigate(`/review/${screen.attemptId}`)}
         >
-          See your result
+          {t('sit.see-result')}
         </button>
       </section>
     );
@@ -154,8 +157,14 @@ export function Sit() {
       <Clock key={attempt.attemptId} secondsRemaining={attempt.secondsRemaining} />
 
       <p className="sit__where u-meta">
-        Question {at + 1} of {items.length}
-        {unanswered > 0 ? ` · ${unanswered} not answered` : ' · all answered'}
+        {t('sit.where', {
+          position: formatNumber(locale, at + 1),
+          of: formatNumber(locale, items.length),
+        })}
+        {' · '}
+        {unanswered > 0
+          ? t('sit.not-answered', { count: formatNumber(locale, unanswered) })
+          : t('sit.all-answered')}
       </p>
 
       {item ? (
@@ -174,7 +183,7 @@ export function Sit() {
           onClick={() => setAt((was) => Math.max(0, was - 1))}
           disabled={at === 0}
         >
-          Back
+          {t('sit.back')}
         </button>
         {/*
          * Leaving it blank is a button, not an absence. The API treats an empty response as
@@ -191,7 +200,7 @@ export function Sit() {
             setAt((was) => Math.min(items.length - 1, was + 1));
           }}
         >
-          I don’t know — leave it blank
+          {t('answer.leave-blank')}
         </button>
         <button
           type="button"
@@ -199,18 +208,20 @@ export function Sit() {
           onClick={() => setAt((was) => Math.min(items.length - 1, was + 1))}
           disabled={at >= items.length - 1}
         >
-          Next
+          {t('sit.next')}
         </button>
       </div>
 
       <div className="sit__submit panel">
         <p>
           {unanswered === 0
-            ? 'Every question has an answer.'
-            : `${unanswered} of ${items.length} ${unanswered === 1 ? 'is' : 'are'} still blank. You can submit anyway.`}
+            ? t('sit.all-answered-note')
+            : plural('sit.blank-note', unanswered, {
+                of: formatNumber(locale, items.length),
+              })}
         </p>
         <button type="button" className="btn btn-primary" onClick={() => void submit()}>
-          Submit
+          {t('sit.submit')}
         </button>
       </div>
     </div>
@@ -230,6 +241,7 @@ function isEmpty(response: Response | undefined) {
  * schedule, and a browser deciding "time is up" would be a browser deciding an exam.
  */
 function Clock({ secondsRemaining }: { secondsRemaining: number | undefined }) {
+  const t = useT();
   const [left, setLeft] = useState(secondsRemaining);
 
   // Only the interval. The initial value comes from the prop through useState, and the component
@@ -246,13 +258,11 @@ function Clock({ secondsRemaining }: { secondsRemaining: number | undefined }) {
   }, [secondsRemaining]);
 
   if (left === undefined) {
-    return <p className="sit__clock u-caps">No time limit</p>;
+    return <p className="sit__clock u-caps">{t('sit.no-time-limit')}</p>;
   }
-  const minutes = Math.floor(left / 60);
-  const seconds = left % 60;
   return (
     <p className="sit__clock u-caps" role="timer" aria-live="off">
-      {left === 0 ? 'Time is up' : `${minutes}:${String(seconds).padStart(2, '0')} left`}
+      {left === 0 ? t('sit.time-up') : t('sit.time-left', { at: formatPosition(left) })}
     </p>
   );
 }
@@ -275,14 +285,20 @@ function Disclosure({
   onUnderstood: () => void;
   onLeave: () => void;
 }) {
+  const { locale, t, plural } = useLocale();
   return (
     <section className="sit__disclosure panel" aria-labelledby="disclosure">
       <h1 id="disclosure" className="u-display">
-        Before you start
+        {t('sit.disclosure.title')}
       </h1>
       {monitoring?.collects?.length ? (
         <>
-          <p>While you sit this test we record:</p>
+          {/*
+           * The list under this sentence is the SERVER's, generated from the same enum the
+           * recorder accepts (T-6.8) — so it arrives translated because the request carried
+           * `Accept-Language`, and a signal still cannot be collected without appearing here.
+           */}
+          <p>{t('sit.disclosure.we-record')}</p>
           <ul>
             {monitoring.collects.map((one) => (
               <li key={one}>{one}</li>
@@ -290,7 +306,7 @@ function Disclosure({
           </ul>
         </>
       ) : (
-        <p>Nothing about how you sit this test is recorded.</p>
+        <p>{t('sit.disclosure.nothing')}</p>
       )}
       {monitoring?.usedFor ? <p>{monitoring.usedFor}</p> : null}
       {monitoring?.neverUsedFor ? (
@@ -299,14 +315,18 @@ function Disclosure({
         </p>
       ) : null}
       {monitoring?.keptForDays ? (
-        <p className="u-meta">Kept for {monitoring.keptForDays} days, then deleted.</p>
+        <p className="u-meta">
+          {plural('sit.disclosure.kept', monitoring.keptForDays, {
+            count: formatNumber(locale, monitoring.keptForDays),
+          })}
+        </p>
       ) : null}
       <div className="sit__moves">
         <button type="button" className="btn btn-primary" onClick={onUnderstood}>
-          Start the test
+          {t('sit.disclosure.start')}
         </button>
         <button type="button" className="btn btn-ghost" onClick={onLeave}>
-          Not now
+          {t('sit.disclosure.not-now')}
         </button>
       </div>
     </section>

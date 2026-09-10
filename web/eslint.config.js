@@ -16,7 +16,48 @@ import tseslint from 'typescript-eslint';
  * because T-10.7 publishes it as a package a customer embeds — at which point an import reaching
  * back into a screen is not a tidiness problem, it is the extraction failing. Cheaper to hold
  * now, when there is nothing to untangle.
+ *
+ * The fourth is `noEnglishInComponents`, and it is the same idea applied to words: a product with
+ * two languages stays translated only if leaving a sentence behind is a build failure rather than
+ * something somebody notices in Turkish six screens later.
  */
+
+/**
+ * No sentences typed into a component (docs/design-prompt.md, "constraints that are already
+ * decided").
+ *
+ * <p>Two shapes catch nearly all of it. Text between tags is the obvious one. The other is the
+ * handful of attributes that are read aloud or shown on hover — `aria-label`, `title`, `alt`,
+ * `placeholder` — which are the ones that get left in English longest, because nobody sees them in
+ * a screenshot.
+ *
+ * <p><b>Three letters, not one.</b> `{'·'}`, `&nbsp;` and a lone `%` are punctuation between two
+ * translated values, not sentences, and a rule that flagged them would be turned off within a
+ * week.
+ *
+ * <p><b>`src/player/**` is exempt on purpose.</b> It ships as its own package to customers who
+ * embed it (T-10.7, ADR-0110), and it is told its language by the host page rather than by us — so
+ * its two sentences go through the catalogue by choice, and a rule enforcing our i18n on a
+ * separately published artifact would be enforcing the wrong boundary.
+ */
+const noEnglishInComponents = {
+  'no-restricted-syntax': ['error',
+    {
+      selector: 'JSXText[value=/[A-Za-z]{3,}/]',
+      message:
+        'User-facing text belongs in src/shared/i18n/messages.en.ts, with its Turkish beside ' +
+        'it. Use {t("some.key")}. A sentence typed here is a sentence that ships untranslated.',
+    },
+    {
+      selector:
+        'JSXAttribute[name.name=/^(aria-label|alt|title|placeholder)$/] > Literal[value=/[A-Za-z]{3,}/]',
+      message:
+        'This attribute is read aloud or shown on hover, so it is user-facing text: put it in ' +
+        'src/shared/i18n/messages.en.ts and pass t("some.key"). These are the strings that ' +
+        'stay English longest, because they never appear in a screenshot.',
+    },
+  ],
+};
 export default tseslint.config(
   {
     ignores: [
@@ -63,6 +104,21 @@ export default tseslint.config(
         URLSearchParams: 'readonly', document: 'readonly',
       },
     },
+  },
+
+  {
+    // Everything a person reads, minus the player. Test files are excluded below: a test asserting
+    // on `en['home.due']` is the point, but one arranging a fixture course called "Fire safety"
+    // is not translating anything.
+    files: [
+      'src/app/**/*.tsx',
+      'src/learner/**/*.tsx',
+      'src/admin/**/*.tsx',
+      'src/shared/design/**/*.tsx',
+      'src/shared/state/**/*.tsx',
+    ],
+    ignores: ['**/*.test.tsx'],
+    rules: noEnglishInComponents,
   },
 
   {

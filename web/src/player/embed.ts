@@ -50,11 +50,25 @@ export type EmbedOptions = {
   origin: string;
   nodeId: string;
   title: string;
+  /**
+   * The language the player should speak, as a BCP-47 tag.
+   *
+   * <p>Optional, and the fallback is the VIEWER's browser rather than ours. A host that knows
+   * what language its page is in should say so; one that does not should not have a Turkish
+   * player appear in an English page because of a setting on our side.
+   */
+  language?: string;
 };
 
 let channels = 0;
 
-export function embedPlayer({ into, origin, nodeId, title }: EmbedOptions): EmbeddedPlayerHandle {
+export function embedPlayer({
+  into,
+  origin,
+  nodeId,
+  title,
+  language,
+}: EmbedOptions): EmbeddedPlayerHandle {
   // Unique per embed: two players on one page are the same origin as each other, so origin
   // checking alone cannot tell their messages apart.
   const channel = `xol-player-${++channels}`;
@@ -65,6 +79,9 @@ export function embedPlayer({ into, origin, nodeId, title }: EmbedOptions): Embe
   source.searchParams.set('node', nodeId);
   source.searchParams.set('channel', channel);
   source.searchParams.set('title', title);
+  if (language) {
+    source.searchParams.set('lang', language);
+  }
   frame.src = source.toString();
   frame.title = title;
   // Named individually rather than borrowed from the host: without this the fullscreen button

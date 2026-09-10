@@ -1,4 +1,6 @@
 import { useState, type ReactNode } from 'react';
+import type { MessageKey } from '../shared/i18n/messages.en.ts';
+import { useT } from '../shared/i18n/useLocale.ts';
 
 /**
  * The item shell — one screen for every content type (T-10.3).
@@ -13,11 +15,18 @@ import { useState, type ReactNode } from 'react';
  */
 export type ContentType = 'video' | 'scorm' | 'slides' | 'test';
 
-const typeNames: Record<ContentType, string> = {
-  video: 'Video',
-  scorm: 'SCORM',
-  slides: 'Slides',
-  test: 'Test',
+/**
+ * What each content type is called, as a key rather than a word.
+ *
+ * <p>Two of the four are the same in both languages — "Video" and the acronym "SCORM" — and that is
+ * exactly why they go through the catalogue anyway. A list where some entries are translated and
+ * some are literals is one where the next person cannot tell which kind they are adding.
+ */
+const typeNames: Record<ContentType, MessageKey> = {
+  video: 'item.type.video',
+  scorm: 'item.type.scorm',
+  slides: 'item.type.slides',
+  test: 'item.type.test',
 };
 
 export function ItemShell({
@@ -37,23 +46,29 @@ export function ItemShell({
   onBack?: () => void;
   children: ReactNode;
 }) {
+  const t = useT();
   return (
     <div className="item">
       <div className="item__crumb">
         <button type="button" className="btn btn-ghost btn-dense" onClick={onBack}>
-          <span aria-hidden="true">←</span> Back
+          <span aria-hidden="true">←</span> {t('item.back')}
         </button>
         <span className="u-meta">
-          {courseTitle} · {moduleTitle} · {position} of {of}
+          {courseTitle} · {moduleTitle} · {t('item.position', { position, of })}
         </span>
       </div>
-      <p className="item__types" aria-label={`This item is a ${typeNames[type].toLowerCase()}`}>
+      {/*
+       * The type is named through the catalogue rather than lower-cased from the label. English
+       * makes that look like the same thing; Turkish does not have a lower-case `I` that survives
+       * `toLowerCase()` in every locale, and this is the exact shape of the classic Turkish-I bug.
+       */}
+      <p className="item__types" aria-label={t('item.is-a', { type: t(typeNames[type]) })}>
         {(Object.keys(typeNames) as ContentType[]).map((name) => (
           <span key={name} className={name === type ? 'item__type item__type--on' : 'item__type'}>
-            {typeNames[name]}
+            {t(typeNames[name])}
           </span>
         ))}
-        <span className="item__type item__type--note">one shell</span>
+        <span className="item__type item__type--note">{t('item.one-shell')}</span>
       </p>
       {children}
     </div>
@@ -91,12 +106,13 @@ export function Interstitial({
   onAnswer: (chosen: string) => void;
   onSkip: () => void;
 }) {
+  const t = useT();
   const [chosen, setChosen] = useState<string | null>(null);
 
   return (
     <section className="interstitial" aria-labelledby="interstitial-q">
       <p className="interstitial__bar">
-        <span className="u-caps">Question in the video · 1 of 1</span>
+        <span className="u-caps">{t('interstitial.bar')}</span>
         <span className="u-caps">{atSecond}</span>
       </p>
       <div className="interstitial__body">
@@ -123,20 +139,17 @@ export function Interstitial({
           </div>
         </fieldset>
         <div className="interstitial__foot">
-          <p className="u-meta">
-            Answer to carry on. The video resumes at {atSecond} — your place is held on the server,
-            not in this tab.
-          </p>
+          <p className="u-meta">{t('interstitial.foot', { at: atSecond })}</p>
           <button
             type="button"
             className="btn btn-primary btn-block"
             disabled={chosen === null}
             onClick={() => chosen && onAnswer(chosen)}
           >
-            Answer and continue
+            {t('interstitial.answer')}
           </button>
           <button type="button" className="btn btn-ghost" onClick={onSkip}>
-            I don’t know — leave it blank
+            {t('answer.leave-blank')}
           </button>
         </div>
       </div>

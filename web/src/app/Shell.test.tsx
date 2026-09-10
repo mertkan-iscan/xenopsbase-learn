@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../test/axe.ts';
 import { rememberTheAttempt, rememberTheSignOut } from '../shared/auth/arrival.ts';
 import { parkWork } from '../shared/auth/recovery.ts';
+import { en } from '../shared/i18n/messages.en.ts';
 import { Shell } from './Shell.tsx';
 
 /**
@@ -53,7 +54,7 @@ describe('the application shell', () => {
     // The session is asked for on mount, and until it answers the shell shows neither the screen
     // nor a sign-in prompt -- flashing "you are signed out" at somebody who is signed in is worse
     // than a moment of nothing.
-    await screen.findByRole('navigation', { name: 'Main' });
+    await screen.findByRole('navigation', { name: en['shell.nav'] });
     return rendered;
   }
 
@@ -61,18 +62,18 @@ describe('the application shell', () => {
     const { container } = await renderShellAndWait();
 
     expect(screen.getByRole('main')).toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: 'Main' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: en['shell.nav'] })).toBeInTheDocument();
     await expectNoAxeViolations(container);
   });
 
   it('offers the skip link before the navigation, which is the only place it helps', async () => {
     await renderShellAndWait();
 
-    const skip = screen.getByRole('link', { name: 'Skip to content' });
+    const skip = screen.getByRole('link', { name: en['shell.skip'] });
     // The learner's navigation is the tab bar at the bottom of the screen now (T-10.3). Where it
     // sits visually is a design decision; where it sits in the DOM is this assertion, and the two
     // are allowed to differ only in the direction that keeps the skip link first in the tab order.
-    const firstNavLink = screen.getByRole('link', { name: 'Training' });
+    const firstNavLink = screen.getByRole('link', { name: en['shell.tab.training'] });
 
     // Node.compareDocumentPosition: FOLLOWING means the nav link comes after the skip link, which
     // is what makes the skip link usable by somebody tabbing through.
@@ -85,7 +86,7 @@ describe('the application shell', () => {
     renderShell();
 
     expect(await screen.findByText('A screen')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: en['shell.sign-out'] })).toBeInTheDocument();
   });
 
   it('sends a first visitor to the sign-in page rather than a panel about it', async () => {
@@ -96,7 +97,9 @@ describe('the application shell', () => {
     // already know and make them click the only button on it.
     await vi.waitFor(() => expect(assign).toHaveBeenCalledWith('/in'));
     expect(screen.queryByText('A screen')).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'You are signed out' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: en['signed-out.deliberate.title'] }),
+    ).not.toBeInTheDocument();
   });
 
   it('explains rather than redirecting when a session ended over somebody’s work', async () => {
@@ -106,7 +109,9 @@ describe('the application shell', () => {
     signedIn(false);
     const { container } = renderShell();
 
-    expect(await screen.findByRole('heading', { name: 'Your work is saved' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: en['signed-out.parked.title'] }),
+    ).toBeInTheDocument();
     expect(screen.getByText(/Nothing was lost/)).toBeInTheDocument();
     // And it did NOT navigate away from the screen saying so.
     expect(assign).not.toHaveBeenCalled();
@@ -118,7 +123,9 @@ describe('the application shell', () => {
     signedIn(false);
     const { container } = renderShell();
 
-    expect(await screen.findByRole('heading', { name: 'You are signed out' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: en['signed-out.deliberate.title'] }),
+    ).toBeInTheDocument();
     expect(screen.getByText(/Sign in again whenever you need to/)).toBeInTheDocument();
     // The whole point: it did not bounce to the issuer, where an SSO session that has not gone
     // would have signed them straight back in.
@@ -131,7 +138,9 @@ describe('the application shell', () => {
     signedIn(false);
     const { container } = renderShell();
 
-    expect(await screen.findByRole('heading', { name: 'You are signed out' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: en['signed-out.deliberate.title'] }),
+    ).toBeInTheDocument();
     expect(screen.getByText(/Signing in did not complete/)).toBeInTheDocument();
     expect(assign).not.toHaveBeenCalled();
     await expectNoAxeViolations(container);

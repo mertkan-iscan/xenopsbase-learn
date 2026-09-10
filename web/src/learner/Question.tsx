@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import type { MessageKey } from '../shared/i18n/messages.en.ts';
+import { useT } from '../shared/i18n/useLocale.ts';
 
 /**
  * One question, rendered from the body the server served (T-6.3).
@@ -38,6 +40,7 @@ export function Question({
   answer: Response | undefined;
   onAnswer: (response: Response) => void;
 }) {
+  const t = useT();
   const type = body.type ?? 'unknown';
   const stem = body.stem ?? '';
 
@@ -54,7 +57,7 @@ export function Question({
       case 'true-false':
         return (
           <Choices
-            choices={ordered('choices', choicesOf(body, type))}
+            choices={ordered('choices', choicesOf(body, type, t))}
             chosen={(answer?.chosen as string[]) ?? []}
             multiple={false}
             onChange={(chosen) => onAnswer({ chosen })}
@@ -63,7 +66,7 @@ export function Question({
       case 'multiple-choice':
         return (
           <Choices
-            choices={ordered('choices', choicesOf(body, type))}
+            choices={ordered('choices', choicesOf(body, type, t))}
             chosen={(answer?.chosen as string[]) ?? []}
             multiple
             onChange={(chosen) => onAnswer({ chosen })}
@@ -72,7 +75,7 @@ export function Question({
       case 'numeric':
         return (
           <Free
-            label="Your answer"
+            label={t('question.your-answer')}
             value={answer?.value === undefined ? '' : String(answer.value)}
             inputMode="decimal"
             onChange={(raw) =>
@@ -83,7 +86,7 @@ export function Question({
       case 'essay':
         return (
           <Free
-            label="Your answer"
+            label={t('question.your-answer')}
             value={(answer?.text as string) ?? ''}
             long
             onChange={(text) => onAnswer(text.trim() === '' ? {} : { text })}
@@ -110,8 +113,7 @@ export function Question({
         // Saying so beats a control that looks answerable and submits nothing.
         return (
           <p className="question__unsupported" role="note">
-            This question is a <code>{type}</code>, which this screen cannot show yet. Leave it and
-            tell whoever set the test.
+            {t('question.unsupported', { type })}
           </p>
         );
     }
@@ -130,11 +132,15 @@ export function Question({
 }
 
 /** true-false has no choices in the body: they are ours, and they are the same two every time. */
-function choicesOf(body: QuestionBody, type: string): Choice[] {
+function choicesOf(
+  body: QuestionBody,
+  type: string,
+  t: (key: MessageKey) => string,
+): Choice[] {
   if (type === 'true-false') {
     return [
-      { id: 'true', text: 'True' },
-      { id: 'false', text: 'False' },
+      { id: 'true', text: t('question.true') },
+      { id: 'false', text: t('question.false') },
     ];
   }
   return (body.options?.choices as Choice[]) ?? [];
@@ -276,6 +282,7 @@ function Ordering({
   order: string[];
   onChange: (order: string[]) => void;
 }) {
+  const t = useT();
   const current = order.length ? order : items.map((item) => item.id ?? '');
 
   function move(index: number, by: number) {
@@ -299,7 +306,9 @@ function Ordering({
               className="btn btn-secondary btn-dense"
               onClick={() => move(index, -1)}
               disabled={index === 0}
-              aria-label={`Move ${items.find((item) => item.id === id)?.text ?? id} earlier`}
+              aria-label={t('question.move-earlier', {
+                item: items.find((item) => item.id === id)?.text ?? id,
+              })}
             >
               ↑
             </button>
@@ -308,7 +317,9 @@ function Ordering({
               className="btn btn-secondary btn-dense"
               onClick={() => move(index, 1)}
               disabled={index === current.length - 1}
-              aria-label={`Move ${items.find((item) => item.id === id)?.text ?? id} later`}
+              aria-label={t('question.move-later', {
+                item: items.find((item) => item.id === id)?.text ?? id,
+              })}
             >
               ↓
             </button>
