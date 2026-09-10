@@ -58,7 +58,27 @@ images:
     # consumes on the bus: streaming's derived completions and assessment's
     # graded attempts become node_completion rows here, which is what lets a
     # gate be ONE query against catalog's own table.
-    digest: sha256:2a910ab7894478affb0a239ba750d9d6e53181a9db9e9c0cb8177d7b3772fcd5
+    #
+    # 2026-09-10 — MOVED TO 7f4ad4f, AND THE IMAGE ABOVE NEVER STARTED. It
+    # crash-looped on this cluster with
+    #
+    #     Could not subscribe catalog-attemptgradedhandler to
+    #     assessment.attempt.graded
+    #     [SUB-90007] No matching streams for subject
+    #
+    # because `Streams.TOPOLOGY` declared identity, catalog, streaming and
+    # reporting and assessment was never added to it (#146). The stream did not
+    # exist on the broker; checked there rather than inferred.
+    #
+    # This service was the one that failed and the one that was right to. A
+    # subscriber gets an error for a missing stream; a publisher does not, which
+    # is why the fault surfaced here rather than in the service that had the
+    # bug.
+    #
+    # The digest is byte-identical to the one 9c78041 published, because #147
+    # touched only assessment's configuration and this module's inputs did not
+    # move.
+    digest: sha256:452d7a5c945176222e20c8210cdaed93693d119ab1b36d1e095a6f9dc8b43ec4
   - name: ghcr.io/mertkan-iscan/xenopsbase-learn/assessment
     # Commit 2f93663, and the first one.
     #
@@ -67,7 +87,37 @@ images:
     # assessment.attempt.graded, which is how a passed test opens the gate
     # behind it -- without which a learner can pass a certification exam and
     # stay locked out of the course, with nothing reporting a fault.
-    digest: sha256:eeb44b47d5f691eb3d8477f72a0c45b95114c943c3f7259875f7df91d450005b
+    #
+    # 2026-09-10 — MOVED TO 7f4ad4f, and the image above was the more dangerous
+    # of the two. It ran. It reported healthy for fifteen minutes. It was not
+    # connected to the bus at all.
+    #
+    # `platform.outbox.enabled: true` was set and `platform.messaging` was
+    # absent, so MessagingConfiguration wired RecordingPublisher -- which
+    # records a message and delivers it nowhere (#147). NATS_URL was on the pod
+    # the whole time, with a comment in the manifest explaining why this service
+    # needs it. Nothing read it, because nothing here mapped it.
+    #
+    # So the sentence in the note above was false for the life of that image: a
+    # learner COULD pass a certification exam and stay locked out of the course
+    # behind it, with nothing reporting a fault. That is what the deploy found.
+    #
+    # Both halves are now checked before a merge -- StreamsTest for the stream,
+    # scripts/verify_messaging.py for the wiring -- and both were confirmed to
+    # fail with their fix removed.
+    digest: sha256:71c2f068b65cbd292093e92373f45ee7124e47834b2208f5e0a359360971dbf9
+  # GATEWAY, STREAMING, IDENTITY AND REPORTING STAY AT 2f93663, one commit
+  # behind the three above.
+  #
+  # They embed the same platform-common, so their images do differ -- but the
+  # only change in it is a stream declaration none of them subscribes to, and
+  # `Streams.apply` adds and updates without ever deleting. An old pod
+  # restarting therefore cannot remove the assessment stream the new ones
+  # create, which is the property that makes leaving them here safe rather than
+  # merely convenient.
+  #
+  # Moving seven images to fix two is a larger blast radius than the fault
+  # justifies. They move on their own next deploy.
   - name: ghcr.io/mertkan-iscan/xenopsbase-learn/gateway
     # Commit d04d4b6, and the first image this service has ever had (T-10.2).
     #
@@ -111,7 +161,25 @@ images:
     # built and signed by the `publish frontend image` job with the same cosign
     # identity, because this namespace's ClusterImagePolicy covers the whole
     # registry path and would refuse an unsigned one.
-    digest: sha256:80be1c8cfc3cfe8bbb5c6d836cc84da59e66325ead1863bf9be611a7eb65981b
+    #
+    # 2026-09-10 — MOVED TO 7f4ad4f: the design system and the screens it was
+    # built to serve (#145). Until now this image served a page with visible
+    # focus, landmarks and a skip link and no design at all, which is what
+    # docs/frontend.md meant by a design system arriving "with the screens it
+    # has to serve".
+    #
+    # Home and the review screen read real endpoints; the console's three
+    # screens carry fixtures and each says in its own file what has to exist
+    # before it goes live. The eight semantic states are a closed union, and
+    # `awaiting grading` is drawn as its own unresolved state rather than a
+    # greyed-out fail -- which is the rendering mistake that would lock a
+    # learner out of a course they had passed.
+    #
+    # It lands in the same commit as the two fixes above deliberately: this
+    # image's home screen calls catalog's /api/v1/me/home, and shipping it
+    # against a crash-looping catalog would have put the design on the cluster
+    # as an error state.
+    digest: sha256:34fc931e03c9362c4b49d03ae525616d10ec67cf5266efd966c56ee177589b0f
   - name: ghcr.io/mertkan-iscan/xenopsbase-learn/identity
     # Commit 0747e6c — the first images this repository has ever published
     # (T-9.3, #11). Carries everything through T-3.6: the tenant boundary and
