@@ -64,7 +64,17 @@
   /* Ink. `muted` and `subtle` are both held above 4.5:1 on `--surface` AND on `--ground`. */
   --ink: #0f172a;
   --ink-muted: #4d5c74;
-  --ink-subtle: #64748b;
+  /*
+   * 4.55:1 ON WHITE, WHICH IS THE WHOLE REASON FOR THE ODD VALUE. This was `#64748b` (slate-500),
+   * a perfectly ordinary choice that measures 4.41:1 -- under the 4.5 floor for text below
+   * 18.66px. It is the colour of `label-caps`, which is 11px and bold, so the miss applied to
+   * every section heading, every table header and every field label in the product at once.
+   *
+   * The suite cannot catch this: `vitest` runs with `css: false` and jsdom has no layout, so axe
+   * measures no contrast at all. Found by compositing the rendered colours in a browser, which is
+   * the only place this is checkable.
+   */
+  --ink-subtle: #5a6a7f;
   --ink-inverse: #ffffff;
 
   --hairline: rgb(15 23 42 / 0.09);
@@ -146,9 +156,18 @@
     --hairline: rgb(255 255 255 / 0.10);
     --hairline-strong: rgb(255 255 255 / 0.20);
 
-    --brand: #6366f1;
-    --brand-hover: #818cf8;
-    --brand-active: #a5b4fc;
+    /*
+     * INDIGO-400, NOT INDIGO-500, AND THAT IS A CONTRAST FIX RATHER THAN A PREFERENCE. `#6366f1`
+     * measured 4.42:1 against this ground and 3.5:1 inside `--brand-tint` -- both under the 4.5
+     * small-text floor, and both invisible to the test suite, which cannot measure contrast at all
+     * (jsdom has no layout). Found by compositing the real rendered colours in a browser.
+     *
+     * The filled button stays legible because `--brand-on` below is dark ink rather than white: a
+     * lighter brand makes that pair better, not worse.
+     */
+    --brand: #818cf8;
+    --brand-hover: #a5b4fc;
+    --brand-active: #c7d2fe;
     --brand-tint: rgb(99 102 241 / 0.16);
     --brand-tint-edge: rgb(129 140 248 / 0.34);
     --brand-on: #0b1120;
@@ -214,9 +233,18 @@
   --hairline: rgb(255 255 255 / 0.10);
   --hairline-strong: rgb(255 255 255 / 0.20);
 
-  --brand: #6366f1;
-  --brand-hover: #818cf8;
-  --brand-active: #a5b4fc;
+  /*
+   * INDIGO-400, NOT INDIGO-500, AND THAT IS A CONTRAST FIX RATHER THAN A PREFERENCE. `#6366f1`
+   * measured 4.42:1 against this ground and 3.5:1 inside `--brand-tint` -- both under the 4.5
+   * small-text floor, and both invisible to the test suite, which cannot measure contrast at all
+   * (jsdom has no layout). Found by compositing the real rendered colours in a browser.
+   *
+   * The filled button stays legible because `--brand-on` below is dark ink rather than white: a
+   * lighter brand makes that pair better, not worse.
+   */
+  --brand: #818cf8;
+  --brand-hover: #a5b4fc;
+  --brand-active: #c7d2fe;
   --brand-tint: rgb(99 102 241 / 0.16);
   --brand-tint-edge: rgb(129 140 248 / 0.34);
   --brand-on: #0b1120;

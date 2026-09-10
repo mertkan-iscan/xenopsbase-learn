@@ -11,6 +11,7 @@ import { adoptServerLocale } from '../shared/i18n/locale.ts';
 import { localeFrom } from '../shared/i18n/locales.ts';
 import type { MessageKey } from '../shared/i18n/messages.en.ts';
 import { useLocale, useT } from '../shared/i18n/useLocale.ts';
+import { forgetHome } from '../learner/useHome.ts';
 import { Loading } from '../shared/state/States.tsx';
 import type { ShellContext } from './shellContext.ts';
 import { Sidebar } from './Sidebar.tsx';
@@ -228,7 +229,12 @@ export function Shell() {
                   voice="ghost"
                   size="sm"
                   aria-label={t('shell.sign-out')}
-                  onClick={() => void signOut()}
+                  onClick={() => {
+                    // Dropped BEFORE the request, not after: `signOut` navigates, and anything
+                    // sequenced after it is not guaranteed to run.
+                    forgetHome();
+                    void signOut();
+                  }}
                   className="px-2"
                 >
                   <LogOut aria-hidden="true" className="size-4" />

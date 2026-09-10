@@ -102,7 +102,6 @@ export const tr: Record<MessageKey, string> = {
   'state.published': 'Yayında',
 
   // ------------------------------------------------------------------------------------ home
-  'home.title': 'Eğitimleriniz',
   'home.welcome': 'Tekrar hoş geldiniz',
   'home.welcome.named': 'Tekrar hoş geldiniz, {name}',
   'home.continue': 'Öğrenmeye devam edin',
@@ -136,7 +135,6 @@ export const tr: Record<MessageKey, string> = {
   'discover.open': 'Aç',
   'discover.nothing-open': 'Bu eğitimde henüz açık bir bölüm yok',
   'home.due': 'Bekleyen',
-  'home.in-progress': 'Devam eden',
   'home.next': 'Sırada',
   'home.courses': 'Kurslarınız',
   'home.start': 'Başla',
@@ -150,7 +148,6 @@ export const tr: Record<MessageKey, string> = {
   'home.empty.body': 'Yöneticiniz bir eğitim atadığında burada görünür. Bugün yapılacak bir şey yok.',
   'home.locked.fallback-title': 'Sıradaki adım',
   'home.locked.fallback-reason': 'Bir önceki adım tamamlandığında açılır.',
-  'home.summary': '{assigned} atandı · {completed} tamamlandı · {overdue} gecikti',
 
   // -------------------------------------------------------------------------------- progress
   'progress.title': 'İlerlemeniz',
@@ -202,7 +199,6 @@ export const tr: Record<MessageKey, string> = {
   'item.type.scorm': 'SCORM',
   'item.type.slides': 'Slaytlar',
   'item.type.test': 'Sınav',
-  'item.one-shell': 'tek kabuk',
   'item.type.cmi5': 'cmi5',
   'item.type.unknown': 'Bölüm',
   'item.tabs': 'Bu bölüm',
@@ -233,7 +229,6 @@ export const tr: Record<MessageKey, string> = {
 
   // ----------------------------------------------------------------------------------- watch
   'watch.no-node': 'Adreste bir video belirtilmemiş.',
-  'watch.pinned-title': 'Bu videodaki sorular',
   'watch.frontier': 'Video {at} konumuna kadar oynar ve soru için orada bekler.',
   'watch.blocking': 'devam etmek için bunu cevaplamalısınız',
 

@@ -102,7 +102,6 @@ export const en = {
   'state.published': 'Published',
 
   // ------------------------------------------------------------------------------------ home
-  'home.title': 'Your training',
   'home.welcome': 'Welcome back',
   'home.welcome.named': 'Welcome back, {name}',
   'home.continue': 'Continue learning',
@@ -136,7 +135,6 @@ export const en = {
   'discover.open': 'Open',
   'discover.nothing-open': 'Nothing in this course is open yet',
   'home.due': 'Due',
-  'home.in-progress': 'In progress',
   'home.next': 'Next',
   'home.courses': 'Your courses',
   'home.start': 'Start',
@@ -150,7 +148,6 @@ export const en = {
   'home.empty.body': 'When your manager assigns training it appears here. Nothing to do today.',
   'home.locked.fallback-title': 'The next item',
   'home.locked.fallback-reason': 'It unlocks when the item before it is finished.',
-  'home.summary': '{assigned} assigned · {completed} completed · {overdue} overdue',
 
   // -------------------------------------------------------------------------------- progress
   'progress.title': 'Your progress',
@@ -204,7 +201,6 @@ export const en = {
   'item.type.scorm': 'SCORM',
   'item.type.slides': 'Slides',
   'item.type.test': 'Test',
-  'item.one-shell': 'one shell',
   'item.type.cmi5': 'cmi5',
   'item.type.unknown': 'Item',
   'item.tabs': 'This item',
@@ -237,7 +233,6 @@ export const en = {
 
   // ----------------------------------------------------------------------------------- watch
   'watch.no-node': 'No video was named in the address.',
-  'watch.pinned-title': 'Questions in this video',
   'watch.frontier': 'The video plays to {at} and waits there for the question.',
   'watch.blocking': 'you must answer this to carry on',
 
