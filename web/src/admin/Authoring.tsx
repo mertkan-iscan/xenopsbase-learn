@@ -1,207 +1,451 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { catalog, failureFrom, type ApiFailure } from '../shared/api/client.ts';
+import type { components } from '../shared/api/catalog.d.ts';
+import { useMe } from '../shared/auth/useMe.ts';
 import { StateChip } from '../shared/design/State.tsx';
+import { Empty, ErrorState, Loading } from '../shared/state/States.tsx';
+import { NotEnforcedYet } from './NotEnforcedYet.tsx';
+
+type CourseView = components['schemas']['CourseView'];
+type TreeView = components['schemas']['TreeView'];
+type TypeView = components['schemas']['TypeView'];
+type ItemView = components['schemas']['ItemView'];
 
 /**
- * Authoring — a test in the order, or pinned to a second (T-10.5, T-5.4).
+ * Authoring — courses, modules, nodes, gates and publishing, against the real API (T-10.5).
  *
- * <p>The interaction that carries the product. A test can sit between two nodes or be pinned
- * inside a video; underneath they are ONE MODEL, and this screen is where that either becomes
- * obvious or becomes two confusing features. The order list on the left shows the pinned test as
- * an indented child of the video it lives in, so the relationship is visible without a second
- * screen explaining it.
+ * <p>What this screen can and cannot offer is decided by catalog, not by the design, and the
+ * difference is worth stating where somebody will look for the missing button:
  *
- * <p><b>There is no field to type a second into.</b> The marker is dragged, or nudged with the
- * arrow keys, against a frame that updates — because a number typed into a box is a number nobody
- * checked against the video, and the first person to check is a learner interrupted mid-sentence.
- * Keyboard operation is not the fallback here; it is the precise one.
+ * <ul>
+ *   <li><b>Nothing can be removed.</b> There is no `DELETE` for a course, a module or a node.
+ *       A course tree only grows. Content items archive through their state instead.
+ *   <li><b>Nothing can be renamed</b> after it is created, except a content item.
+ *   <li><b>Ordering is fractional.</b> `ordinal` is a string and a move is expressed as
+ *       "after this one", which is why reordering is two buttons rather than a drag index.
+ * </ul>
  *
- * <p>NO AUTHORING ENDPOINT YET (T-10.5 is open). The content below is a fixture. What is real is
- * the arithmetic: `asks > matches` is the check that has to happen before a save, and it is
- * written here rather than waited for.
+ * <p>So the screen offers exactly what the API honours. A button that reported success and changed
+ * nothing would be worse than its absence.
  */
-const DURATION = 18 * 60 + 40;
-
-function clock(seconds: number) {
-  return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
-}
+type Screen =
+  | { status: 'loading' }
+  | { status: 'ready'; courses: CourseView[] }
+  | { status: 'failed'; failure: ApiFailure };
 
 export function Authoring() {
-  const [pinned, setPinned] = useState(6 * 60 + 12);
+  const [screen, setScreen] = useState<Screen>({ status: 'loading' });
+  const [open, setOpen] = useState<TreeView | null>(null);
+  const who = useMe(true);
 
-  // Arrow keys move a second at a time; with shift, ten. A marker that can only be dragged is a
-  // marker that cannot be placed exactly, and "exactly" is the entire feature.
-  function nudge(event: React.KeyboardEvent<HTMLDivElement>) {
-    const step = event.shiftKey ? 10 : 1;
-    if (event.key === 'ArrowLeft') {
-      event.preventDefault();
-      setPinned((at) => Math.max(0, at - step));
-    }
-    if (event.key === 'ArrowRight') {
-      event.preventDefault();
-      setPinned((at) => Math.min(DURATION, at + step));
+  const load = useCallback(() => {
+    catalog
+      .GET('/api/v1/courses')
+      .then(({ data, response, error }) => {
+        setScreen(
+          data
+            ? { status: 'ready', courses: data }
+            : { status: 'failed', failure: failureFrom(response, error) },
+        );
+      })
+      .catch((unreachable: unknown) => {
+        setScreen({ status: 'failed', failure: failureFrom(undefined, unreachable) });
+      });
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function createCourse(title: string, description: string) {
+    const { data } = await catalog.POST('/api/v1/courses', { body: { title, description } });
+    if (data) {
+      load();
+      void openCourse(data.id as string);
     }
   }
 
-  const asks = 20;
-  const matches = 12;
+  // Not memoised: it is nobody's effect dependency, and wrapping an async body in useCallback is
+  // what the compiler's memoization check objects to.
+  async function openCourse(courseId: string) {
+    const { data } = await catalog.GET('/api/v1/courses/{courseId}', {
+      params: { path: { courseId } },
+    });
+    setOpen(data ?? null);
+  }
+
+  if (screen.status === 'loading') {
+    return <Loading what="your courses" />;
+  }
+  if (screen.status === 'failed') {
+    return <ErrorState message={screen.failure.message} retry={load} />;
+  }
 
   return (
-    <div className="authoring panel">
-      <div className="authoring__head">
-        <div className="authoring__title">
-          {/* Both states, always, so nobody edits a live course by accident. */}
-          <StateChip state="draft" />
-          <span className="authoring__course">Data Protection 2026 · Module 2</span>
-          <span className="u-meta">Published version 4 is what learners have now</span>
-        </div>
-        <div className="authoring__actions">
-          <button type="button" className="btn btn-secondary">
-            Preview as learner
-          </button>
-          <button type="button" className="btn btn-primary">
-            Publish version 5
-          </button>
-        </div>
-      </div>
-
-      <div className="authoring__split">
-        <section className="authoring__order" aria-labelledby="order">
-          <h2 id="order" className="u-caps">
-            Order
-          </h2>
-          <ol className="panel authoring__nodes">
-            <li className="node">
-              1 · Welcome <span className="u-meta">slides</span>
-            </li>
-            <li className="node node--on">
-              2 · Lawful bases <span className="node__meta">video · 18:40</span>
-            </li>
-            <li className="node node--pinned">↳ pinned at {clock(pinned)} · 1 question</li>
-            <li className="node">
-              3 · Handling data <span className="u-meta">test · in the order</span>
-            </li>
-            <li className="node">
-              4 · Wrap-up <span className="u-meta">SCORM</span>
-            </li>
-          </ol>
-          <p className="u-meta">
-            Both tests above are the same object. One sits between nodes; one is pinned to a
-            second. Drag either into the other place.
-          </p>
-        </section>
-
-        <section className="authoring__timeline" aria-labelledby="timeline">
-          <h2 id="timeline" className="u-caps">
-            Timeline
-          </h2>
-          <div className="authoring__frame">
-            <div className="authoring__still">Frame at {clock(pinned)}</div>
-            <div className="authoring__playhead">
-              <span className="u-caps">Playhead</span>
-              <p className="u-display authoring__at">{clock(pinned)}</p>
-              <p className="u-meta">
-                Drag the marker or nudge with ← →. There is no field to type a number into.
-              </p>
-            </div>
-          </div>
-
-          {/*
-           * A slider in the accessibility tree, whatever it looks like. `aria-valuetext` is what
-           * makes it usable: without it a screen reader reads "372", and nobody places a question
-           * at three hundred and seventy-two.
-           */}
-          <div
-            className="track"
-            role="slider"
-            tabIndex={0}
-            aria-label="Position of the pinned question"
-            aria-valuemin={0}
-            aria-valuemax={DURATION}
-            aria-valuenow={pinned}
-            aria-valuetext={`${clock(pinned)} of ${clock(DURATION)}`}
-            onKeyDown={nudge}
-          >
-            <span className="track__played" style={{ width: `${(pinned / DURATION) * 100}%` }} />
-            <span className="track__marker" style={{ left: `${(pinned / DURATION) * 100}%` }}>
-              <span className="track__flag">{clock(pinned)}</span>
-            </span>
-            <span className="track__other" style={{ left: `${((13 * 60 + 15) / DURATION) * 100}%` }}>
-              <span className="u-meta track__other-label">13:15 · 1 question</span>
-            </span>
-          </div>
-          <p className="track__scale u-meta">
-            <span>00:00</span>
-            <span>04:40</span>
-            <span>09:20</span>
-            <span>14:00</span>
-            <span>18:40</span>
-          </p>
-
-          <div className="gate">
-            <h3 className="u-caps">Gate on node 3 — built from choices</h3>
-            <p className="gate__rules">
-              <span className="tag">Requires</span>
-              <span className="tag">Lawful bases · watched 90%</span>
-              <span className="tag">and</span>
-              <span className="tag">Pinned question · answered</span>
-              <button type="button" className="btn btn-ghost btn-dense">
-                + condition
-              </button>
-            </p>
-            {/*
-             * THE SENTENCE, AS IT IS BUILT. The author is choosing conditions; the learner will
-             * read one sentence. Showing it here is what stops a gate from being correct and
-             * incomprehensible at the same time.
-             */}
-            <div className="gate__sentence">
-              <span className="u-caps">The learner will read</span>
-              <p>
-                “Unlocks when you have watched Lawful bases to the end and answered the question
-                inside it.”
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <aside className="authoring__pinned" aria-labelledby="pinned-question">
-          <h2 id="pinned-question" className="u-caps">
-            Pinned question · {clock(pinned)}
-          </h2>
-          <div className="panel authoring__preview">
-            <span className="u-caps">Live learner preview · single-choice</span>
-            <p className="authoring__q">
-              A colleague asks you to email a customer list to their personal address. What do you
-              do?
-            </p>
-            <ul className="authoring__options">
-              <li>Send it — they are a colleague</li>
-              <li className="authoring__correct">Refuse and refer them to the data owner ✓</li>
-              <li>Send it with the names removed</li>
-            </ul>
-          </div>
-          <div className="authoring__pool">
-            <span className="u-caps">Drawn from a pool</span>
-            <p className="authoring__tags">
-              <span className="tag tag-outline">tag: gdpr</span>
-              <span className="tag tag-outline">difficulty: 2</span>
-            </p>
-            {/*
-             * BEFORE SAVING, NOT AT SITTING. A section asking for twenty from a pool of twelve is a
-             * broken exam, and the only person who currently finds out is a learner halfway
-             * through one. role="alert" because it is a refusal, not a hint.
-             */}
-            {asks > matches ? (
-              <p className="authoring__short" role="alert">
-                <strong>
-                  Asks for {asks} · pool matches {matches}.
-                </strong>{' '}
-                {asks - matches} questions would be missing at sitting. Widen the tags or lower the
-                count before you save.
-              </p>
-            ) : null}
-          </div>
-        </aside>
+    <div className="authoring-page">
+      <NotEnforcedYet />
+      <div className="authoring-page__split">
+        <CourseList
+          courses={screen.courses}
+          openId={open?.course?.id}
+          onOpen={openCourse}
+          onCreate={createCourse}
+        />
+        {open ? (
+          <CourseTree
+            tree={open}
+            authorId={who.state === 'tenant' ? who.me.id : null}
+            onChanged={() => {
+              if (open.course?.id) {
+                void openCourse(open.course.id);
+              }
+            }}
+          />
+        ) : (
+          <Empty title="No course open.">
+            <p className="u-meta">Choose one on the left, or create the first.</p>
+          </Empty>
+        )}
       </div>
     </div>
+  );
+}
+
+function CourseList({
+  courses,
+  openId,
+  onOpen,
+  onCreate,
+}: {
+  courses: CourseView[];
+  openId?: string | undefined;
+  onOpen: (id: string) => void;
+  onCreate: (title: string, description: string) => void;
+}) {
+  const [title, setTitle] = useState('');
+
+  return (
+    <section className="course-list" aria-labelledby="courses">
+      <h2 id="courses" className="u-caps">
+        Courses
+      </h2>
+      {courses.length === 0 ? (
+        <p className="u-meta">None yet. The first one is below.</p>
+      ) : (
+        <ul className="panel course-list__items">
+          {courses.map((course) => (
+            <li key={course.id}>
+              <button
+                type="button"
+                className={course.id === openId ? 'node node--on' : 'node'}
+                onClick={() => course.id && onOpen(course.id)}
+              >
+                {course.title}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form
+        className="course-list__new"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (title.trim()) {
+            onCreate(title.trim(), '');
+            setTitle('');
+          }
+        }}
+      >
+        <label className="u-caps" htmlFor="new-course">
+          New course
+        </label>
+        <input
+          id="new-course"
+          className="input input-dense"
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          placeholder="Fire Safety Refresher"
+        />
+        {/*
+         * A title cannot be changed afterwards -- catalog has no PUT for a course -- so the form
+         * says so rather than letting somebody discover it by trying.
+         */}
+        <p className="u-meta">A course cannot be renamed once created.</p>
+        <button type="submit" className="btn btn-primary" disabled={!title.trim()}>
+          Create
+        </button>
+      </form>
+    </section>
+  );
+}
+
+function CourseTree({
+  tree,
+  authorId,
+  onChanged,
+}: {
+  tree: TreeView;
+  authorId: string | null;
+  onChanged: () => void;
+}) {
+  const courseId = tree.course?.id;
+  const [items, setItems] = useState<ItemView[]>([]);
+  const [types, setTypes] = useState<TypeView[]>([]);
+  const [published, setPublished] = useState<string | null>(null);
+
+  useEffect(() => {
+    void catalog.GET('/api/v1/content-items').then(({ data }) => setItems(data ?? []));
+    void catalog.GET('/api/v1/content-items/types').then(({ data }) => setTypes(data ?? []));
+  }, []);
+
+  async function addModule(title: string) {
+    if (!courseId) {
+      return;
+    }
+    await catalog.POST('/api/v1/courses/{courseId}/modules', {
+      params: { path: { courseId } },
+      body: { title },
+    });
+    onChanged();
+  }
+
+  async function addNode(moduleId: string, contentItemId: string) {
+    await catalog.POST('/api/v1/courses/modules/{moduleId}/nodes', {
+      params: { path: { moduleId } },
+      body: { contentItemId, required: true },
+    });
+    onChanged();
+  }
+
+  async function publish() {
+    if (!courseId || !authorId) {
+      return;
+    }
+    // `publishedBy` is a field WE fill in: catalog derives no actor from the token yet. See
+    // useMe.ts -- this is the gap, not a convenience.
+    const { data } = await catalog.POST('/api/v1/courses/{courseId}/versions', {
+      params: { path: { courseId } },
+      body: { publishedBy: authorId, notes: '' },
+    });
+    setPublished(data?.version ? `Version ${data.version}` : 'Published');
+    onChanged();
+  }
+
+  return (
+    <section className="course-tree" aria-labelledby="tree">
+      <div className="course-tree__head">
+        <div>
+          <StateChip state="draft" />
+          <h2 id="tree" className="u-display course-tree__title">
+            {tree.course?.title}
+          </h2>
+        </div>
+        <div className="course-tree__actions">
+          {published ? <span className="u-meta">{published}</span> : null}
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => void publish()}
+            disabled={authorId === null}
+          >
+            Publish a version
+          </button>
+        </div>
+      </div>
+
+      {(tree.modules ?? []).length === 0 ? (
+        <Empty title="This course has no modules yet.">
+          <p className="u-meta">A module holds the ordered nodes a learner walks through.</p>
+        </Empty>
+      ) : null}
+
+      <ol className="course-tree__modules">
+        {(tree.modules ?? []).map((module) => (
+          <li key={module.id} className="panel course-tree__module">
+            <h3 className="course-tree__module-title">{module.title}</h3>
+            <ol className="course-tree__nodes">
+              {(module.nodes ?? []).map((node) => (
+                <li key={node.id} className="node">
+                  {items.find((item) => item.id === node.contentItemId)?.title ??
+                    node.contentItemId}
+                  <span className="u-meta">
+                    {' '}
+                    {items.find((item) => item.id === node.contentItemId)?.type ?? ''}
+                    {node.required ? ' · required' : ' · optional'}
+                  </span>
+                </li>
+              ))}
+            </ol>
+            <AddNode items={items} onAdd={(id) => module.id && void addNode(module.id, id)} />
+          </li>
+        ))}
+      </ol>
+
+      <AddModule onAdd={(title) => void addModule(title)} />
+      <NewContentItem types={types} onCreated={(item) => setItems((was) => [...was, item])} />
+    </section>
+  );
+}
+
+function AddModule({ onAdd }: { onAdd: (title: string) => void }) {
+  const [title, setTitle] = useState('');
+  return (
+    <form
+      className="course-tree__add"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (title.trim()) {
+          onAdd(title.trim());
+          setTitle('');
+        }
+      }}
+    >
+      <label className="u-caps" htmlFor="new-module">
+        Add a module
+      </label>
+      <input
+        id="new-module"
+        className="input input-dense"
+        value={title}
+        onChange={(event) => setTitle(event.target.value)}
+        placeholder="Module 1 · Getting started"
+      />
+      <button type="submit" className="btn btn-secondary" disabled={!title.trim()}>
+        Add
+      </button>
+    </form>
+  );
+}
+
+function AddNode({ items, onAdd }: { items: ItemView[]; onAdd: (contentItemId: string) => void }) {
+  const [chosen, setChosen] = useState('');
+  return (
+    <form
+      className="course-tree__add"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (chosen) {
+          onAdd(chosen);
+          setChosen('');
+        }
+      }}
+    >
+      <label className="u-caps" htmlFor="add-node">
+        Add a node
+      </label>
+      <select
+        id="add-node"
+        className="input input-dense"
+        value={chosen}
+        onChange={(event) => setChosen(event.target.value)}
+      >
+        <option value="">Choose content…</option>
+        {items.map((item) => (
+          <option key={item.id} value={item.id}>
+            {item.title} ({item.type})
+          </option>
+        ))}
+      </select>
+      <button type="submit" className="btn btn-secondary" disabled={!chosen}>
+        Add
+      </button>
+    </form>
+  );
+}
+
+/**
+ * Content is created on its own and attached by id — there is no "create content inside a node".
+ *
+ * <p>The payload is always a REFERENCE and never bytes: `{"assetId": …}` for a video,
+ * `{"testId": …}` for a test. The bytes live in streaming, and the test lives in assessment.
+ */
+function NewContentItem({
+  types,
+  onCreated,
+}: {
+  types: TypeView[];
+  onCreated: (item: ItemView) => void;
+}) {
+  const [type, setType] = useState('');
+  const [title, setTitle] = useState('');
+  const [reference, setReference] = useState('');
+
+  const payloadKey: Record<string, string> = {
+    video: 'assetId',
+    scorm: 'packageId',
+    cmi5: 'packageId',
+    slides: 'documentId',
+    test: 'testId',
+  };
+
+  async function create(event: React.FormEvent) {
+    event.preventDefault();
+    const key = payloadKey[type];
+    const { data } = await catalog.POST('/api/v1/content-items', {
+      body: {
+        type,
+        title,
+        description: '',
+        tags: [],
+        payload: key && reference ? { [key]: reference } : {},
+      },
+    });
+    if (data) {
+      onCreated(data);
+      setTitle('');
+      setReference('');
+    }
+  }
+
+  return (
+    <form className="panel new-content" onSubmit={(event) => void create(event)}>
+      <h3 className="u-caps">New content item</h3>
+      <label className="u-caps" htmlFor="content-type">
+        Type
+      </label>
+      <select
+        id="content-type"
+        className="input input-dense"
+        value={type}
+        onChange={(event) => setType(event.target.value)}
+      >
+        <option value="">Choose…</option>
+        {types.map((one) => (
+          <option key={one.code} value={one.code}>
+            {one.displayName}
+          </option>
+        ))}
+      </select>
+      <label className="u-caps" htmlFor="content-title">
+        Title
+      </label>
+      <input
+        id="content-title"
+        className="input input-dense"
+        value={title}
+        onChange={(event) => setTitle(event.target.value)}
+      />
+      {type ? (
+        <>
+          <label className="u-caps" htmlFor="content-reference">
+            {payloadKey[type] ?? 'reference'}
+          </label>
+          <input
+            id="content-reference"
+            className="input input-dense"
+            value={reference}
+            onChange={(event) => setReference(event.target.value)}
+            placeholder="the id this item points at"
+          />
+          <p className="u-meta">
+            Content points at something rather than holding it: a video's bytes live in streaming, a
+            test lives in assessment.
+          </p>
+        </>
+      ) : null}
+      <button type="submit" className="btn btn-secondary" disabled={!type || !title.trim()}>
+        Create
+      </button>
+    </form>
   );
 }

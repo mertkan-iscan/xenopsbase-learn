@@ -987,6 +987,224 @@
   margin: 0;
 }
 
+/* ------------------------------------------------- the console, wired to the API (T-10.4/10.5) */
+
+/*
+ * What the console does not protect, said where somebody reads it. Bordered in the accent because
+ * it is a caution, not a status -- but not filled, because it is true of every screen here and a
+ * red block on every page is one nobody sees by the second day.
+ */
+.not-enforced {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  border: var(--rule) solid var(--color-accent);
+  padding: var(--space-3);
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-meta);
+  max-width: 78ch;
+}
+
+.not-enforced .u-caps {
+  color: var(--color-accent-700);
+}
+
+.authoring-page__split,
+.role-page__split {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+@media (min-width: 1000px) {
+  .authoring-page__split {
+    grid-template-columns: 280px 1fr;
+  }
+
+  .role-page__split {
+    grid-template-columns: 320px 1fr;
+  }
+}
+
+.course-list,
+.course-tree,
+.assign,
+.grading,
+.role-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.course-list__items,
+.role-page__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.course-list__items .node,
+.role-page__list .node {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: 0.875rem;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap-min);
+}
+
+.course-list__items .node--on,
+.role-page__list .node--on {
+  background: var(--color-text);
+  color: var(--color-bg);
+}
+
+/* Every small form on these screens is the same stack. */
+.course-list__new,
+.course-tree__add,
+.new-content,
+.role-page__add,
+.grading__form,
+.assign__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: stretch;
+}
+
+.new-content,
+.assign__form {
+  padding: var(--space-4);
+  max-width: 52ch;
+}
+
+.course-list__new button,
+.course-tree__add button,
+.role-page__add button,
+.grading__form button {
+  align-self: flex-start;
+}
+
+.course-tree__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  border-bottom: var(--rule) solid var(--color-text);
+  padding-bottom: var(--space-3);
+}
+
+.course-tree__title {
+  font-size: 1.5rem;
+  margin: var(--space-1) 0 0;
+}
+
+.course-tree__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.course-tree__modules {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.course-tree__module {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.course-tree__module-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.course-tree__nodes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: var(--rule) solid var(--color-text);
+}
+
+/*
+ * THE CONFIRM, and the reach inside it. Bordered in the accent and given room, because assigning
+ * to a company is thousands of obligations with no undo but revoking each one.
+ */
+.assign__confirm {
+  border: var(--rule) solid var(--color-accent);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.assign__confirm p {
+  margin: 0;
+}
+
+.assign__confirm-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.role-page__held,
+.grading__marks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.role-page__held li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border-bottom: var(--hairline) solid var(--color-divider);
+  min-height: var(--tap-min);
+}
+
+.role-page__permissions,
+.grading__attempt,
+.grading__mark {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.grading__verdict {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.shell__console {
+  font-size: var(--text-meta);
+  color: var(--color-accent-700);
+  text-underline-offset: 3px;
+}
+
 /* ------------------------------------------------------------- sitting a test (T-6.6/T-10.3) */
 
 .sit {
