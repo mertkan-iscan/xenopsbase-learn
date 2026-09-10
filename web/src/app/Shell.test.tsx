@@ -5,6 +5,7 @@ import { expectNoAxeViolations } from '../test/axe.ts';
 import { rememberTheAttempt, rememberTheSignOut } from '../shared/auth/arrival.ts';
 import { parkWork } from '../shared/auth/recovery.ts';
 import { en } from '../shared/i18n/messages.en.ts';
+import { Login } from '../auth/Login.tsx';
 import { Shell } from './Shell.tsx';
 
 /**
@@ -41,9 +42,25 @@ describe('the application shell', () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
+  /*
+   * THE SIGN-IN SCREEN IS MOUNTED ALONGSIDE THE SHELL, because that is now where a signed-out
+   * person is told what happened (T-10.9).
+   *
+   * The shell used to render that explanation itself, inside the signed-in frame — a card beside
+   * a side panel of six destinations nobody could go to. It redirects to `/login` instead, so a
+   * router with only `/` in it would answer the redirect with react-router's "no route matches"
+   * page and every one of these tests would fail on that rather than on what it is asserting.
+   *
+   * What the tests below assert has not changed: the person is told, in words, which of the three
+   * things happened — and is NOT bounced to the issuer, where an SSO session that has not gone
+   * would sign them straight back in.
+   */
   function renderShell() {
     const router = createMemoryRouter(
-      [{ path: '/', Component: Shell, children: [{ index: true, element: <h1>A screen</h1> }] }],
+      [
+        { path: '/', Component: Shell, children: [{ index: true, element: <h1>A screen</h1> }] },
+        { path: '/login', Component: Login },
+      ],
       { initialEntries: ['/'] },
     );
     return render(<RouterProvider router={router} />);

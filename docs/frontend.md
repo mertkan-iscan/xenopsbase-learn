@@ -160,6 +160,50 @@ What follows from it, and is worth knowing before writing a screen:
   sends everything to it. That is the point: sign-in, cookies, CSRF and relaying are exercised in
   development instead of first meeting reality in a cluster.
 
+## The sign-in screen, and what it is for given that it collects nothing (T-10.9)
+
+`/login` is a real route, outside the shell, with its own `main` landmark. It has no password
+field and never will — see the section above — so it is worth being clear about what it *is*:
+
+- **The address a person can be sent**, and the screen they land on after signing out.
+- **Where the three "you are signed out" reasons are said.** They used to be a card rendered
+  inside the signed-in frame, beside a side panel of six destinations nobody could go to and a
+  menu for an account nobody was in.
+- **The one place somebody who cannot get in is told what to do about it.**
+- **Usable before anybody signs in**, which is the point of the appearance and language controls
+  being on it: a person whose browser guessed a language they cannot read, or who needs the light
+  theme to read anything at all, cannot be asked to sign in first in order to fix it.
+
+**It never navigates by itself, and the automatic bounce to the issuer is unchanged.** An ordinary
+first-time visitor with no session is still sent straight to Keycloak by the shell and never sees
+this page — `arrival.ts`'s argument stands: a panel telling somebody they are signed out, with one
+button doing the only available thing, is a click nobody chose to make. Only the three cases
+`arrivalFor` singles out redirect here, and they carry their reason in the router's state, because
+`arrivalFor` consumes the flag it read.
+
+## Language and theme are properties of the person (T-10.9)
+
+Both are stored on `app_user` (`V14__user_preferences.sql`), returned by `GET /api/v1/me`, and
+written by `PUT /api/v1/users/me/preferences`. `localStorage` is a **cache in front of that**, not
+the record: without it every reload would show the wrong palette for the few hundred milliseconds
+before `/me` answers, which is the flash the whole arrangement exists to prevent.
+
+- `shared/theme/theme.ts` is the store, and `main.tsx` applies it **before React starts**. Anything
+  after the first paint is a flash of the wrong colours.
+- **`system` removes `data-theme` rather than setting it to the word.** `styles.css` resolves dark
+  through a media query guarded by `:root:not([data-theme='light'])`, so `data-theme="system"`
+  would match neither branch and pin everybody who chose "match my device" to the light palette.
+  There is a test for exactly that.
+- **Null is not `SYSTEM`, and null is not English.** "Has not told us" is a findable population and
+  a choice is not, which is the same argument V13 makes for the timezone. Nothing on either side
+  may collapse them.
+- **An absent field on the PUT leaves the other alone**; an empty string clears. Without that, the
+  theme switcher would wipe the language somebody set on their phone.
+- **A failed save is not shown.** The choice still applies in this browser and is still cached, so
+  the person has what they asked for on the machine they asked for it on; what they lose is that it
+  follows them. Interrupting them with an error about a colour they can already see would be the
+  wrong trade — and reverting the screen would take away the thing that was working.
+
 ## What is deliberately not here yet
 
 - **CI.** The `verify` script is what a pipeline would run, and there is no pipeline (T-9.3 was

@@ -412,6 +412,36 @@ export const en = {
   // words either side of the colon are the API's. Identical in both catalogues on purpose.
   'roles.code-placeholder': 'resource:action',
 
+
+  // ------------------------------------------------------------------- the sign-in screen
+  // Whole sentences, and the reason for being here is one of them rather than a fragment
+  // assembled around a noun -- see this file's header.
+  'login.heading': 'Sign in to XenOpsBase Learn',
+  'login.body':
+    'Your training, your progress and your certificates are here. Sign in with the account your company gave you.',
+  'login.button': 'Sign in with your company account',
+  'login.sso':
+    'You will be taken to your company\u2019s sign-in page. This product never sees your password.',
+  'login.trouble':
+    'If you do not have an account, or signing in keeps failing, ask whoever administers your training.',
+  'login.already': 'You are already signed in.',
+  'login.continue': 'Go to your training',
+
+  // ----------------------------------------------------------------------------- appearance
+  'prefs.title': 'Appearance and language',
+  'prefs.open': 'Appearance and language',
+  'prefs.theme': 'Theme',
+  'prefs.theme.light': 'Light',
+  'prefs.theme.dark': 'Dark',
+  'prefs.theme.system': 'Match my device',
+  'prefs.language': 'Language',
+  'prefs.language.en': 'English',
+  'prefs.language.tr': 'T\u00fcrk\u00e7e',
+  'prefs.saved-to-account':
+    'Saved to your account, so it follows you to every device you sign in on.',
+  'prefs.saved-here':
+    'Kept in this browser. Sign in to have it follow you to your phone and to any shared computer.',
+
   // ---------------------------------------------------------------------------- the player
   // The player is a separate document in a customer's iframe, so its language arrives in its
   // URL like everything else it needs. These are the only two sentences it says itself.

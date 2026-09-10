@@ -1,5 +1,6 @@
 import { lazy, Suspense, type ComponentType, type ReactNode } from 'react';
 import type { RouteObject } from 'react-router';
+import { Login } from '../auth/Login.tsx';
 import { Discover } from '../learner/Discover.tsx';
 import { Home } from '../learner/Home.tsx';
 import type { LoadingKey } from '../shared/i18n/messages.en.ts';
@@ -49,6 +50,18 @@ function deferred(element: ReactNode, what: LoadingKey) {
 }
 
 export const routes: RouteObject[] = [
+  /*
+   * THE SIGN-IN SCREEN SITS OUTSIDE THE SHELL, and that is the point of it being a route at all.
+   *
+   * The shell is the signed-in frame: a side panel of destinations, a company name, a sign-out
+   * control. Rendering the sign-in screen inside it would draw navigation to six places nobody can
+   * go and a menu for an account nobody is in. So `/login` is its own tree with its own `main`
+   * landmark, and the shell redirects to it rather than growing a signed-out mode.
+   *
+   * Not lazy: it is the first screen a signed-out person sees, and a chunk boundary in front of it
+   * buys nothing and costs a round trip on the connection least able to afford one.
+   */
+  { path: '/login', Component: Login },
   {
     path: '/',
     Component: Shell,
