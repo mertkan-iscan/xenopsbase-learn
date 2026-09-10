@@ -266,11 +266,154 @@
         },
         "type": "object"
       },
+      "HomeCourse": {
+        "properties": {
+          "completed": {
+            "type": "boolean"
+          },
+          "courseId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "cycleNumber": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "dueOn": {
+            "format": "date",
+            "type": "string"
+          },
+          "modules": {
+            "items": {
+              "$ref": "#/components/schemas/HomeModule"
+            },
+            "type": "array"
+          },
+          "overdue": {
+            "type": "boolean"
+          },
+          "percentComplete": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "sources": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HomeItem": {
+        "properties": {
+          "cycleNumber": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "dueOn": {
+            "format": "date",
+            "type": "string"
+          },
+          "overdue": {
+            "type": "boolean"
+          },
+          "percent": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "referenceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "referenceType": {
+            "type": "string"
+          },
+          "resumeSecond": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "sources": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "state": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HomeModule": {
+        "properties": {
+          "locked": {
+            "type": "boolean"
+          },
+          "lockedReason": {
+            "type": "string"
+          },
+          "moduleId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/HomeNode"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HomeNode": {
+        "properties": {
+          "lockedReason": {
+            "type": "string"
+          },
+          "nodeId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "percent": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "resumeSecond": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "HomeView": {
         "properties": {
           "courses": {
             "items": {
-              "$ref": "#/components/schemas/CourseView"
+              "$ref": "#/components/schemas/HomeCourse"
             },
             "type": "array"
           },
@@ -280,7 +423,7 @@
           },
           "items": {
             "items": {
-              "$ref": "#/components/schemas/ItemView"
+              "$ref": "#/components/schemas/HomeItem"
             },
             "type": "array"
           },

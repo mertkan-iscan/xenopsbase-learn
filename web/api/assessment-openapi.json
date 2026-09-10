@@ -277,6 +277,9 @@
       },
       "ItemView": {
         "properties": {
+          "body": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
           "formItemId": {
             "format": "uuid",
             "type": "string"
@@ -483,6 +486,17 @@
         "properties": {
           "afterSectionId": {
             "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "NewBankForm": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "name": {
             "type": "string"
           }
         },
@@ -1161,7 +1175,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/BankForm"
+                "$ref": "#/components/schemas/NewBankForm"
               }
             }
           },
@@ -1363,7 +1377,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/BankForm"
+                "$ref": "#/components/schemas/NewBankForm"
               }
             }
           },

@@ -1,5 +1,6 @@
 package com.xenopsoftware.learn.assessment.web.rest;
 
+import com.xenopsoftware.learn.assessment.question.ServedQuestion;
 import com.xenopsoftware.learn.assessment.attempt.Attempt;
 import com.xenopsoftware.learn.assessment.attempt.AttemptResponses;
 import com.xenopsoftware.learn.assessment.attempt.AttemptService;
@@ -89,9 +90,17 @@ public class AttemptResource {
     /**
      * @param optionOrder the options in the order this learner was shown them (T-6.5). A review
      *                    screen and a resumed attempt both render from it rather than re-deriving
+     * @param body        the question as this learner was served it, <b>without the answer key</b>.
+     *                    Carried here because it was not obtainable anywhere else: a form records
+     *                    the VERSION and never the question (ADR-0106, and {@code FormItem} says
+     *                    why), while every endpoint that dereferences a body needs the question id
+     *                    as well — so an attempt in progress named a version nothing could resolve
+     *                    and a learner could not be shown the question at all. {@code Review}
+     *                    already carries the body for the same reason after submission; this is
+     *                    the same answer before it
      */
     public record ItemView(UUID formItemId, int position, UUID sectionId, UUID questionVersionId,
-                           Map<String, List<String>> optionOrder) {}
+                           Map<String, List<String>> optionOrder, JsonNode body) {}
 
     public record AttemptView(UUID id, int attemptNumber, String state, Instant startedAt,
                               Instant expiresAt, Instant submittedAt) {}
@@ -289,7 +298,7 @@ public class AttemptResource {
             attempt.getState().name(), attempt.getStartedAt(), attempt.getExpiresAt(),
             sitting.remaining() == null ? null : sitting.remaining().toSeconds(),
             attempt.getSubmittedAt(),
-            sitting.form().items().stream().map(AttemptResource::view).toList(),
+            sitting.form().items().stream().map(this::view).toList(),
             responses.of(attempt.getId()), view(disclosure.forLearner()));
     }
 
@@ -309,9 +318,10 @@ public class AttemptResource {
         }
     }
 
-    private static ItemView view(FormItem item) {
+    private ItemView view(FormItem item) {
         return new ItemView(item.id(), item.position(), item.sectionId(),
-            item.questionVersionId(), item.optionOrder());
+            item.questionVersionId(), item.optionOrder(),
+            ServedQuestion.withoutTheKey(responses.bodyOf(item.questionVersionId())));
     }
 
     private static AttemptView view(Attempt attempt) {

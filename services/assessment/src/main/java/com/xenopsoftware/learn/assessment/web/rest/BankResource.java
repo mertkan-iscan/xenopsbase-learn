@@ -72,6 +72,13 @@ public class BankResource {
     }
 
     /** What a client sends to create or rename. */
+    // QuestionResource has a BankForm too -- {bankId}, for moving a question between banks.
+    // springdoc keys components.schemas on the simple name, so the two collided and that one
+    // won: the published description of POST /api/v1/banks asked for a bankId to create a
+    // bank with. Nothing failed -- the contract gate compares the spec to the service and the
+    // service does serve what the spec said for the name that survived. Only a client
+    // generated from it was wrong.
+    @Schema(name = "NewBankForm")
     public record BankForm(String name, String description) {}
 
     /** What a client sends to copy: both fields optional, defaulting to the source's. */

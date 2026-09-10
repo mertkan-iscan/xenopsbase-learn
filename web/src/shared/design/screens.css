@@ -986,3 +986,144 @@
 .progress-screen dd {
   margin: 0;
 }
+
+/* ------------------------------------------------------------- sitting a test (T-6.6/T-10.3) */
+
+.sit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/*
+ * The clock is a display of a deadline it does not own, so it is stated plainly and not made
+ * urgent: a countdown that turns red and pulses is a countdown that costs somebody the answer
+ * they were composing.
+ */
+.sit__clock {
+  border-bottom: var(--rule) solid var(--color-text);
+  padding-bottom: var(--space-2);
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.sit__where {
+  margin: 0;
+}
+
+.question {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.question__stem {
+  font-size: 1.3125rem;
+  padding: 0;
+}
+
+.question__free {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.question__long {
+  min-height: 10rem;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.question__blanks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.question__ordering {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: ordering;
+}
+
+.question__ordering li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  min-height: var(--tap-min);
+  counter-increment: ordering;
+}
+
+.question__ordering li::before {
+  content: counter(ordering) '.';
+  font-variant-numeric: tabular-nums;
+  color: var(--color-neutral-700);
+}
+
+.question__ordering li + li {
+  border-top: var(--hairline) solid var(--color-divider);
+}
+
+.question__ordering-moves {
+  display: flex;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+
+.question__unsupported {
+  border: var(--rule) solid var(--color-accent);
+  padding: var(--space-3);
+  margin: 0;
+  font-size: var(--text-meta);
+}
+
+.sit__moves {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.sit__submit,
+.sit__disclosure,
+.sit__done {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.sit__disclosure ul {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.sit__disclosure p,
+.sit__submit p,
+.sit__done p {
+  margin: 0;
+  max-width: 62ch;
+}
+
+.home__course-link {
+  color: var(--color-text);
+  text-underline-offset: 3px;
+}
+
+.home__row-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}

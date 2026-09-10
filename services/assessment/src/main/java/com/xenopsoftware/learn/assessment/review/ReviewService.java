@@ -1,5 +1,6 @@
 package com.xenopsoftware.learn.assessment.review;
 
+import com.xenopsoftware.learn.assessment.question.ServedQuestion;
 import com.xenopsoftware.learn.assessment.attempt.Attempt;
 import com.xenopsoftware.learn.assessment.attempt.AttemptNotFound;
 import com.xenopsoftware.learn.assessment.attempt.AttemptRepository;
@@ -202,13 +203,7 @@ public class ReviewService {
      * whatever caches it on the way.
      */
     private static JsonNode withoutTheKeyUnless(JsonNode served, boolean full) {
-        if (full) {
-            return served;
-        }
-        ObjectNode redacted = (ObjectNode) served.deepCopy();
-        redacted.remove("answerKey");
-        redacted.remove("feedback");
-        return redacted;
+        return full ? served : ServedQuestion.withoutTheKey(served);
     }
 
     private static String feedbackIn(JsonNode served) {
