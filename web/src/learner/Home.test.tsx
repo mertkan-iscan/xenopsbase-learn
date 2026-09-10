@@ -42,8 +42,8 @@ describe('home', () => {
     // VIEWER's locale (T-10.8) and pinning the string here would pin the test to whichever locale
     // the machine running it happens to have — passing in CI and failing on a German laptop, for
     // a screen that is behaving correctly in both.
-    const chip = screen.getByText((_, element) => element?.className === 'chip chip--overdue');
-    expect(chip.textContent).toMatch(/^Overdue · .+/);
+    const chip = document.querySelector('[data-state="overdue"]');
+    expect(chip?.textContent).toMatch(/^Overdue · .+/);
     expect(screen.getByRole('link', { name: en['home.start'] })).toBeVisible();
     await expectNoAxeViolations(container);
   });

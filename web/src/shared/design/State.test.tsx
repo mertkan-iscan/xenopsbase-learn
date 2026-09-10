@@ -49,10 +49,11 @@ describe('the semantic states', () => {
     // The bug this guards is cheap to introduce and expensive to find: `passed: null` drawn as a
     // fail locks a learner out of a course they may well have passed, and nothing reports a fault.
     // So the word "failed" must not appear, and neither must the not-passed styling.
-    const chip = screen.getByText(en['state.awaiting']);
-    expect(chip.className).toContain('chip--awaiting');
-    expect(chip.className).not.toContain('chip--not-passed');
-    expect(chip.textContent).not.toMatch(/fail/i);
+    // Asserted on `data-state` rather than on a class name: the tint is Tailwind utilities that
+    // will be edited, and what must not change by accident is which state the chip CLAIMS to be.
+    const chip = screen.getByText(en['state.awaiting']).closest('[data-state]');
+    expect(chip).toHaveAttribute('data-state', 'awaiting');
+    expect(chip?.textContent).not.toMatch(/fail/i);
   });
 
   it('carries its detail, because "overdue" with no date is a scolding', () => {

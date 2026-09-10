@@ -87,15 +87,15 @@ describe('a screen in Turkish', () => {
     );
     render(<RouterProvider router={router} />);
 
-    expect(screen.getByRole('heading', { name: tr['home.title'] })).toBeVisible();
-    expect(screen.getByText(tr['home.in-progress'])).toBeVisible();
+    expect(screen.getByRole('heading', { name: tr['home.welcome'] })).toBeVisible();
+    expect(screen.getByRole('heading', { name: tr['home.continue'] })).toBeVisible();
 
     // The headings a reader would notice first, asserted as ABSENT. Rendering the Turkish is only
     // half the claim; the other half is that no English survived beside it, which is what a
     // half-extracted screen looks like.
-    expect(screen.queryByText(en['home.title'])).not.toBeInTheDocument();
-    expect(screen.queryByText(en['home.in-progress'])).not.toBeInTheDocument();
-    expect(screen.queryByText(en['home.courses'])).not.toBeInTheDocument();
+    expect(screen.queryByText(en['home.welcome'])).not.toBeInTheDocument();
+    expect(screen.queryByText(en['home.continue'])).not.toBeInTheDocument();
+    expect(screen.queryByText(en['home.at-a-glance'])).not.toBeInTheDocument();
   });
 
   it('puts the percent sign where Turkish puts it', () => {
