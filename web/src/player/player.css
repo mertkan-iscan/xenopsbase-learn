@@ -1,0 +1,87 @@
+/*
+ * The player (T-3.5), and the only stylesheet that belongs to it.
+ *
+ * WHY THIS FILE EXISTS RATHER THAN LIVING IN `src/styles.css`. The player is published on its own
+ * as the package a customer embeds (T-10.7, ADR-0110), and `player.html` is a second build entry.
+ * Its layout travelling in the application's stylesheet meant the redesign of the application
+ * silently deleted it — which is exactly what happened, and is the shape of failure the lint rule
+ * forbidding `src/player/**` from importing a screen exists to prevent. The rule covered the
+ * TypeScript and not the CSS. Now it does not have to.
+ *
+ * LAYOUT ONLY, AND THAT IS THE RULE HERE. The controls that matter are the browser's own: they are
+ * already keyboard operable, already labelled in the viewer's language, and already familiar.
+ * Restyling them is how a player loses the accessibility it got for free, and it is why there is
+ * no `::-webkit-media-controls` anything below.
+ *
+ * These rules use the design tokens where a colour is genuinely needed, so an embedded player in a
+ * dark host does not render a light strip of controls. They do not otherwise assume the
+ * application's chrome is around them, because it is not.
+ */
+
+.player {
+  margin: 0;
+  max-width: 100%;
+}
+
+.player__video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  /* Black rather than a token: this is letterbox behind a video frame, not a surface in a theme,
+     and it is black in both. */
+  background: #000;
+}
+
+.player__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.5rem 0;
+}
+
+.player__control {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.player__quality,
+.player__notice {
+  font-size: 0.875rem;
+  color: var(--ink-muted, #4d5c74);
+}
+
+/*
+ * What is holding playback (T-5.4). Full width so it sits on its own line under the controls, and
+ * NOT dimmed like the notices above it: this one is the reason the video stopped, and a learner
+ * who cannot find it is a learner staring at a paused player.
+ */
+.player__held {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+/*
+ * Inside the iframe there is no page around the player, and the host's box is the whole viewport.
+ * No background colour is set: a host may embed us into any design, and a white rectangle we did
+ * not have to draw is one we should not.
+ */
+.player-document {
+  margin: 0;
+}
+
+/*
+ * `player__embed` IS DELIBERATELY NOT STYLED HERE, and it is worth saying why rather than leaving
+ * the absence to be read as an oversight.
+ *
+ * It is the container `EmbeddedPlayer` renders, and that component runs in the APPLICATION's
+ * document rather than in this one -- it is the host end of the embed. So a rule for it in this
+ * file would never load where it is used. It needs nothing: a `div` is already block and full
+ * width, and `embed.ts` sets the iframe's width, border and aspect ratio inline, because the
+ * loader owns sizing (ADR-0110) and a stylesheet the host may not have loaded cannot.
+ *
+ * The class stays as a hook for an integrator who wants one.
+ */

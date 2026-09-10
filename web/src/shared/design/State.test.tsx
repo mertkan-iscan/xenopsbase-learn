@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { expectNoAxeViolations } from '../../test/axe.ts';
+import { en } from '../i18n/messages.en.ts';
 import { Progress, StateChip, type StateName } from './State.tsx';
 
 /**
@@ -36,9 +37,9 @@ describe('the semantic states', () => {
     // Colour alone is not a state here. Each chip says what it is, and the CSS adds a border style
     // on top of the hue -- neither of which a test in jsdom can see, which is exactly why the word
     // is the thing asserted.
-    expect(screen.getByText('Awaiting grading')).toBeVisible();
-    expect(screen.getByText('Not passed')).toBeVisible();
-    expect(screen.getByText('Locked')).toBeVisible();
+    expect(screen.getByText(en['state.awaiting'])).toBeVisible();
+    expect(screen.getByText(en['state.not-passed'])).toBeVisible();
+    expect(screen.getByText(en['state.locked'])).toBeVisible();
     await expectNoAxeViolations(container);
   });
 
@@ -48,16 +49,17 @@ describe('the semantic states', () => {
     // The bug this guards is cheap to introduce and expensive to find: `passed: null` drawn as a
     // fail locks a learner out of a course they may well have passed, and nothing reports a fault.
     // So the word "failed" must not appear, and neither must the not-passed styling.
-    const chip = screen.getByText('Awaiting grading');
-    expect(chip.className).toContain('chip--awaiting');
-    expect(chip.className).not.toContain('chip--not-passed');
-    expect(chip.textContent).not.toMatch(/fail/i);
+    // Asserted on `data-state` rather than on a class name: the tint is Tailwind utilities that
+    // will be edited, and what must not change by accident is which state the chip CLAIMS to be.
+    const chip = screen.getByText(en['state.awaiting']).closest('[data-state]');
+    expect(chip).toHaveAttribute('data-state', 'awaiting');
+    expect(chip?.textContent).not.toMatch(/fail/i);
   });
 
   it('carries its detail, because "overdue" with no date is a scolding', () => {
     render(<StateChip state="overdue" detail="3 days" />);
 
-    expect(screen.getByText('Overdue · 3 days')).toBeVisible();
+    expect(screen.getByText(`${en['state.overdue']} · 3 days`)).toBeVisible();
   });
 
   it('reports progress to the accessibility tree, not only to the eye', () => {

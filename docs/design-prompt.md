@@ -187,12 +187,44 @@ assumes otherwise is wrong rather than merely different.
 - **Offline and flaky-network behaviour is defined rather than accidental.** Decide what a
   half-watched video and a half-answered test do when the connection drops.
 
-## What does not exist yet, and is therefore yours
+## The design system that now exists
 
-There is **no design system**. What exists today is visible focus, landmarks and a skip link — the
-structural parts, not the decorative ones. Colour, type, spacing, density, iconography, the
-component set, the two densities (learner-mobile and admin-desktop) and the states above are all
-open.
+**This section replaced "there is no design system", and the sentence it replaced is worth keeping
+in mind: everything below is a decision that was made, not a constraint that was found.** A second
+one is equally possible; what would be a mistake is a third living alongside the first two.
+
+It is **indigo and glass**, and it is implemented in Tailwind v4 with a CSS-first `@theme` in
+`web/src/styles.css` — no `tailwind.config.js`, and no animation library. Icons are
+`lucide-react`, drawn, never emoji.
+
+**Depth comes from layers.** A soft indigo-tinted ground, white rounded cards lifted on diffuse,
+nearly colourless shadows, and translucency only where a surface genuinely sits over content that
+is still moving. Four rules hold it together, and each one is a way this direction goes wrong:
+
+1. **Tokens flip, utilities do not.** Every colour a screen names is semantic — `bg-surface`,
+   `text-muted`, `border-hairline` — and never a palette step. Light and dark are two values for
+   one token, resolved in one place, so no screen carries a `dark:` for a colour.
+2. **Glass only over moving content**: the top bar, the navigation drawer, the sticky exam footer.
+   Never under body text. A blur behind a paragraph is a contrast failure no audit catches, because
+   the measured colour is not the perceived one.
+3. **The nine semantic states carry three channels each** — a tint, a word and an icon — so none of
+   them depends on hue alone. `awaiting` is amber and *dashed*: unresolved, never a greyed-out
+   verdict. See rule 3 in "Eight rules a design gets wrong by default", which this implements
+   rather than restates.
+4. **Logical properties only.** `ps-`/`pe-`/`ms-`/`me-`/`start`/`end`, never `pl-`/`pr-`. The
+   right-to-left layout is a conformance target, and it has to be provable rather than assumed.
+
+**Two densities from one scale.** A learner's controls have a 44px floor because a control smaller
+than a fingertip is one they miss; the console's are 36px, because an administrator has a pointer
+and spends six hours in a dense table where 44px rows mean scrolling past half the screen.
+
+**Two typefaces, five faces, and that is the ceiling.** Sora for headings, Manrope for everything
+read at length. Both carry Latin Extended, which is not optional: the product ships in Turkish, and
+a face without ğ, ı, İ, ş or ö falls back mid-word and reads as a broken page rather than a missing
+font.
+
+**Navigation is a side panel above 60rem and a drawer below it, in both trees.** Only one of the
+two is ever in the accessibility tree.
 
 ## What to deliver
 
@@ -208,8 +240,28 @@ open.
 
 ## What to avoid
 
-The house style of this category: a slab of navy, a stock photo of people in a meeting room, a
-progress ring on a rounded card, a dashboard of donut charts nobody reads. This is software people
-are **required** to use — that is a reason to make it fast, legible and honest about where they
-are, not a reason to make it corporate. Respect that the learner did not choose to be here, and
-that the administrator will be in it for six hours.
+**This list was edited when the indigo-and-glass system landed, and two things came off it.** It
+used to warn against "a progress ring on a rounded card" and "a slab of navy", and the system now
+in the code has rounded cards and an indigo accent. That was a deliberate reversal rather than a
+drift: the previous direction — ink on paper, square corners, one red — was coherent and read as
+*unfinished* to the people who decide whether to buy this. Reversing it is allowed. Leaving the
+document arguing with the code is not, which is why this paragraph exists instead of the old one.
+
+What is still worth avoiding, and why each one is more than taste:
+
+- **A stock photograph of people in a meeting room.** There is nowhere for it to go. Every screen
+  is behind authentication and there is no marketing surface; a decorative photograph on a
+  compliance screen is bytes a learner on a bad connection pays for.
+- **A dashboard of donut charts nobody reads.** Five counts do not become clearer as rings. The one
+  chart in this product with real analytical value is the retention curve, and it earns its place.
+- **Invented numbers of any kind.** This is the failure mode this codebase has actually shipped,
+  three times: a hard-coded pass mark of 70, a course header saying "step 3 of 6" to everyone, and
+  a compliance screen rendering 5,182 learners from a fixture. A screen that looks like a report is
+  one somebody quotes. If no endpoint knows a number, the screen does not show it — and says why in
+  a comment, so the next person does not helpfully add a default.
+- **Gradient meshes, glassmorphism spread everywhere, and elevation on everything.** Glass has
+  three permitted homes (above); a shadow on every element is a shadow that distinguishes nothing.
+
+This is software people are **required** to use — that is a reason to make it fast, legible and
+honest about where they are, not a reason to make it corporate. Respect that the learner did not
+choose to be here, and that the administrator will be in it for six hours.

@@ -1,5 +1,7 @@
 import createClient from 'openapi-fetch';
 import { csrfHeader } from '../auth/session.ts';
+import { currentLocale } from '../i18n/locale.ts';
+import { currentT } from '../i18n/t.ts';
 import type { paths as assessmentPaths } from './assessment.d.ts';
 import type { paths as catalogPaths } from './catalog.d.ts';
 import type { paths as identityPaths } from './identity.d.ts';
@@ -41,6 +43,20 @@ const baseUrl = import.meta.env.VITE_IDENTITY_URL ?? sameOrigin;
 const browserSession = {
   onRequest({ request }: { request: Request }) {
     const withCookies = new Request(request, { credentials: 'same-origin' });
+    /*
+     * THE LANGUAGE TRAVELS WITH EVERY CALL, and this is the only place it is attached.
+     *
+     * The services generate sentences a learner reads — why a node is locked, what an integrity
+     * signal records, why playback was refused — and they are stateless about who is asking: catalog
+     * must not read identity's `app_user` table to find out (ADR-0109). So the client states it, in
+     * the header HTTP already has for exactly this, and the gateway relays it untouched
+     * (`ApiRelay.NOT_FORWARDED` names three headers and this is not one of them).
+     *
+     * Set rather than appended: this is a stated preference, not a negotiation, and a `q`-weighted
+     * list built from the browser's own header would let a service answer in a language the person
+     * did not choose.
+     */
+    withCookies.headers.set('Accept-Language', currentLocale());
     if (request.method !== 'GET' && request.method !== 'HEAD') {
       for (const [name, value] of Object.entries(csrfHeader())) {
         withCookies.headers.set(name, value);
@@ -115,30 +131,36 @@ assessment.use(browserSession);
  */
 export type ApiFailure = { status: number; message: string };
 
+/**
+ * <p>`currentT` rather than a hook: this is a plain function called from promise callbacks all over
+ * the product, and making it a hook would put React in front of every API call. The provider
+ * publishes the locale as it renders and this reads it — see `LocaleProvider.tsx` for what that
+ * costs.
+ */
 export function failureFrom(response: Response | undefined, error: unknown): ApiFailure {
   if (!response) {
     return {
       status: 0,
       message:
         error instanceof Error && error.message
-          ? `Could not reach the service: ${error.message}`
-          : 'Could not reach the service.',
+          ? currentT('api.unreachable.detail', { reason: error.message })
+          : currentT('api.unreachable'),
     };
   }
   if (response.status === 401) {
     // The gateway's word for it (T-10.2): the session ended and signing in again is the answer.
     // Distinct from 403 below, and the distinction decides whether a screen preserves work or
     // discards it -- see shared/auth/recovery.ts.
-    return { status: 401, message: 'Your session has ended. Sign in again to continue.' };
+    return { status: 401, message: currentT('api.session-ended') };
   }
   if (response.status === 403) {
-    return { status: 403, message: 'You are signed in, but this is not yours to do.' };
+    return { status: 403, message: currentT('api.forbidden') };
   }
   if (response.status === 404) {
     // The disclosure rule (T-2.4) means a 404 can also be "you may not know this exists", and a
     // screen must not translate it into "it is gone" -- that would be the UI asserting something
     // the API deliberately refused to say.
-    return { status: 404, message: 'Not found, or not visible to you.' };
+    return { status: 404, message: currentT('api.not-found') };
   }
-  return { status: response.status, message: `The service answered ${response.status}.` };
+  return { status: response.status, message: currentT('api.status', { status: response.status }) };
 }

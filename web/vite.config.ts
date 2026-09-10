@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 // From vitest/config rather than vite: the `test` block below is Vitest's, and importing
 // defineConfig from vite leaves it untyped -- which is how a typo in a test setting becomes a
 // suite that silently does not run what you think it runs.
@@ -12,7 +13,10 @@ import { defineConfig } from 'vitest/config';
  * playback and would be untrue the moment a page needed us to render it.
  */
 export default defineConfig({
-  plugins: [react()],
+  // Tailwind v4 is a Vite plugin and a CSS import -- there is no `tailwind.config.js`. The theme
+  // is declared in `src/styles.css`'s `@theme` block, beside the palette it defines, so the
+  // tokens and the utilities that consume them cannot drift apart in two files.
+  plugins: [react(), tailwindcss()],
   server: {
     port: 5173,
     strictPort: true,

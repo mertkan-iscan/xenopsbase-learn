@@ -10,14 +10,10 @@
  * administrators. A control that appears to be restricted, and is not, is worse than an open one:
  * somebody plans around it.
  */
+import { Notice } from '../shared/design/Surface.tsx';
+import { useT } from '../shared/i18n/useLocale.ts';
+
 export function NotEnforcedYet() {
-  return (
-    <p className="not-enforced" role="note">
-      <span className="u-caps">Not restricted yet</span>
-      <span>
-        Catalog and assessment do not check permissions (T-9.11). Anyone signed in to this company
-        can author, assign and grade here, whatever roles they hold.
-      </span>
-    </p>
-  );
+  const t = useT();
+  return <Notice label={t('not-enforced.label')}>{t('not-enforced.body')}</Notice>;
 }

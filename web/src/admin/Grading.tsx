@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { assessment, failureFrom, type ApiFailure } from '../shared/api/client.ts';
+import { buttonClasses } from '../shared/design/Button.tsx';
+import { fieldClasses } from '../shared/design/Field.tsx';
 import type { components } from '../shared/api/assessment.d.ts';
 import { StateChip } from '../shared/design/State.tsx';
+import { formatNumber, formatPercent, formatWaited } from '../shared/i18n/format.ts';
+import type { Locale } from '../shared/i18n/locales.ts';
+import { useLocale } from '../shared/i18n/useLocale.ts';
 import { Empty, ErrorState, Loading } from '../shared/state/States.tsx';
 import { NotEnforcedYet } from './NotEnforcedYet.tsx';
 
@@ -32,6 +37,7 @@ type Screen =
   | { status: 'failed'; failure: ApiFailure };
 
 export function Grading() {
+  const { locale, t } = useLocale();
   const [screen, setScreen] = useState<Screen>({ status: 'loading' });
   const [open, setOpen] = useState<WaitingView | null>(null);
 
@@ -55,39 +61,33 @@ export function Grading() {
   }, [load]);
 
   if (screen.status === 'loading') {
-    return <Loading what="the marking queue" />;
+    return <Loading what="loading.marking" />;
   }
   if (screen.status === 'failed') {
     return <ErrorState message={screen.failure.message} retry={load} />;
   }
 
   return (
-    <div className="grading">
+    <div className="flex flex-col gap-6">
       <NotEnforcedYet />
       {screen.waiting.length === 0 ? (
-        <Empty title="Nothing is waiting to be marked.">
-          <p className="u-meta">
-            Written answers and uploaded files arrive here when a learner submits. Everything a
-            machine can mark is already marked.
-          </p>
+        <Empty title={t('grading.empty.title')}>
+          <p className="text-sm text-muted">{t('grading.empty.body')}</p>
         </Empty>
       ) : (
         <section aria-labelledby="queue">
-          <h2 id="queue" className="u-caps">
-            Waiting on a person
+          <h2 id="queue" className="label-caps">
+            {t('grading.queue.title')}
           </h2>
-          <p className="u-meta">
-            Nothing here is claimed — two markers can open the same attempt, so check before you
-            start a long one.
-          </p>
-          <div className="u-scroll-x">
-            <table className="table">
+          <p className="text-sm text-muted">{t('grading.queue.note')}</p>
+          <div className="scroll-x">
+            <table className="table-plain">
               <thead>
                 <tr>
-                  <th scope="col">Test</th>
-                  <th scope="col">Attempt</th>
-                  <th scope="col">Outstanding</th>
-                  <th scope="col">Waiting</th>
+                  <th scope="col">{t('grading.col.test')}</th>
+                  <th scope="col">{t('grading.col.attempt')}</th>
+                  <th scope="col">{t('grading.col.outstanding')}</th>
+                  <th scope="col">{t('grading.col.waiting')}</th>
                   <th scope="col" />
                 </tr>
               </thead>
@@ -97,14 +97,14 @@ export function Grading() {
                     <td>{one.testTitle}</td>
                     <td>#{one.attemptNumber}</td>
                     <td>{one.outstanding}</td>
-                    <td>{waitingFor(one.waitingSeconds)}</td>
+                    <td>{waitingFor(locale, one.waitingSeconds)}</td>
                     <td>
                       <button
                         type="button"
-                        className="btn btn-secondary btn-dense"
+                        className={buttonClasses('secondary', 'sm')}
                         onClick={() => setOpen(one)}
                       >
-                        Mark
+                        {t('grading.mark')}
                       </button>
                     </td>
                   </tr>
@@ -126,18 +126,12 @@ export function Grading() {
  * <p>Shown because it is the only thing on this screen that argues for one attempt over another:
  * the queue has no priority and no claim, so "who has waited longest" is the whole ordering story.
  */
-function waitingFor(seconds: number | undefined) {
-  if (seconds === undefined) {
-    return '—';
-  }
-  const hours = Math.floor(seconds / 3600);
-  if (hours < 1) {
-    return `${Math.floor(seconds / 60)} min`;
-  }
-  return hours < 48 ? `${hours} h` : `${Math.floor(hours / 24)} days`;
+function waitingFor(locale: Locale, seconds: number | undefined) {
+  return seconds === undefined ? '—' : formatWaited(locale, seconds);
 }
 
 function MarkAttempt({ waiting, onGraded }: { waiting: WaitingView; onGraded: () => void }) {
+  const { locale, t } = useLocale();
   const [marks, setMarks] = useState<MarkView[]>([]);
   const [verdict, setVerdict] = useState<components['schemas']['AttemptGradingView'] | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -178,13 +172,16 @@ function MarkAttempt({ waiting, onGraded }: { waiting: WaitingView; onGraded: ()
   }
 
   return (
-    <section className="grading__attempt panel" aria-labelledby="marking">
-      <h2 id="marking" className="u-caps">
-        {waiting.testTitle} · attempt {waiting.attemptNumber}
+    <section className="card flex flex-col gap-4 p-5" aria-labelledby="marking">
+      <h2 id="marking" className="label-caps">
+        {t('grading.attempt-heading', {
+          test: waiting.testTitle ?? '',
+          number: waiting.attemptNumber ?? '',
+        })}
       </h2>
 
       {verdict ? (
-        <p className="grading__verdict">
+        <p className="flex flex-wrap items-center gap-2">
           <StateChip
             state={
               verdict.grading === 'AWAITING_GRADING'
@@ -196,27 +193,34 @@ function MarkAttempt({ waiting, onGraded }: { waiting: WaitingView; onGraded: ()
           />
           <span>
             {verdict.grading === 'AWAITING_GRADING'
-              ? 'Still waiting on the answers below.'
-              : `${verdict.scorePercent}% — ${verdict.passed ? 'passed' : 'not passed'}`}
+              ? t('grading.still-waiting')
+              : t(verdict.passed ? 'grading.verdict.passed' : 'grading.verdict.not-passed', {
+                  percent: formatPercent(locale, verdict.scorePercent ?? 0),
+                })}
           </span>
         </p>
       ) : null}
 
       {problem ? (
-        <p className="authoring__short" role="alert">
+        <p className="rounded-lg border border-overdue-edge bg-overdue-bg p-3 text-sm text-overdue-fg" role="alert">
           {problem}
         </p>
       ) : null}
 
-      <ul className="grading__marks">
+      <ul className="flex flex-col gap-2">
         {marks.map((one) => (
-          <li key={one.responseId} className="panel grading__mark">
-            <span className="u-caps">
-              {one.graded ? 'Marked' : 'Not marked'} · out of {one.available}
+          <li key={one.responseId} className="flex flex-col gap-2 rounded-lg border border-hairline bg-surface-muted p-4">
+            <span className="label-caps">
+              {one.graded ? t('grading.marked') : t('grading.not-marked')}
+              {' · '}
+              {t('grading.out-of', { available: formatNumber(locale, one.available ?? 0) })}
             </span>
             {one.graded ? (
-              <p className="u-meta">
-                {one.awarded} of {one.available}
+              <p className="text-sm text-muted">
+                {t('grading.awarded', {
+                  awarded: formatNumber(locale, one.awarded ?? 0),
+                  available: formatNumber(locale, one.available ?? 0),
+                })}
                 {one.comment ? ` — ${one.comment}` : ''}
               </p>
             ) : (
@@ -241,6 +245,7 @@ function MarkOne({
   available: number;
   onMark: (awarded: number, comment: string) => void;
 }) {
+  const { locale, t } = useLocale();
   const [awarded, setAwarded] = useState('');
   const [comment, setComment] = useState('');
   const value = Number(awarded);
@@ -248,7 +253,7 @@ function MarkOne({
 
   return (
     <form
-      className="grading__form"
+      className="flex flex-col gap-3"
       onSubmit={(event) => {
         event.preventDefault();
         if (sensible) {
@@ -256,28 +261,28 @@ function MarkOne({
         }
       }}
     >
-      <label className="u-caps" htmlFor="awarded">
-        Award
+      <label className="label-caps" htmlFor="awarded">
+        {t('grading.award')}
       </label>
       <input
         id="awarded"
-        className="input input-dense"
+        className={fieldClasses(true)}
         inputMode="decimal"
         value={awarded}
         onChange={(event) => setAwarded(event.target.value)}
-        placeholder={`0 – ${available}`}
+        placeholder={t('grading.range', { available: formatNumber(locale, available) })}
       />
-      <label className="u-caps" htmlFor="comment">
-        Comment for the learner
+      <label className="label-caps" htmlFor="comment">
+        {t('grading.comment')}
       </label>
       <input
         id="comment"
-        className="input input-dense"
+        className={fieldClasses(true)}
         value={comment}
         onChange={(event) => setComment(event.target.value)}
       />
-      <button type="submit" className="btn btn-primary" disabled={!sensible}>
-        Mark
+      <button type="submit" className={buttonClasses('primary', 'sm')} disabled={!sensible}>
+        {t('grading.mark')}
       </button>
     </form>
   );

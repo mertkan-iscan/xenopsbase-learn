@@ -1,118 +1,629 @@
 /*
- * The application's stylesheet. Three layers, in cascade order: tokens, then the components
- * built from them, then the layouts the screens compose (docs/design-prompt.md).
+ * The design system: indigo and glass (docs/design-prompt.md).
  *
- * Everything below this import block is either structural accessibility -- the part that is not
- * decoration -- or the player, which is deliberately left alone.
+ * WHAT THIS REPLACED, AND WHY. The previous system was ink on paper -- warm neutral ground, one
+ * red accent, `border-radius: 0` everywhere, and elevation rationed to things that genuinely
+ * float. It was coherent, and it was replaced deliberately rather than because it had failed: the
+ * product is judged by people who expect a modern application, and "severe" was reading as
+ * "unfinished". What is here instead is depth from LAYERS -- a soft ground, white cards lifted on
+ * diffuse shadows, and translucency where a surface sits over content that is still moving.
+ *
+ * THE FOUR RULES THIS FILE HOLDS:
+ *
+ *   1. TOKENS FLIP, UTILITIES DO NOT. Every colour a screen names is semantic (`bg-surface`,
+ *      `text-muted`, `border-hairline`), never a palette step. The two themes are two values for
+ *      one token, resolved here, so no screen carries a `dark:` for a colour.
+ *   2. GLASS ONLY OVER MOVING CONTENT -- the top bar, the mobile drawer, the sticky exam footer.
+ *      Never under body text: a blur behind a paragraph is a contrast failure that no audit
+ *      catches because the measured colour is not the perceived one.
+ *   3. NINE SEMANTIC STATES, AND COLOUR IS NEVER THE ONLY CHANNEL. Each one carries a label and
+ *      an icon as well as a tint (see shared/ui/StateChip.tsx). `awaiting` is dashed and amber on
+ *      purpose: `passed: null` is not a fail, and drawing it as one locks a learner out of a
+ *      course they may well have passed.
+ *   4. LOGICAL PROPERTIES ONLY. `ps-`/`pe-`/`ms-`/`me-`/`start-`/`end-`, never `pl-`/`pr-`. A
+ *      right-to-left layout is a conformance target here, and it has to be proved rather than
+ *      assumed.
  */
-@import './shared/design/tokens.css';
-@import './shared/design/components.css';
-@import './shared/design/screens.css';
+@import 'tailwindcss';
+
+/*
+ * DARK IS A CHOICE FIRST AND AN OS PREFERENCE SECOND.
+ *
+ * The OS preference applies unless somebody has explicitly chosen light, and an explicit dark wins
+ * everywhere -- so a person on a dark OS who wants light gets light, which a bare
+ * `prefers-color-scheme` variant cannot express.
+ */
+@custom-variant dark {
+  @media (prefers-color-scheme: dark) {
+    &:where(:not([data-theme='light'], [data-theme='light'] *)) {
+      @slot;
+    }
+  }
+  &:where([data-theme='dark'], [data-theme='dark'] *) {
+    @slot;
+  }
+}
+
+/* ------------------------------------------------------------------ the two themes, resolved */
 
 :root {
-  color-scheme: light dark;
-  font-family: var(--font-body);
-  font-size: var(--text-body);
-  line-height: 1.5;
-}
+  color-scheme: light;
 
-body {
-  margin: 0;
-  background: var(--color-bg);
-  color: var(--color-text);
+  /* Ground, and the surfaces that sit on it. The ground carries the faintest indigo so that a
+     white card reads as lit rather than as a lighter grey. */
+  --ground: #f5f6fb;
+  --surface: #ffffff;
+  --surface-muted: #f8fafc;
+  --surface-sunken: #eef1f8;
+
+  /* Glass: a translucent surface plus a blur, used only where content scrolls underneath. */
+  --glass: rgb(255 255 255 / 0.72);
+  --glass-strong: rgb(255 255 255 / 0.86);
+  --glass-edge: rgb(15 23 42 / 0.08);
+
+  /* Ink. `muted` and `subtle` are both held above 4.5:1 on `--surface` AND on `--ground`. */
+  --ink: #0f172a;
+  --ink-muted: #4d5c74;
+  /*
+   * 4.55:1 ON WHITE, WHICH IS THE WHOLE REASON FOR THE ODD VALUE. This was `#64748b` (slate-500),
+   * a perfectly ordinary choice that measures 4.41:1 -- under the 4.5 floor for text below
+   * 18.66px. It is the colour of `label-caps`, which is 11px and bold, so the miss applied to
+   * every section heading, every table header and every field label in the product at once.
+   *
+   * The suite cannot catch this: `vitest` runs with `css: false` and jsdom has no layout, so axe
+   * measures no contrast at all. Found by compositing the rendered colours in a browser, which is
+   * the only place this is checkable.
+   */
+  --ink-subtle: #5a6a7f;
+  --ink-inverse: #ffffff;
+
+  --hairline: rgb(15 23 42 / 0.09);
+  --hairline-strong: rgb(15 23 42 / 0.16);
+
+  /* The one accent, in the one place it is allowed to be loud. */
+  --brand: #4f46e5;
+  --brand-hover: #4338ca;
+  --brand-active: #3730a3;
+  --brand-tint: #eef2ff;
+  --brand-tint-edge: #c7d2fe;
+  --brand-on: #ffffff;
+
+  /* Focus. Never the brand: the ring has to be visible against a filled brand button too. */
+  --focus: #1e1b4b;
+
+  /* The nine states: a tint, a readable foreground, an edge. */
+  --state-due-bg: #f1f5f9;
+  --state-due-fg: #334155;
+  --state-due-edge: #cbd5e1;
+
+  --state-progress-bg: #eef2ff;
+  --state-progress-fg: #4338ca;
+  --state-progress-edge: #c7d2fe;
+
+  --state-overdue-bg: #fef2f2;
+  --state-overdue-fg: #b91c1c;
+  --state-overdue-edge: #fecaca;
+
+  --state-locked-bg: #f8fafc;
+  --state-locked-fg: #475569;
+  --state-locked-edge: #e2e8f0;
+
+  --state-awaiting-bg: #fffbeb;
+  --state-awaiting-fg: #a16207;
+  --state-awaiting-edge: #fcd34d;
+
+  --state-passed-bg: #ecfdf5;
+  --state-passed-fg: #047857;
+  --state-passed-edge: #a7f3d0;
+
+  --state-failed-bg: #fff1f2;
+  --state-failed-fg: #be123c;
+  --state-failed-edge: #fecdd3;
+
+  --state-draft-bg: transparent;
+  --state-draft-fg: #64748b;
+  --state-draft-edge: #cbd5e1;
+
+  --state-published-bg: transparent;
+  --state-published-fg: #047857;
+  --state-published-edge: #6ee7b7;
 }
 
 /*
- * VISIBLE FOCUS, ON EVERYTHING. `currentColor` rather than the accent: the outline has to be
- * visible against whatever the focused thing is sitting on, and on a filled ink button the accent
- * is nearly invisible while the button's own foreground never is.
+ * Dark is not a set of overrides bolted on: every token above is restated, so the two palettes
+ * resolve together and neither can drift. The surfaces diverge much further from the ground here
+ * than they do in light -- in light a shadow separates a card, and in dark a shadow is invisible,
+ * so the separation has to come from the surface being genuinely lighter.
  */
-*:focus-visible {
-  outline: 3px solid currentColor;
-  outline-offset: 2px;
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --ground: #070a14;
+    --surface: #101728;
+    --surface-muted: #161e31;
+    --surface-sunken: #0b1120;
+
+    --glass: rgb(16 23 40 / 0.72);
+    --glass-strong: rgb(16 23 40 / 0.88);
+    --glass-edge: rgb(255 255 255 / 0.10);
+
+    --ink: #e8edf7;
+    --ink-muted: #a3b0c4;
+    --ink-subtle: #8494ab;
+    --ink-inverse: #0f172a;
+
+    --hairline: rgb(255 255 255 / 0.10);
+    --hairline-strong: rgb(255 255 255 / 0.20);
+
+    /*
+     * INDIGO-400, NOT INDIGO-500, AND THAT IS A CONTRAST FIX RATHER THAN A PREFERENCE. `#6366f1`
+     * measured 4.42:1 against this ground and 3.5:1 inside `--brand-tint` -- both under the 4.5
+     * small-text floor, and both invisible to the test suite, which cannot measure contrast at all
+     * (jsdom has no layout). Found by compositing the real rendered colours in a browser.
+     *
+     * The filled button stays legible because `--brand-on` below is dark ink rather than white: a
+     * lighter brand makes that pair better, not worse.
+     */
+    --brand: #818cf8;
+    --brand-hover: #a5b4fc;
+    --brand-active: #c7d2fe;
+    --brand-tint: rgb(99 102 241 / 0.16);
+    --brand-tint-edge: rgb(129 140 248 / 0.34);
+    --brand-on: #0b1120;
+
+    --focus: #c7d2fe;
+
+    --state-due-bg: rgb(148 163 184 / 0.14);
+    --state-due-fg: #cbd5e1;
+    --state-due-edge: rgb(203 213 225 / 0.28);
+
+    --state-progress-bg: rgb(99 102 241 / 0.18);
+    --state-progress-fg: #a5b4fc;
+    --state-progress-edge: rgb(129 140 248 / 0.38);
+
+    --state-overdue-bg: rgb(248 113 113 / 0.16);
+    --state-overdue-fg: #fca5a5;
+    --state-overdue-edge: rgb(248 113 113 / 0.38);
+
+    --state-locked-bg: rgb(148 163 184 / 0.10);
+    --state-locked-fg: #94a3b8;
+    --state-locked-edge: rgb(148 163 184 / 0.24);
+
+    --state-awaiting-bg: rgb(251 191 36 / 0.16);
+    --state-awaiting-fg: #fcd34d;
+    --state-awaiting-edge: rgb(252 211 77 / 0.42);
+
+    --state-passed-bg: rgb(52 211 153 / 0.16);
+    --state-passed-fg: #6ee7b7;
+    --state-passed-edge: rgb(110 231 183 / 0.38);
+
+    --state-failed-bg: rgb(251 113 133 / 0.16);
+    --state-failed-fg: #fda4af;
+    --state-failed-edge: rgb(253 164 175 / 0.38);
+
+    --state-draft-bg: transparent;
+    --state-draft-fg: #94a3b8;
+    --state-draft-edge: rgb(148 163 184 / 0.34);
+
+    --state-published-bg: transparent;
+    --state-published-fg: #6ee7b7;
+    --state-published-edge: rgb(110 231 183 / 0.40);
+  }
 }
 
-.skip {
-  position: absolute;
-  left: -9999px;
+/* The same values again, as an explicit choice, so a toggle wins over the OS in both directions. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --ground: #070a14;
+  --surface: #101728;
+  --surface-muted: #161e31;
+  --surface-sunken: #0b1120;
+
+  --glass: rgb(16 23 40 / 0.72);
+  --glass-strong: rgb(16 23 40 / 0.88);
+  --glass-edge: rgb(255 255 255 / 0.10);
+
+  --ink: #e8edf7;
+  --ink-muted: #a3b0c4;
+  --ink-subtle: #8494ab;
+  --ink-inverse: #0f172a;
+
+  --hairline: rgb(255 255 255 / 0.10);
+  --hairline-strong: rgb(255 255 255 / 0.20);
+
+  /*
+   * INDIGO-400, NOT INDIGO-500, AND THAT IS A CONTRAST FIX RATHER THAN A PREFERENCE. `#6366f1`
+   * measured 4.42:1 against this ground and 3.5:1 inside `--brand-tint` -- both under the 4.5
+   * small-text floor, and both invisible to the test suite, which cannot measure contrast at all
+   * (jsdom has no layout). Found by compositing the real rendered colours in a browser.
+   *
+   * The filled button stays legible because `--brand-on` below is dark ink rather than white: a
+   * lighter brand makes that pair better, not worse.
+   */
+  --brand: #818cf8;
+  --brand-hover: #a5b4fc;
+  --brand-active: #c7d2fe;
+  --brand-tint: rgb(99 102 241 / 0.16);
+  --brand-tint-edge: rgb(129 140 248 / 0.34);
+  --brand-on: #0b1120;
+
+  --focus: #c7d2fe;
+
+  --state-due-bg: rgb(148 163 184 / 0.14);
+  --state-due-fg: #cbd5e1;
+  --state-due-edge: rgb(203 213 225 / 0.28);
+
+  --state-progress-bg: rgb(99 102 241 / 0.18);
+  --state-progress-fg: #a5b4fc;
+  --state-progress-edge: rgb(129 140 248 / 0.38);
+
+  --state-overdue-bg: rgb(248 113 113 / 0.16);
+  --state-overdue-fg: #fca5a5;
+  --state-overdue-edge: rgb(248 113 113 / 0.38);
+
+  --state-locked-bg: rgb(148 163 184 / 0.10);
+  --state-locked-fg: #94a3b8;
+  --state-locked-edge: rgb(148 163 184 / 0.24);
+
+  --state-awaiting-bg: rgb(251 191 36 / 0.16);
+  --state-awaiting-fg: #fcd34d;
+  --state-awaiting-edge: rgb(252 211 77 / 0.42);
+
+  --state-passed-bg: rgb(52 211 153 / 0.16);
+  --state-passed-fg: #6ee7b7;
+  --state-passed-edge: rgb(110 231 183 / 0.38);
+
+  --state-failed-bg: rgb(251 113 133 / 0.16);
+  --state-failed-fg: #fda4af;
+  --state-failed-edge: rgb(253 164 175 / 0.38);
+
+  --state-draft-bg: transparent;
+  --state-draft-fg: #94a3b8;
+  --state-draft-edge: rgb(148 163 184 / 0.34);
+
+  --state-published-bg: transparent;
+  --state-published-fg: #6ee7b7;
+  --state-published-edge: rgb(110 231 183 / 0.40);
 }
 
-.skip:focus {
-  position: static;
-  display: inline-block;
-  margin: var(--space-2);
+/* ------------------------------------------------------------------------ tokens as utilities */
+
+/*
+ * `@theme inline` rather than `@theme`: it emits `var(--ground)` into the utility instead of
+ * resolving the value at build time, which is the whole reason a single `bg-ground` can mean two
+ * different colours in the two themes.
+ */
+@theme inline {
+  --color-ground: var(--ground);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-sunken: var(--surface-sunken);
+
+  --color-glass: var(--glass);
+  --color-glass-strong: var(--glass-strong);
+  --color-glass-edge: var(--glass-edge);
+
+  --color-ink: var(--ink);
+  --color-muted: var(--ink-muted);
+  --color-subtle: var(--ink-subtle);
+  --color-inverse: var(--ink-inverse);
+
+  --color-hairline: var(--hairline);
+  --color-hairline-strong: var(--hairline-strong);
+
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-active: var(--brand-active);
+  --color-brand-tint: var(--brand-tint);
+  --color-brand-tint-edge: var(--brand-tint-edge);
+  --color-brand-on: var(--brand-on);
+
+  --color-due-bg: var(--state-due-bg);
+  --color-due-fg: var(--state-due-fg);
+  --color-due-edge: var(--state-due-edge);
+  --color-progress-bg: var(--state-progress-bg);
+  --color-progress-fg: var(--state-progress-fg);
+  --color-progress-edge: var(--state-progress-edge);
+  --color-overdue-bg: var(--state-overdue-bg);
+  --color-overdue-fg: var(--state-overdue-fg);
+  --color-overdue-edge: var(--state-overdue-edge);
+  --color-locked-bg: var(--state-locked-bg);
+  --color-locked-fg: var(--state-locked-fg);
+  --color-locked-edge: var(--state-locked-edge);
+  --color-awaiting-bg: var(--state-awaiting-bg);
+  --color-awaiting-fg: var(--state-awaiting-fg);
+  --color-awaiting-edge: var(--state-awaiting-edge);
+  --color-passed-bg: var(--state-passed-bg);
+  --color-passed-fg: var(--state-passed-fg);
+  --color-passed-edge: var(--state-passed-edge);
+  --color-failed-bg: var(--state-failed-bg);
+  --color-failed-fg: var(--state-failed-fg);
+  --color-failed-edge: var(--state-failed-edge);
+  --color-draft-bg: var(--state-draft-bg);
+  --color-draft-fg: var(--state-draft-fg);
+  --color-draft-edge: var(--state-draft-edge);
+  --color-published-bg: var(--state-published-bg);
+  --color-published-fg: var(--state-published-fg);
+  --color-published-edge: var(--state-published-edge);
 }
 
-h1,
-h2,
-h3,
-h4 {
-  font-family: var(--font-heading);
-  font-weight: 800;
-  text-wrap: balance;
+@theme {
+  /*
+   * Two families, five faces, and that is the ceiling: this is read on a mid-range Android phone
+   * on a bad connection, and every face is a request that delays the sentence telling somebody
+   * why their course is locked. Both cover Latin Extended, which is not optional here -- the
+   * product ships in Turkish.
+   */
+  --font-sans: 'Manrope', ui-sans-serif, system-ui, 'Segoe UI', sans-serif;
+  --font-display: 'Sora', 'Manrope', ui-sans-serif, system-ui, sans-serif;
+
+  /*
+   * Rounded, and consistently so. A radius that creeps in on one control is what makes the rest
+   * look unfinished -- the same argument the old system made for zero, applied to a number.
+   */
+  --radius-xs: 0.375rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --radius-xl: 1.125rem;
+  --radius-2xl: 1.5rem;
+
+  /*
+   * Shadows are DIFFUSE AND NEARLY COLOURLESS. A tinted or tight shadow reads as a drawn outline,
+   * which is the thing this system replaced. `float` is for something genuinely above the page;
+   * `glow` is for the primary action and appears nowhere else.
+   */
+  --shadow-soft: 0 1px 2px rgb(15 23 42 / 0.04), 0 4px 12px rgb(15 23 42 / 0.05);
+  --shadow-lift: 0 2px 4px rgb(15 23 42 / 0.05), 0 12px 28px rgb(15 23 42 / 0.09);
+  --shadow-float: 0 8px 20px rgb(15 23 42 / 0.1), 0 24px 56px rgb(15 23 42 / 0.14);
+  --shadow-glow: 0 6px 20px rgb(79 70 229 / 0.28);
+
+  /*
+   * The width at which navigation stops being a drawer and becomes a side panel. Stated here and
+   * matched by `WIDE` in app/Shell.tsx, which needs the same number in JavaScript to know when to
+   * stop holding a drawer open.
+   */
+  --breakpoint-desk: 60rem;
+
+  /* 44px. The floor for anything a thumb has to hit, per docs/design-prompt.md. */
+  --spacing-tap: 2.75rem;
 }
 
-a {
-  color: var(--color-accent-700);
+/* ------------------------------------------------------------------------------------- base */
+
+@layer base {
+  html {
+    /* A sticky header means an anchored heading would otherwise land underneath it. */
+    scroll-padding-top: 5rem;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /*
+   * WHICH WAY THE DRAWER COMES IN. `transform` has no logical-property form, so the one direction
+   * this system cannot express in `start`/`end` terms is held as a variable and flipped here. A
+   * right-to-left layout is a conformance target (docs/design-prompt.md), and a drawer that slides
+   * in from the wrong edge is the most visible way to fail it.
+   */
+  :root {
+    --drawer-offset: -100%;
+  }
+
+  [dir='rtl'] {
+    --drawer-offset: 100%;
+  }
+
+  /*
+   * VISIBLE FOCUS, ON EVERYTHING, AND IT DID NOT GET SOFTER IN THE REDESIGN.
+   *
+   * Two rings rather than one: the inner ring is the surface colour, so the outer stays visible on
+   * a filled brand button as well as on a white card. A design that trades this for tidiness has
+   * traded away keyboard operation, which is a build gate here (T-10.8).
+   */
+  *:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px var(--surface);
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+    color: inherit;
+  }
+
+  /*
+   * Every animation in this system is decoration on top of a layout that already works, so
+   * turning them all off changes nothing about what can be read or reached.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
-code {
-  overflow-wrap: anywhere;
+/* ------------------------------------------------------------------------------- utilities */
+
+/*
+ * Glass, in one place. Rule 2 at the top of this file is what keeps it from spreading: it goes on
+ * the top bar, the mobile drawer and the sticky exam footer, and nowhere content is read.
+ *
+ * `backdrop-filter` is not universal, so the fallback is a nearly opaque surface rather than a
+ * transparent one -- a bar that does not blur is fine, a bar you can read the page through is not.
+ */
+@utility glass {
+  background-color: var(--glass-strong);
+  border-color: var(--glass-edge);
+
+  /* The blur is the enhancement; the opaque surface above is what makes its absence harmless. */
+  @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+    background-color: var(--glass);
+    -webkit-backdrop-filter: saturate(180%) blur(16px);
+    backdrop-filter: saturate(180%) blur(16px);
+  }
 }
 
 /*
- * The player (T-3.5). Layout only: the controls that matter are the browser's own, which are
- * already keyboard operable and labelled in the viewer's language, and restyling them is how a
- * player loses the accessibility it got for free.
+ * A card: the default object on the ground. Lifted by a shadow, and edged by a hairline for the
+ * cases where a shadow is invisible -- dark, forced-colours, print.
  */
-.player {
-  margin: 0;
-  max-width: 100%;
+@utility card {
+  background-color: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-soft);
 }
 
-.player__video {
+/* The label voice: small, spaced, quiet. Section headers and metadata keys. */
+@utility label-caps {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-subtle);
+}
+
+/* Wide content scrolls inside its own box; the page never scrolls sideways. */
+@utility scroll-x {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+/*
+ * The page-arrival animation, applied by the shell to `main` on every route change. ONE reveal
+ * rather than a dozen micro-interactions: CSS only, no animation library, and it costs nothing on
+ * the device this product is actually used on.
+ */
+@utility rise {
+  animation: rise 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The loading state's bars: a shimmer that travels, so it reads as working rather than as stuck. */
+@utility shimmer {
+  background-image: linear-gradient(
+    90deg,
+    var(--surface-sunken) 0%,
+    var(--surface-muted) 40%,
+    var(--surface-sunken) 80%
+  );
+  background-size: 300% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -150% 0;
+  }
+}
+
+/* The drawer and its backdrop. Both are `motion-safe:` at the call site, so the reduced-motion
+   block above is belt and braces rather than the only guard. */
+@keyframes drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--drawer-offset, -100%));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/*
+ * A table, styled through its cells.
+ *
+ * THE ONE PLACE THIS SYSTEM STYLES DESCENDANTS RATHER THAN ELEMENTS, and the reason is arithmetic:
+ * the console's tables have five columns and a row per person, so the same three padding
+ * utilities would be repeated on every `th` and `td` in the file and a missed one would be a cell
+ * that does not line up. A table is the one structure whose cells genuinely all want the same
+ * thing.
+ *
+ * Alignment is `start` rather than `left`, so a right-to-left layout is right without a second
+ * rule.
+ */
+@utility table-plain {
   width: 100%;
-  aspect-ratio: 16 / 9;
-  background: #000;
-  display: block;
-}
-
-.player__controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  align-items: center;
-  padding: 0.5rem 0;
-}
-
-.player__control {
-  display: flex;
-  gap: 0.4rem;
-  align-items: center;
-}
-
-.player__quality,
-.player__notice {
+  border-collapse: collapse;
   font-size: 0.875rem;
-  opacity: 0.8;
-}
 
-/*
- * What is holding playback (T-5.4). Full width so it sits on its own line under the controls,
- * and NOT dimmed like the notices above it: this one is the reason the video stopped, and a
- * learner who cannot find it is a learner staring at a paused player.
- */
-.player__held {
-  flex-basis: 100%;
-  margin: 0;
-  font-size: 0.875rem;
-}
+  & th,
+  & td {
+    padding: 0.625rem 1rem;
+    text-align: start;
+    vertical-align: top;
+  }
 
-/*
- * Inside the iframe there is no page around the player, and the host's box is the whole viewport.
- * No background colour is set: a host may embed us into any design, and a white rectangle we did
- * not have to draw is one we should not.
- */
-.player-document {
-  margin: 0;
+  & thead th {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-subtle);
+    white-space: nowrap;
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  & tbody tr {
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  & tbody tr:last-child {
+    border-bottom: 0;
+  }
 }

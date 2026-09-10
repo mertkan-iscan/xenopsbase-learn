@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { catalog, failureFrom, type ApiFailure } from '../shared/api/client.ts';
+import { buttonClasses } from '../shared/design/Button.tsx';
+import { fieldClasses } from '../shared/design/Field.tsx';
 import type { components } from '../shared/api/catalog.d.ts';
 import { useMe } from '../shared/auth/useMe.ts';
 import { StateChip } from '../shared/design/State.tsx';
+import type { MessageKey } from '../shared/i18n/messages.en.ts';
+import { useT } from '../shared/i18n/useLocale.ts';
 import { Empty, ErrorState, Loading } from '../shared/state/States.tsx';
 import { NotEnforcedYet } from './NotEnforcedYet.tsx';
 
@@ -56,14 +60,14 @@ export function Assign() {
   }, [load]);
 
   if (screen.status === 'loading') {
-    return <Loading what="assignments" />;
+    return <Loading what="loading.assignments" />;
   }
   if (screen.status === 'failed') {
     return <ErrorState message={screen.failure.message} retry={load} />;
   }
 
   return (
-    <div className="assign">
+    <div className="flex flex-col gap-6">
       <NotEnforcedYet />
       <AssignForm
         courses={screen.courses}
@@ -88,21 +92,23 @@ function AssignForm({
   const [targetType, setTargetType] = useState<'USER' | 'GROUP' | 'TENANT'>('USER');
   const [targetId, setTargetId] = useState('');
   const [dueOn, setDueOn] = useState('');
+  const t = useT();
   const [confirming, setConfirming] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
   const ready = courseId !== '' && (targetType === 'TENANT' || targetId.trim() !== '');
 
-  const reach =
+  const reach = t(
     targetType === 'TENANT'
-      ? 'every active learner in this company'
+      ? 'assign.reach.tenant'
       : targetType === 'GROUP'
-        ? 'everyone in that group, including every group beneath it'
-        : 'one person';
+        ? 'assign.reach.group'
+        : 'assign.reach.user',
+  );
 
   async function assign() {
     if (!assignedBy) {
-      setProblem('Your account has no identity in this company, so nothing can be assigned as you.');
+      setProblem(t('assign.no-identity'));
       return;
     }
     const { response, error } = await catalog.POST('/api/v1/assignments', {
@@ -128,21 +134,21 @@ function AssignForm({
   }
 
   return (
-    <section className="assign__form panel" aria-labelledby="assign-heading">
-      <h2 id="assign-heading" className="u-caps">
-        Assign a course
+    <section className="card flex flex-col gap-4 p-5" aria-labelledby="assign-heading">
+      <h2 id="assign-heading" className="label-caps">
+        {t('assign.heading')}
       </h2>
 
-      <label className="u-caps" htmlFor="assign-course">
-        Course
+      <label className="label-caps" htmlFor="assign-course">
+        {t('assign.course')}
       </label>
       <select
         id="assign-course"
-        className="input input-dense"
+        className={fieldClasses(true)}
         value={courseId}
         onChange={(event) => setCourseId(event.target.value)}
       >
-        <option value="">Choose…</option>
+        <option value="">{t('assign.choose')}</option>
         {courses.map((course) => (
           <option key={course.id} value={course.id}>
             {course.title}
@@ -150,59 +156,54 @@ function AssignForm({
         ))}
       </select>
 
-      <label className="u-caps" htmlFor="assign-target">
-        To
+      <label className="label-caps" htmlFor="assign-target">
+        {t('assign.to')}
       </label>
       <select
         id="assign-target"
-        className="input input-dense"
+        className={fieldClasses(true)}
         value={targetType}
         onChange={(event) => setTargetType(event.target.value as 'USER' | 'GROUP' | 'TENANT')}
       >
-        <option value="USER">One person</option>
-        <option value="GROUP">A group</option>
-        <option value="TENANT">The whole company</option>
+        <option value="USER">{t('assign.target.user')}</option>
+        <option value="GROUP">{t('assign.target.group')}</option>
+        <option value="TENANT">{t('assign.target.tenant')}</option>
       </select>
 
       {targetType === 'TENANT' ? null : (
         <>
-          <label className="u-caps" htmlFor="assign-target-id">
-            {targetType === 'USER' ? 'Learner id' : 'Group id'}
+          <label className="label-caps" htmlFor="assign-target-id">
+            {t(targetType === 'USER' ? 'assign.learner-id' : 'assign.group-id')}
           </label>
           <input
             id="assign-target-id"
-            className="input input-dense"
+            className={fieldClasses(true)}
             value={targetId}
             onChange={(event) => setTargetId(event.target.value)}
-            placeholder="uuid"
+            placeholder={t('assign.uuid')}
           />
           {/*
            * An id rather than a picker, and not by choice: identity publishes no user-list
            * endpoint and no group-member list, so there is nothing to populate a picker from.
            */}
-          <p className="u-meta">
-            An id, because identity has no endpoint that lists people or group members yet.
-          </p>
+          <p className="text-sm text-muted">{t('assign.id-note')}</p>
         </>
       )}
 
-      <label className="u-caps" htmlFor="assign-due">
-        Due on
+      <label className="label-caps" htmlFor="assign-due">
+        {t('assign.due-on')}
       </label>
       <input
         id="assign-due"
         type="date"
-        className="input input-dense"
+        className={fieldClasses(true)}
         value={dueOn}
         onChange={(event) => setDueOn(event.target.value)}
       />
-      <p className="u-meta">
-        A due date cannot be changed afterwards — catalog has no update for an assignment. Changing
-        it means revoking this one and assigning again.
-      </p>
+      <p className="text-sm text-muted">{t('assign.due-note')}</p>
 
       {problem ? (
-        <p className="authoring__short" role="alert">
+        <p className="rounded-lg border border-overdue-edge bg-overdue-bg p-3 text-sm text-overdue-fg" role="alert">
           {problem}
         </p>
       ) : null}
@@ -213,33 +214,41 @@ function AssignForm({
        * revoking each one.
        */}
       {confirming ? (
-        <div className="assign__confirm" role="alert">
+        <div className="flex flex-col gap-3 rounded-lg border border-brand-tint-edge bg-brand-tint p-4" role="alert">
           <p>
-            This assigns <strong>{courses.find((c) => c.id === courseId)?.title}</strong> to{' '}
-            <strong>{reach}</strong>.
+            {t('assign.confirm', {
+              course: courses.find((c) => c.id === courseId)?.title ?? '',
+              reach,
+            })}
           </p>
-          <div className="assign__confirm-actions">
-            <button type="button" className="btn btn-primary" onClick={() => void assign()}>
-              Yes, assign it
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className={buttonClasses('primary', 'sm')} onClick={() => void assign()}>
+              {t('assign.confirm.yes')}
             </button>
-            <button type="button" className="btn btn-secondary" onClick={() => setConfirming(false)}>
-              Cancel
+            <button type="button" className={buttonClasses('secondary', 'sm')} onClick={() => setConfirming(false)}>
+              {t('assign.confirm.cancel')}
             </button>
           </div>
         </div>
       ) : (
         <button
           type="button"
-          className="btn btn-primary"
+          className={buttonClasses('primary', 'sm')}
           disabled={!ready}
           onClick={() => setConfirming(true)}
         >
-          Assign…
+          {t('assign.open')}
         </button>
       )}
     </section>
   );
 }
+
+/** Who an assignment reaches, said in words rather than by lower-casing the enum. */
+const targetWords: Record<string, MessageKey> = {
+  USER: 'assign.to.user',
+  GROUP: 'assign.to.group',
+};
 
 function Existing({
   assignments,
@@ -250,6 +259,7 @@ function Existing({
   courses: CourseView[];
   onRevoked: () => void;
 }) {
+  const t = useT();
   async function revoke(id: string) {
     await catalog.DELETE('/api/v1/assignments/{assignmentId}', {
       params: { path: { assignmentId: id } },
@@ -259,24 +269,24 @@ function Existing({
 
   if (assignments.length === 0) {
     return (
-      <Empty title="Nothing is assigned in this company.">
-        <p className="u-meta">Until something is, every learner’s home screen is empty.</p>
+      <Empty title={t('assign.empty.title')}>
+        <p className="text-sm text-muted">{t('assign.empty.body')}</p>
       </Empty>
     );
   }
 
   return (
-    <section className="assign__existing" aria-labelledby="existing">
-      <h2 id="existing" className="u-caps">
-        Assigned
+    <section className="flex flex-col gap-3" aria-labelledby="existing">
+      <h2 id="existing" className="label-caps">
+        {t('assign.existing')}
       </h2>
-      <div className="u-scroll-x">
-        <table className="table">
+      <div className="scroll-x">
+        <table className="table-plain">
           <thead>
             <tr>
-              <th scope="col">Course</th>
-              <th scope="col">To</th>
-              <th scope="col">Pinned version</th>
+              <th scope="col">{t('assign.course')}</th>
+              <th scope="col">{t('assign.to')}</th>
+              <th scope="col">{t('assign.col.pinned')}</th>
               <th scope="col" />
             </tr>
           </thead>
@@ -288,9 +298,16 @@ function Existing({
                     assignment.referenceId}
                 </td>
                 <td>
+                  {/*
+                   * Named through the catalogue rather than lower-casing the enum. `'USER'
+                   * .toLowerCase()` reads as harmless and is the exact shape of the Turkish-I bug
+                   * — and it produced an English noun on a Turkish page either way.
+                   */}
                   {assignment.targetType === 'TENANT'
-                    ? 'the whole company'
-                    : `${assignment.targetType?.toLowerCase()} ${assignment.targetId}`}
+                    ? t('assign.to.tenant')
+                    : t(targetWords[assignment.targetType ?? 'USER'] ?? 'assign.to.user', {
+                        id: assignment.targetId ?? '',
+                      })}
                 </td>
                 <td>
                   {assignment.pinnedVersion ?? '—'}
@@ -299,15 +316,17 @@ function Existing({
                    * still pinned to the older version. Worth showing: it is the difference between
                    * a learner seeing today's course and last month's.
                    */}
-                  {assignment.drifted ? <StateChip state="draft" detail="behind" /> : null}
+                  {assignment.drifted ? (
+                    <StateChip state="draft" detail={t('assign.behind')} />
+                  ) : null}
                 </td>
                 <td>
                   <button
                     type="button"
-                    className="btn btn-secondary btn-dense"
+                    className={buttonClasses('secondary', 'sm')}
                     onClick={() => assignment.id && void revoke(assignment.id)}
                   >
-                    Revoke
+                    {t('assign.revoke')}
                   </button>
                 </td>
               </tr>

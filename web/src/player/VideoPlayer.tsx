@@ -83,7 +83,7 @@ export function VideoPlayer({ nodeId, title }: { nodeId: string; title: string }
   useHeartbeats(hls.element, nodeId, playback?.token, setProgress);
 
   if (token.status === 'loading') {
-    return <Loading what="the video" />;
+    return <Loading what="loading.video" />;
   }
   if (token.status === 'refused') {
     // No retry button on a terminal refusal. An assignment was revoked or a gate is closed, and

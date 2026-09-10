@@ -1,8 +1,13 @@
+import { ChevronLeft, ChevronRight, CircleCheck, Clock3, ShieldAlert } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { assessment, failureFrom, type ApiFailure } from '../shared/api/client.ts';
 import type { components } from '../shared/api/assessment.d.ts';
 import { withSessionRecovery } from '../shared/auth/recovery.ts';
+import { Button } from '../shared/design/Button.tsx';
+import { Card } from '../shared/design/Surface.tsx';
+import { formatNumber, formatPosition } from '../shared/i18n/format.ts';
+import { useLocale, useT } from '../shared/i18n/useLocale.ts';
 import { ErrorState, Loading } from '../shared/state/States.tsx';
 import { Question, type QuestionBody, type Response } from './Question.tsx';
 
@@ -39,6 +44,7 @@ type Screen =
   | { status: 'failed'; failure: ApiFailure };
 
 export function Sit() {
+  const { locale, t, plural } = useLocale();
   const { testId } = useParams();
   const navigate = useNavigate();
   const [screen, setScreen] = useState<Screen>({ status: 'loading' });
@@ -73,24 +79,21 @@ export function Sit() {
   useSignals(attemptId, disclosed);
 
   if (screen.status === 'loading') {
-    return <Loading what="your test" />;
+    return <Loading what="loading.test" />;
   }
   if (screen.status === 'failed') {
     return <ErrorState message={screen.failure.message} retry={start} />;
   }
   if (screen.status === 'submitted') {
     return (
-      <section className="sit sit__done panel">
-        <h1 className="u-display">Submitted</h1>
-        <p>Your answers are in. Nothing else is needed from you.</p>
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => void navigate(`/review/${screen.attemptId}`)}
-        >
-          See your result
-        </button>
-      </section>
+      <Card className="mx-auto flex max-w-lg flex-col items-start gap-4 p-6">
+        <CircleCheck aria-hidden="true" className="size-8 text-passed-fg" strokeWidth={2} />
+        <h1 className="font-display text-xl font-bold">{t('sit.submitted.title')}</h1>
+        <p className="text-sm text-muted">{t('sit.submitted.body')}</p>
+        <Button voice="primary" onClick={() => void navigate(`/review/${screen.attemptId}`)}>
+          {t('sit.see-result')}
+        </Button>
+      </Card>
     );
   }
 
@@ -150,12 +153,22 @@ export function Sit() {
   ).length;
 
   return (
-    <div className="sit">
+    /*
+     * `pb-28` leaves room for the sticky submit bar, which is fixed and would otherwise cover the
+     * last question's own controls -- the one thing on this screen that must never be unreachable.
+     */
+    <div className="mx-auto flex max-w-3xl flex-col gap-5 pb-28">
       <Clock key={attempt.attemptId} secondsRemaining={attempt.secondsRemaining} />
 
-      <p className="sit__where u-meta">
-        Question {at + 1} of {items.length}
-        {unanswered > 0 ? ` · ${unanswered} not answered` : ' · all answered'}
+      <p className="text-sm text-muted">
+        {t('sit.where', {
+          position: formatNumber(locale, at + 1),
+          of: formatNumber(locale, items.length),
+        })}
+        {' · '}
+        {unanswered > 0
+          ? t('sit.not-answered', { count: formatNumber(locale, unanswered) })
+          : t('sit.all-answered')}
       </p>
 
       {item ? (
@@ -167,23 +180,22 @@ export function Sit() {
         />
       ) : null}
 
-      <div className="sit__moves">
-        <button
-          type="button"
-          className="btn btn-secondary"
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          voice="secondary"
           onClick={() => setAt((was) => Math.max(0, was - 1))}
           disabled={at === 0}
         >
-          Back
-        </button>
+          <ChevronLeft aria-hidden="true" className="size-4" />
+          {t('sit.back')}
+        </Button>
         {/*
          * Leaving it blank is a button, not an absence. The API treats an empty response as
          * unanswered rather than as an error, and a screen that only offers "answer and continue"
          * has quietly made that unreachable.
          */}
-        <button
-          type="button"
-          className="btn btn-ghost"
+        <Button
+          voice="ghost"
           onClick={() => {
             if (item?.formItemId) {
               void answer(item.formItemId, {});
@@ -191,27 +203,37 @@ export function Sit() {
             setAt((was) => Math.min(items.length - 1, was + 1));
           }}
         >
-          I don’t know — leave it blank
-        </button>
-        <button
-          type="button"
-          className="btn btn-secondary"
+          {t('answer.leave-blank')}
+        </Button>
+        <Button
+          voice="secondary"
           onClick={() => setAt((was) => Math.min(items.length - 1, was + 1))}
           disabled={at >= items.length - 1}
         >
-          Next
-        </button>
+          {t('sit.next')}
+          <ChevronRight aria-hidden="true" className="size-4" />
+        </Button>
       </div>
 
-      <div className="sit__submit panel">
-        <p>
-          {unanswered === 0
-            ? 'Every question has an answer.'
-            : `${unanswered} of ${items.length} ${unanswered === 1 ? 'is' : 'are'} still blank. You can submit anyway.`}
-        </p>
-        <button type="button" className="btn btn-primary" onClick={() => void submit()}>
-          Submit
-        </button>
+      {/*
+       * STICKY, AND GLASS. Submit is the one control on this screen that must be reachable at
+       * every scroll position -- a learner who has finished and cannot find the button assumes the
+       * exam is broken. Glass here is one of the three places it is allowed (styles.css): content
+       * scrolls underneath it, so a solid bar would read as a hole in the page.
+       */}
+      <div className="glass fixed inset-x-0 bottom-0 z-30 border-t">
+        <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <p className="min-w-0 flex-1 text-sm text-muted">
+            {unanswered === 0
+              ? t('sit.all-answered-note')
+              : plural('sit.blank-note', unanswered, {
+                  of: formatNumber(locale, items.length),
+                })}
+          </p>
+          <Button voice="primary" onClick={() => void submit()}>
+            {t('sit.submit')}
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -230,6 +252,7 @@ function isEmpty(response: Response | undefined) {
  * schedule, and a browser deciding "time is up" would be a browser deciding an exam.
  */
 function Clock({ secondsRemaining }: { secondsRemaining: number | undefined }) {
+  const t = useT();
   const [left, setLeft] = useState(secondsRemaining);
 
   // Only the interval. The initial value comes from the prop through useState, and the component
@@ -245,14 +268,37 @@ function Clock({ secondsRemaining }: { secondsRemaining: number | undefined }) {
     return () => window.clearInterval(tick);
   }, [secondsRemaining]);
 
+  const shape =
+    'flex items-center gap-2 self-start rounded-full border px-3 py-1.5 text-xs font-bold tabular-nums';
+
   if (left === undefined) {
-    return <p className="sit__clock u-caps">No time limit</p>;
+    return (
+      <p className={`${shape} border-hairline bg-surface-muted text-muted`}>
+        <Clock3 aria-hidden="true" className="size-3.5" />
+        {t('sit.no-time-limit')}
+      </p>
+    );
   }
-  const minutes = Math.floor(left / 60);
-  const seconds = left % 60;
   return (
-    <p className="sit__clock u-caps" role="timer" aria-live="off">
-      {left === 0 ? 'Time is up' : `${minutes}:${String(seconds).padStart(2, '0')} left`}
+    /*
+     * `role="timer"` with `aria-live="off"`. A live region announcing every second would make this
+     * screen unusable with a screen reader, and the number is a DISPLAY of a deadline the server
+     * owns rather than the authority on it.
+     *
+     * Under five minutes it takes the overdue tint. That is the one moment the colour is worth
+     * spending: a learner who has not noticed the clock is the learner it exists for.
+     */
+    <p
+      role="timer"
+      aria-live="off"
+      className={`${shape} ${
+        left <= 300
+          ? 'border-overdue-edge bg-overdue-bg text-overdue-fg'
+          : 'border-hairline bg-surface-muted text-muted'
+      }`}
+    >
+      <Clock3 aria-hidden="true" className="size-3.5" />
+      {left === 0 ? t('sit.time-up') : t('sit.time-left', { at: formatPosition(left) })}
     </p>
   );
 }
@@ -275,41 +321,59 @@ function Disclosure({
   onUnderstood: () => void;
   onLeave: () => void;
 }) {
+  const { locale, t, plural } = useLocale();
   return (
-    <section className="sit__disclosure panel" aria-labelledby="disclosure">
-      <h1 id="disclosure" className="u-display">
-        Before you start
-      </h1>
+    <Card className="mx-auto max-w-2xl p-6">
+      <section aria-labelledby="disclosure" className="flex flex-col gap-4">
+        <ShieldAlert aria-hidden="true" className="size-7 text-brand" strokeWidth={2} />
+        <h1 id="disclosure" className="font-display text-xl font-bold">
+          {t('sit.disclosure.title')}
+        </h1>
       {monitoring?.collects?.length ? (
         <>
-          <p>While you sit this test we record:</p>
-          <ul>
+          {/*
+           * The list under this sentence is the SERVER's, generated from the same enum the
+           * recorder accepts (T-6.8) — so it arrives translated because the request carried
+           * `Accept-Language`, and a signal still cannot be collected without appearing here.
+           */}
+          <p className="text-sm">{t('sit.disclosure.we-record')}</p>
+          <ul className="flex list-disc flex-col gap-1.5 ps-5 text-sm text-muted">
             {monitoring.collects.map((one) => (
               <li key={one}>{one}</li>
             ))}
           </ul>
         </>
       ) : (
-        <p>Nothing about how you sit this test is recorded.</p>
+        <p className="text-sm">{t('sit.disclosure.nothing')}</p>
       )}
-      {monitoring?.usedFor ? <p>{monitoring.usedFor}</p> : null}
+      {monitoring?.usedFor ? <p className="text-sm">{monitoring.usedFor}</p> : null}
       {monitoring?.neverUsedFor ? (
-        <p>
-          <strong>{monitoring.neverUsedFor}</strong>
+        /*
+         * THE SENTENCE ABOUT WHAT IS NOT DONE, IN FULL WEIGHT. This product is not proctoring --
+         * no camera, no microphone, no keystroke content -- and a learner who does not read this
+         * line is a learner who feels watched by a machine that is not watching them.
+         */
+        <p className="rounded-lg border border-passed-edge bg-passed-bg p-3 text-sm font-semibold text-passed-fg">
+          {monitoring.neverUsedFor}
         </p>
       ) : null}
       {monitoring?.keptForDays ? (
-        <p className="u-meta">Kept for {monitoring.keptForDays} days, then deleted.</p>
+        <p className="text-xs text-muted">
+          {plural('sit.disclosure.kept', monitoring.keptForDays, {
+            count: formatNumber(locale, monitoring.keptForDays),
+          })}
+        </p>
       ) : null}
-      <div className="sit__moves">
-        <button type="button" className="btn btn-primary" onClick={onUnderstood}>
-          Start the test
-        </button>
-        <button type="button" className="btn btn-ghost" onClick={onLeave}>
-          Not now
-        </button>
-      </div>
-    </section>
+        <div className="flex flex-wrap gap-2">
+          <Button voice="primary" onClick={onUnderstood}>
+            {t('sit.disclosure.start')}
+          </Button>
+          <Button voice="ghost" onClick={onLeave}>
+            {t('sit.disclosure.not-now')}
+          </Button>
+        </div>
+      </section>
+    </Card>
   );
 }
 

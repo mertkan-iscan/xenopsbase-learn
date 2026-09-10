@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>XenOpsBase Learn — design preview</title>
+    <!--
+      DEV ONLY. This document is not in `build.rollupOptions.input` (vite.config.ts), so Vite
+      serves it during `npm run dev` and a production build has no entry that reaches it.
+
+      The same font request as index.html, because a preview rendering in a different typeface is
+      a preview of a different design.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/preview/gallery.tsx"></script>
+  </body>
+</html>

@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { failureFrom, identity, type ApiFailure } from '../shared/api/client.ts';
+import { buttonClasses } from '../shared/design/Button.tsx';
+import { fieldClasses } from '../shared/design/Field.tsx';
 import type { components } from '../shared/api/identity.d.ts';
 import { StateChip } from '../shared/design/State.tsx';
+import { Notice } from '../shared/design/Surface.tsx';
+import { formatNumber } from '../shared/i18n/format.ts';
+import { useLocale, useT } from '../shared/i18n/useLocale.ts';
 import { Empty, ErrorState, Loading } from '../shared/state/States.tsx';
 
 type RoleView = components['schemas']['RoleView'];
@@ -30,6 +35,7 @@ type Screen =
   | { status: 'failed'; failure: ApiFailure };
 
 export function RoleEditor() {
+  const { locale, t, plural } = useLocale();
   const [screen, setScreen] = useState<Screen>({ status: 'loading' });
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -53,7 +59,7 @@ export function RoleEditor() {
   }, [load]);
 
   if (screen.status === 'loading') {
-    return <Loading what="roles" />;
+    return <Loading what="loading.roles" />;
   }
   if (screen.status === 'failed') {
     return <ErrorState message={screen.failure.message} retry={load} />;
@@ -62,37 +68,45 @@ export function RoleEditor() {
   const open = screen.roles.find((role) => role.id === openId) ?? null;
 
   return (
-    <div className="role-page">
-      <p className="not-enforced" role="note">
-        <span className="u-caps">Half of this is missing</span>
-        <span>
-          Roles are real. The list of permissions to choose from is not published by any endpoint —
-          it lives in identity’s <code>Permission</code> enum and reaches integrators only as a
-          table in the API description. Codes are typed here and validated by the server.
-        </span>
-      </p>
+    <div className="flex flex-col gap-6">
+      <Notice label={t('roles.half-missing.label')}>
+        {t('roles.half-missing.body', { enum: 'Permission' })}
+      </Notice>
 
-      <div className="role-page__split">
+      <div className="grid gap-6 desk:grid-cols-[20rem_1fr] desk:items-start">
         <section aria-labelledby="roles">
-          <h2 id="roles" className="u-caps">
-            Roles
+          <h2 id="roles" className="label-caps">
+            {t('roles.title')}
           </h2>
           {screen.roles.length === 0 ? (
-            <Empty title="This company has no roles.">
-              <p className="u-meta">The seeded ones arrive with the tenant.</p>
+            <Empty title={t('roles.empty.title')}>
+              <p className="text-sm text-muted">{t('roles.empty.body')}</p>
             </Empty>
           ) : (
-            <ul className="panel role-page__list">
+            <ul className="flex flex-col overflow-hidden rounded-xl border border-hairline bg-surface">
               {screen.roles.map((role) => (
                 <li key={role.id}>
                   <button
                     type="button"
-                    className={role.id === openId ? 'node node--on' : 'node'}
                     onClick={() => setOpenId(role.id ?? null)}
+                    aria-current={role.id === openId ? 'true' : undefined}
+                    className={`flex w-full flex-col items-start gap-1 border-b border-hairline px-4 py-2.5 text-start transition-colors duration-150 last:border-b-0 ${
+                      role.id === openId
+                        ? 'bg-brand-tint text-brand'
+                        : 'hover:bg-surface-muted'
+                    }`}
                   >
-                    {role.name}
-                    {role.system ? <StateChip state="published" detail="system" /> : null}
-                    <span className="u-meta"> {role.permissions?.length ?? 0} permissions</span>
+                    <span className="w-full truncate text-sm font-semibold">{role.name}</span>
+                    <span className="flex flex-wrap items-center gap-2">
+                      {role.system ? (
+                        <StateChip state="published" detail={t('roles.system')} />
+                      ) : null}
+                      <span className="text-xs text-muted">
+                        {plural('roles.permission-count', role.permissions?.length ?? 0, {
+                          count: formatNumber(locale, role.permissions?.length ?? 0),
+                        })}
+                      </span>
+                    </span>
                   </button>
                 </li>
               ))}
@@ -112,6 +126,7 @@ export function RoleEditor() {
 }
 
 function RolePermissions({ role, onChanged }: { role: RoleView; onChanged: () => void }) {
+  const t = useT();
   const [held, setHeld] = useState<string[]>(role.permissions ?? []);
   const [adding, setAdding] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
@@ -137,26 +152,31 @@ function RolePermissions({ role, onChanged }: { role: RoleView; onChanged: () =>
   }
 
   return (
-    <section className="role-page__permissions panel" aria-labelledby="permissions">
-      <h2 id="permissions" className="u-caps">
+    <section className="card flex flex-col gap-4 p-5" aria-labelledby="permissions">
+      <h2 id="permissions" className="label-caps">
         {role.name}
       </h2>
-      <p className="u-meta">{role.description}</p>
+      <p className="text-sm text-muted">{role.description}</p>
 
       {held.length === 0 ? (
-        <p className="u-meta">This role holds nothing, so it grants nothing.</p>
+        <p className="text-sm text-muted">{t('roles.holds-nothing')}</p>
       ) : (
-        <ul className="role-page__held">
+        <ul className="flex flex-col gap-2">
           {held.map((code) => (
-            <li key={code}>
-              <code>{code}</code>
+            <li
+              key={code}
+              className="flex items-center justify-between gap-3 rounded-lg border border-hairline bg-surface-muted px-3 py-2"
+            >
+              {/* Monospace, because a permission is a code somebody has to type exactly -- the one
+                  place in this product where the characters matter more than the reading. */}
+              <code className="font-mono text-xs font-semibold">{code}</code>
               <button
                 type="button"
-                className="btn btn-ghost btn-dense"
+                className={buttonClasses('ghost', 'sm')}
                 disabled={role.system === true}
                 onClick={() => void save(held.filter((one) => one !== code))}
               >
-                Remove
+                {t('roles.remove')}
               </button>
             </li>
           ))}
@@ -164,10 +184,10 @@ function RolePermissions({ role, onChanged }: { role: RoleView; onChanged: () =>
       )}
 
       {role.system ? (
-        <p className="u-meta">A seeded role. Clone it rather than changing what every tenant gets.</p>
+        <p className="text-sm text-muted">{t('roles.seeded')}</p>
       ) : (
         <form
-          className="role-page__add"
+          className="flex flex-wrap items-end gap-2"
           onSubmit={(event) => {
             event.preventDefault();
             if (adding.trim()) {
@@ -176,24 +196,24 @@ function RolePermissions({ role, onChanged }: { role: RoleView; onChanged: () =>
             }
           }}
         >
-          <label className="u-caps" htmlFor="add-permission">
-            Add a permission
+          <label className="label-caps" htmlFor="add-permission">
+            {t('roles.add-permission')}
           </label>
           <input
             id="add-permission"
-            className="input input-dense"
+            className={fieldClasses(true)}
             value={adding}
             onChange={(event) => setAdding(event.target.value)}
-            placeholder="resource:action"
+            placeholder={t('roles.code-placeholder')}
           />
-          <button type="submit" className="btn btn-secondary" disabled={!adding.trim()}>
-            Add
+          <button type="submit" className={buttonClasses('secondary', 'sm')} disabled={!adding.trim()}>
+            {t('roles.add')}
           </button>
         </form>
       )}
 
       {problem ? (
-        <p className="authoring__short" role="alert">
+        <p className="rounded-lg border border-overdue-edge bg-overdue-bg p-3 text-sm text-overdue-fg" role="alert">
           {problem}
         </p>
       ) : null}

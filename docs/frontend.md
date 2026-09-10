@@ -93,6 +93,30 @@ There are two build entries for the same reason: `index.html` is the application
 rendering the player component directly — a private in-process path is one nobody would notice
 breaking.
 
+### The styling is Tailwind v4, and the design system is `src/styles.css`.
+
+There is no `tailwind.config.js`: v4 declares its theme in CSS, so the tokens and the utilities
+built from them live in one file rather than drifting apart in two. `@tailwindcss/vite` is the only
+build addition, and `lucide-react` the only new runtime dependency — imported by name, never as a
+namespace, because the entry chunk has a 300 kB budget and a namespace import defeats
+tree-shaking.
+
+**No animation library.** The one page-arrival reveal is four lines of CSS in a `@utility`. This is
+used on whatever device a person happens to have, and a second dependency to fade something in is
+paid for by the learner on the worst connection.
+
+`docs/design-prompt.md` is where the system itself is described and argued for. Two decisions here
+are the build's rather than the design's:
+
+- **The player has its own stylesheet.** `src/player/player.css`, imported by `playerEntry.tsx`.
+  Its layout used to live in the application's `styles.css`, which meant a redesign of the
+  application silently deleted the player's styling — and did, once. The lint rule forbidding
+  `src/player/**` from importing a screen covered the TypeScript and not the CSS. Now the styles
+  travel with the package a customer embeds (ADR-0110), like everything else about it.
+- **Colour contrast is not checked by the suite, and never was.** `vitest` runs with `css: false`
+  and jsdom has no layout, so axe cannot measure it and reports nothing either way. Contrast
+  belongs to a browser, and checking it means opening the screens in one.
+
 ### The build fails on a type error, a lint error, and an accessibility violation.
 
 ```bash
@@ -138,9 +162,6 @@ What follows from it, and is worth knowing before writing a screen:
 
 ## What is deliberately not here yet
 
-- **A design system.** It arrives with the screens it has to serve (T-10.3, T-10.4). What exists
-  is visible focus, landmarks and a skip link — the parts that are structural rather than
-  decorative.
 - **CI.** The `verify` script is what a pipeline would run, and there is no pipeline (T-9.3 was
   dropped; see T-1.6 and T-1.7 for the same gap). The API drift check in particular is written to
   be a CI step.

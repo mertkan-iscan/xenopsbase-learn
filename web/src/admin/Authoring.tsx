@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { catalog, failureFrom, type ApiFailure } from '../shared/api/client.ts';
+import { buttonClasses } from '../shared/design/Button.tsx';
+import { fieldClasses } from '../shared/design/Field.tsx';
 import type { components } from '../shared/api/catalog.d.ts';
 import { useMe } from '../shared/auth/useMe.ts';
 import { StateChip } from '../shared/design/State.tsx';
+import { useT } from '../shared/i18n/useLocale.ts';
 import { Empty, ErrorState, Loading } from '../shared/state/States.tsx';
 import { NotEnforcedYet } from './NotEnforcedYet.tsx';
 
@@ -34,6 +37,7 @@ type Screen =
   | { status: 'failed'; failure: ApiFailure };
 
 export function Authoring() {
+  const t = useT();
   const [screen, setScreen] = useState<Screen>({ status: 'loading' });
   const [open, setOpen] = useState<TreeView | null>(null);
   const who = useMe(true);
@@ -75,16 +79,16 @@ export function Authoring() {
   }
 
   if (screen.status === 'loading') {
-    return <Loading what="your courses" />;
+    return <Loading what="loading.courses" />;
   }
   if (screen.status === 'failed') {
     return <ErrorState message={screen.failure.message} retry={load} />;
   }
 
   return (
-    <div className="authoring-page">
+    <div className="flex flex-col gap-6">
       <NotEnforcedYet />
-      <div className="authoring-page__split">
+      <div className="grid gap-6 desk:grid-cols-[20rem_1fr] desk:items-start">
         <CourseList
           courses={screen.courses}
           openId={open?.course?.id}
@@ -102,8 +106,8 @@ export function Authoring() {
             }}
           />
         ) : (
-          <Empty title="No course open.">
-            <p className="u-meta">Choose one on the left, or create the first.</p>
+          <Empty title={t('authoring.no-course.title')}>
+            <p className="text-sm text-muted">{t('authoring.no-course.body')}</p>
           </Empty>
         )}
       </div>
@@ -122,22 +126,23 @@ function CourseList({
   onOpen: (id: string) => void;
   onCreate: (title: string, description: string) => void;
 }) {
+  const t = useT();
   const [title, setTitle] = useState('');
 
   return (
-    <section className="course-list" aria-labelledby="courses">
-      <h2 id="courses" className="u-caps">
-        Courses
+    <section className="flex flex-col gap-3" aria-labelledby="courses">
+      <h2 id="courses" className="label-caps">
+        {t('authoring.courses')}
       </h2>
       {courses.length === 0 ? (
-        <p className="u-meta">None yet. The first one is below.</p>
+        <p className="text-sm text-muted">{t('authoring.none-yet')}</p>
       ) : (
-        <ul className="panel course-list__items">
+        <ul className="flex flex-col overflow-hidden rounded-xl border border-hairline bg-surface">
           {courses.map((course) => (
             <li key={course.id}>
               <button
                 type="button"
-                className={course.id === openId ? 'node node--on' : 'node'}
+                className={`flex min-h-9 w-full items-center gap-2 border-b border-hairline px-4 text-start text-sm transition-colors duration-150 last:border-b-0 ${course.id === openId ? 'bg-brand-tint font-semibold text-brand' : 'text-muted hover:bg-surface-muted hover:text-ink'}`}
                 onClick={() => course.id && onOpen(course.id)}
               >
                 {course.title}
@@ -147,7 +152,7 @@ function CourseList({
         </ul>
       )}
       <form
-        className="course-list__new"
+        className="flex flex-col gap-2"
         onSubmit={(event) => {
           event.preventDefault();
           if (title.trim()) {
@@ -156,23 +161,23 @@ function CourseList({
           }
         }}
       >
-        <label className="u-caps" htmlFor="new-course">
-          New course
+        <label className="label-caps" htmlFor="new-course">
+          {t('authoring.new-course')}
         </label>
         <input
           id="new-course"
-          className="input input-dense"
+          className={fieldClasses(true)}
           value={title}
           onChange={(event) => setTitle(event.target.value)}
-          placeholder="Fire Safety Refresher"
+          placeholder={t('authoring.new-course.placeholder')}
         />
         {/*
          * A title cannot be changed afterwards -- catalog has no PUT for a course -- so the form
          * says so rather than letting somebody discover it by trying.
          */}
-        <p className="u-meta">A course cannot be renamed once created.</p>
-        <button type="submit" className="btn btn-primary" disabled={!title.trim()}>
-          Create
+        <p className="text-sm text-muted">{t('authoring.no-rename')}</p>
+        <button type="submit" className={buttonClasses('primary', 'sm')} disabled={!title.trim()}>
+          {t('authoring.create')}
         </button>
       </form>
     </section>
@@ -188,6 +193,7 @@ function CourseTree({
   authorId: string | null;
   onChanged: () => void;
 }) {
+  const t = useT();
   const courseId = tree.course?.id;
   const [items, setItems] = useState<ItemView[]>([]);
   const [types, setTypes] = useState<TypeView[]>([]);
@@ -227,51 +233,55 @@ function CourseTree({
       params: { path: { courseId } },
       body: { publishedBy: authorId, notes: '' },
     });
-    setPublished(data?.version ? `Version ${data.version}` : 'Published');
+    setPublished(
+      data?.version
+        ? t('authoring.version', { version: data.version })
+        : t('authoring.published'),
+    );
     onChanged();
   }
 
   return (
-    <section className="course-tree" aria-labelledby="tree">
-      <div className="course-tree__head">
+    <section className="flex flex-col gap-4" aria-labelledby="tree">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <StateChip state="draft" />
-          <h2 id="tree" className="u-display course-tree__title">
+          <h2 id="tree" className="font-display text-lg font-bold">
             {tree.course?.title}
           </h2>
         </div>
-        <div className="course-tree__actions">
-          {published ? <span className="u-meta">{published}</span> : null}
+        <div className="flex flex-wrap gap-2">
+          {published ? <span className="text-sm text-muted">{published}</span> : null}
           <button
             type="button"
-            className="btn btn-primary"
+            className={buttonClasses('primary', 'sm')}
             onClick={() => void publish()}
             disabled={authorId === null}
           >
-            Publish a version
+            {t('authoring.publish-version')}
           </button>
         </div>
       </div>
 
       {(tree.modules ?? []).length === 0 ? (
-        <Empty title="This course has no modules yet.">
-          <p className="u-meta">A module holds the ordered nodes a learner walks through.</p>
+        <Empty title={t('authoring.no-modules.title')}>
+          <p className="text-sm text-muted">{t('authoring.no-modules.body')}</p>
         </Empty>
       ) : null}
 
-      <ol className="course-tree__modules">
+      <ol className="flex flex-col gap-3">
         {(tree.modules ?? []).map((module) => (
-          <li key={module.id} className="panel course-tree__module">
-            <h3 className="course-tree__module-title">{module.title}</h3>
-            <ol className="course-tree__nodes">
+          <li key={module.id} className="flex flex-col gap-2 rounded-xl border border-hairline bg-surface p-4">
+            <h3 className="flex flex-wrap items-center gap-2 font-semibold">{module.title}</h3>
+            <ol className="flex flex-col">
               {(module.nodes ?? []).map((node) => (
-                <li key={node.id} className="node">
+                <li key={node.id} className="flex min-h-9 w-full items-center gap-2 border-b border-hairline px-4 text-start text-sm transition-colors duration-150 last:border-b-0 text-muted hover:bg-surface-muted hover:text-ink">
                   {items.find((item) => item.id === node.contentItemId)?.title ??
                     node.contentItemId}
-                  <span className="u-meta">
+                  <span className="text-sm text-muted">
                     {' '}
                     {items.find((item) => item.id === node.contentItemId)?.type ?? ''}
-                    {node.required ? ' · required' : ' · optional'}
+                    {` · ${t(node.required ? 'authoring.required' : 'authoring.optional')}`}
                   </span>
                 </li>
               ))}
@@ -288,10 +298,11 @@ function CourseTree({
 }
 
 function AddModule({ onAdd }: { onAdd: (title: string) => void }) {
+  const t = useT();
   const [title, setTitle] = useState('');
   return (
     <form
-      className="course-tree__add"
+      className="flex flex-wrap items-end gap-2"
       onSubmit={(event) => {
         event.preventDefault();
         if (title.trim()) {
@@ -300,28 +311,29 @@ function AddModule({ onAdd }: { onAdd: (title: string) => void }) {
         }
       }}
     >
-      <label className="u-caps" htmlFor="new-module">
-        Add a module
+      <label className="label-caps" htmlFor="new-module">
+        {t('authoring.add-module')}
       </label>
       <input
         id="new-module"
-        className="input input-dense"
+        className={fieldClasses(true)}
         value={title}
         onChange={(event) => setTitle(event.target.value)}
-        placeholder="Module 1 · Getting started"
+        placeholder={t('authoring.add-module.placeholder')}
       />
-      <button type="submit" className="btn btn-secondary" disabled={!title.trim()}>
-        Add
+      <button type="submit" className={buttonClasses('secondary', 'sm')} disabled={!title.trim()}>
+        {t('authoring.add')}
       </button>
     </form>
   );
 }
 
 function AddNode({ items, onAdd }: { items: ItemView[]; onAdd: (contentItemId: string) => void }) {
+  const t = useT();
   const [chosen, setChosen] = useState('');
   return (
     <form
-      className="course-tree__add"
+      className="flex flex-wrap items-end gap-2"
       onSubmit={(event) => {
         event.preventDefault();
         if (chosen) {
@@ -330,24 +342,24 @@ function AddNode({ items, onAdd }: { items: ItemView[]; onAdd: (contentItemId: s
         }
       }}
     >
-      <label className="u-caps" htmlFor="add-node">
-        Add a node
+      <label className="label-caps" htmlFor="add-node">
+        {t('authoring.add-node')}
       </label>
       <select
         id="add-node"
-        className="input input-dense"
+        className={fieldClasses(true)}
         value={chosen}
         onChange={(event) => setChosen(event.target.value)}
       >
-        <option value="">Choose content…</option>
+        <option value="">{t('authoring.choose-content')}</option>
         {items.map((item) => (
           <option key={item.id} value={item.id}>
             {item.title} ({item.type})
           </option>
         ))}
       </select>
-      <button type="submit" className="btn btn-secondary" disabled={!chosen}>
-        Add
+      <button type="submit" className={buttonClasses('secondary', 'sm')} disabled={!chosen}>
+        {t('authoring.add')}
       </button>
     </form>
   );
@@ -366,6 +378,7 @@ function NewContentItem({
   types: TypeView[];
   onCreated: (item: ItemView) => void;
 }) {
+  const t = useT();
   const [type, setType] = useState('');
   const [title, setTitle] = useState('');
   const [reference, setReference] = useState('');
@@ -398,53 +411,54 @@ function NewContentItem({
   }
 
   return (
-    <form className="panel new-content" onSubmit={(event) => void create(event)}>
-      <h3 className="u-caps">New content item</h3>
-      <label className="u-caps" htmlFor="content-type">
-        Type
+    <form className="card flex flex-col gap-3 p-5" onSubmit={(event) => void create(event)}>
+      <h3 className="label-caps">{t('authoring.new-item')}</h3>
+      <label className="label-caps" htmlFor="content-type">
+        {t('authoring.type')}
       </label>
       <select
         id="content-type"
-        className="input input-dense"
+        className={fieldClasses(true)}
         value={type}
         onChange={(event) => setType(event.target.value)}
       >
-        <option value="">Choose…</option>
+        <option value="">{t('authoring.choose')}</option>
         {types.map((one) => (
           <option key={one.code} value={one.code}>
             {one.displayName}
           </option>
         ))}
       </select>
-      <label className="u-caps" htmlFor="content-title">
-        Title
+      <label className="label-caps" htmlFor="content-title">
+        {t('authoring.title')}
       </label>
       <input
         id="content-title"
-        className="input input-dense"
+        className={fieldClasses(true)}
         value={title}
         onChange={(event) => setTitle(event.target.value)}
       />
       {type ? (
         <>
-          <label className="u-caps" htmlFor="content-reference">
-            {payloadKey[type] ?? 'reference'}
+          <label className="label-caps" htmlFor="content-reference">
+            {/*
+             * A payload KEY, not a word: `assetId`, `testId`. It names the field the API expects,
+             * so it stays as it is written in the contract and only the fallback is translated.
+             */}
+            {payloadKey[type] ?? t('authoring.reference')}
           </label>
           <input
             id="content-reference"
-            className="input input-dense"
+            className={fieldClasses(true)}
             value={reference}
             onChange={(event) => setReference(event.target.value)}
-            placeholder="the id this item points at"
+            placeholder={t('authoring.reference.placeholder')}
           />
-          <p className="u-meta">
-            Content points at something rather than holding it: a video's bytes live in streaming, a
-            test lives in assessment.
-          </p>
+          <p className="text-sm text-muted">{t('authoring.points-at')}</p>
         </>
       ) : null}
-      <button type="submit" className="btn btn-secondary" disabled={!type || !title.trim()}>
-        Create
+      <button type="submit" className={buttonClasses('secondary', 'sm')} disabled={!type || !title.trim()}>
+        {t('authoring.create')}
       </button>
     </form>
   );

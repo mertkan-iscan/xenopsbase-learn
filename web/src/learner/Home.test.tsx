@@ -3,6 +3,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import { expectNoAxeViolations } from '../test/axe.ts';
 import type { components } from '../shared/api/catalog.d.ts';
+import { en } from '../shared/i18n/messages.en.ts';
 import { HomeScreen, LockedNext } from './Home.tsx';
 
 type HomeView = components['schemas']['HomeView'];
@@ -41,9 +42,9 @@ describe('home', () => {
     // VIEWER's locale (T-10.8) and pinning the string here would pin the test to whichever locale
     // the machine running it happens to have — passing in CI and failing on a German laptop, for
     // a screen that is behaving correctly in both.
-    const chip = screen.getByText((_, element) => element?.className === 'chip chip--overdue');
-    expect(chip.textContent).toMatch(/^Overdue · .+/);
-    expect(screen.getByRole('link', { name: 'Start' })).toBeVisible();
+    const chip = document.querySelector('[data-state="overdue"]');
+    expect(chip?.textContent).toMatch(/^Overdue · .+/);
+    expect(screen.getByRole('link', { name: en['home.start'] })).toBeVisible();
     await expectNoAxeViolations(container);
   });
 
@@ -59,20 +60,22 @@ describe('home', () => {
       summary: { assigned: 4 },
     });
 
-    expect(screen.getByRole('link', { name: 'Resume at 14:20' })).toBeVisible();
+    expect(
+      screen.getByRole('link', { name: en['home.resume-at'].replace('{at}', '14:20') }),
+    ).toBeVisible();
     expect(
       screen.getByRole('progressbar', { name: /Data Protection 2026, 62 per cent/ }),
     ).toHaveAttribute('aria-valuenow', '62');
     // Started means "resume", never "start": offering Start to somebody 62% through a video reads
     // as an offer to lose their place.
-    expect(screen.queryByRole('link', { name: 'Start' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: en['home.start'] })).not.toBeInTheDocument();
     await expectNoAxeViolations(container);
   });
 
   it('says nothing is assigned rather than showing an empty frame', async () => {
     const { container } = draw({ summary: {} });
 
-    expect(screen.getByText('Nothing is assigned to you.')).toBeVisible();
+    expect(screen.getByText(en['home.empty.title'])).toBeVisible();
     expect(screen.getByText(/Nothing to do today/)).toBeVisible();
     await expectNoAxeViolations(container);
   });
@@ -87,7 +90,7 @@ describe('home', () => {
 
     // The reason is a required prop, so this cannot regress into a padlock and nothing -- but the
     // assertion is here because "required prop" and "rendered" are different claims.
-    expect(screen.getByText('Locked')).toBeVisible();
+    expect(screen.getByText(en['state.locked'])).toBeVisible();
     expect(screen.getByText(/Unlocks when you finish/)).toBeVisible();
     await expectNoAxeViolations(container);
   });

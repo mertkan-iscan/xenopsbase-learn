@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { expectNoAxeViolations } from '../test/axe.ts';
+import { en } from '../shared/i18n/messages.en.ts';
 import { AwaitingGradingReview, ScoreOnlyReview } from './Review.tsx';
 
 /**
@@ -27,7 +28,7 @@ describe('review', () => {
     // Without this sentence a learner assumes the questions failed to load, and support hears
     // about it instead of the policy doing its job.
     expect(screen.getByText(/that is this course’s policy, not a fault/)).toBeVisible();
-    expect(screen.getByText('Passed')).toBeVisible();
+    expect(screen.getByText(en['state.passed'])).toBeVisible();
     await expectNoAxeViolations(container);
   });
 
@@ -36,16 +37,18 @@ describe('review', () => {
       <AwaitingGradingReview
         testTitle="Anti-Bribery · Test"
         items={[
-          { id: '1', label: 'Q1 · Single choice', outcome: 'Correct' },
-          { id: '2', label: 'Q3 · Ordering', outcome: '2 of 3' },
+          { id: '1', label: 'Q1 · Single choice', outcome: { kind: 'correct' } },
+          { id: '2', label: 'Q3 · Ordering', outcome: { kind: 'scored', awarded: 2, points: 3 } },
           { id: '3', label: 'Q4 · Written', outcome: null },
           { id: '4', label: 'Q5 · Uploaded file', outcome: null },
         ]}
       />,
     );
 
-    expect(screen.getByText('Awaiting grading')).toBeVisible();
-    expect(screen.getByText('2 answers are with a person')).toBeVisible();
+    expect(screen.getByText(en['state.awaiting'])).toBeVisible();
+    expect(
+      screen.getByText(en['review.with-a-person.other'].replace('{count}', '2')),
+    ).toBeVisible();
     // The sentence that keeps `passed: null` from being read as a verdict.
     expect(screen.getByText(/not a pass, not a fail/)).toBeVisible();
     // And there is no percentage anywhere: a partial score shown as though it were the result is
@@ -62,7 +65,7 @@ describe('review', () => {
       />,
     );
 
-    expect(screen.getByText('One answer is with a person')).toBeVisible();
+    expect(screen.getByText(en['review.with-a-person.one'])).toBeVisible();
   });
 
   it('carries the integrity disclosure when there is one, rather than hiding what was recorded', () => {
