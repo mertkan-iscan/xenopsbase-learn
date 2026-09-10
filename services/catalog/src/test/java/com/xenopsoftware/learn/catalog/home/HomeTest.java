@@ -190,6 +190,30 @@ class HomeTest extends PostgresTestHarness {
         assertThat(home.get("summary").get("completed").asInt()).isEqualTo(1);
     }
 
+    @Test
+    void passingATestFinishesTheNodeThatHoldsIt() throws Exception {
+        // FOUND BY SITTING A TEST ON THE CLUSTER. Everything worked -- the attempt was graded, the
+        // verdict reached the learner, `AttemptGradedHandler` folded a PASSED row into
+        // node_completion -- and the home screen went on saying the node was AVAILABLE, the course
+        // 0%, and nothing completed. Both places that asked "is this done" asked only for
+        // COMPLETED.
+        //
+        // The two states stay different TO A GATE: "complete Module 1" and "pass the safety test"
+        // are different requirements. They are not different to the question this screen asks.
+        assign(null);
+        completed(first);
+        completed(second);
+        passed(third);
+
+        JsonNode home = home();
+
+        JsonNode nodes = home.get("courses").get(0).get("modules").get(1).get("nodes");
+        assertThat(nodes.get(nodes.size() - 1).get("state").asString()).isEqualTo("COMPLETE");
+        assertThat(home.get("courses").get(0).get("percentComplete").asInt()).isEqualTo(100);
+        assertThat(home.get("courses").get(0).get("completed").asBoolean()).isTrue();
+        assertThat(home.get("summary").get("completed").asInt()).isEqualTo(1);
+    }
+
     // ---------------------------------------------------------------- what it draws
 
     @Test
@@ -378,6 +402,14 @@ class HomeTest extends PostgresTestHarness {
         jdbc.update("""
             INSERT INTO node_completion (id, tenant_id, learner_id, node_id, state, recorded_at)
             VALUES (?, 'acme', ?, ?, 'COMPLETED', now())
+            """, UUID.randomUUID(), LEARNER, nodeId);
+    }
+
+    /** What {@code AttemptGradedHandler} writes when somebody passes the test a node holds. */
+    private void passed(UUID nodeId) {
+        jdbc.update("""
+            INSERT INTO node_completion (id, tenant_id, learner_id, node_id, state, recorded_at)
+            VALUES (?, 'acme', ?, ?, 'PASSED', now())
             """, UUID.randomUUID(), LEARNER, nodeId);
     }
 
