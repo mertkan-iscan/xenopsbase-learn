@@ -556,6 +556,24 @@
       "realmRoles": [
         "svc-caller"
       ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-0000000000a4",
+      "username": "service-account-svc-catalog",
+      "enabled": true,
+      "serviceAccountClientId": "svc-catalog",
+      "realmRoles": [
+        "svc-caller"
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-0000000000a5",
+      "username": "service-account-svc-assessment",
+      "enabled": true,
+      "serviceAccountClientId": "svc-assessment",
+      "realmRoles": [
+        "svc-caller"
+      ]
     }
   ],
   "components": {

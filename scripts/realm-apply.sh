@@ -18,11 +18,21 @@
 #                             collections (token lifespans, login policy, ...)
 #   3. clients and roles   -> partialImport with ifResourceExists=OVERWRITE
 #   4. service accounts    -> a client PUT, because partialImport skips them
+#   5. their realm roles   -> granted, because step 3 excludes users and a
+#                             service account's roles are declared on one
 #
 # Users are excluded from step 3 deliberately and always. The realm file's users
 # are development fixtures; a real installation's people arrive by signing in,
 # and an OVERWRITE of a user is a password and a set of attributes replaced by
 # whatever this repository happened to say.
+#
+# A SERVICE ACCOUNT IS NOT A PERSON, and step 5 is the one exception. Its user
+# exists only because a client authenticates as itself, it has no password and
+# nobody signs in as it, and the roles it needs are declared in the realm file
+# on that user -- which step 3 skips. Before step 5 existed, a service added by
+# partialImport got a client and no role, and every call it made was refused by
+# a gate working exactly as designed. The three services present at the realm's
+# first FULL import were fine, which is why nobody noticed for two of them.
 #
 # Usage:  bash scripts/realm-apply.sh
 # Env:    KEYCLOAK_URL (default http://localhost:8081)
@@ -194,4 +204,76 @@ print(clients[0]['id'] if clients else '')
     echo "  service account created for $CLIENT_ID"
 done
 
-echo "No user was created, changed or removed."
+# ---------------------------------------------------------------------------
+# 5. the realm roles those service accounts are declared with.
+#
+# Step 3 excludes users, and a service account's roles live on a user. So a
+# client added by partialImport arrives able to authenticate and unable to do
+# anything: identity gates inter-service calls on `svc-caller` (T-9.11), and
+# without it every call is refused by a gate that is working correctly.
+#
+# Only ever service accounts, and only ever the roles the realm file names for
+# them. This does not touch a person, and it does not remove a role somebody
+# granted by hand -- it adds what is declared and leaves the rest alone.
+# ---------------------------------------------------------------------------
+"$PY" - "$REALM_FILE" <<'ROLES' > /tmp/realm-svc-roles.txt
+import json, sys
+
+realm = json.load(open(sys.argv[1], encoding="utf-8"))
+for user in realm.get("users", []):
+    client = user.get("serviceAccountClientId")
+    for role in user.get("realmRoles", []) if client else []:
+        print(client, role)
+ROLES
+
+while read -r CLIENT_ID ROLE; do
+    [ -n "$CLIENT_ID" ] || continue
+
+    UUID="$(curl -s -H "Authorization: Bearer $TOKEN" \
+        "$KEYCLOAK_URL/admin/realms/$REALM/clients?clientId=$CLIENT_ID" \
+        | "$PY" -c "
+import json, sys
+raw = sys.stdin.read().strip()
+clients = json.loads(raw) if raw else []
+print(clients[0]['id'] if clients else '')
+")"
+    [ -n "$UUID" ] || continue
+
+    ACCOUNT="$(curl -s -H "Authorization: Bearer $TOKEN" \
+        "$KEYCLOAK_URL/admin/realms/$REALM/clients/$UUID/service-account-user" \
+        | "$PY" -c "
+import json, sys
+raw = sys.stdin.read().strip()
+try:
+    print((json.loads(raw) if raw else {}).get('id', ''))
+except ValueError:
+    print('')
+")"
+    [ -n "$ACCOUNT" ] || continue
+
+    # Already granted is the common case, and re-POSTing a held role is not an
+    # error to Keycloak -- but asking first keeps the output honest about what
+    # this run actually changed.
+    if curl -s -H "Authorization: Bearer $TOKEN" \
+        "$KEYCLOAK_URL/admin/realms/$REALM/users/$ACCOUNT/role-mappings/realm" \
+        | grep -q "\"$ROLE\""; then
+        continue
+    fi
+
+    REPRESENTATION="$(curl -sf -H "Authorization: Bearer $TOKEN" \
+        "$KEYCLOAK_URL/admin/realms/$REALM/roles/$ROLE" || true)"
+    if [ -z "$REPRESENTATION" ]; then
+        echo "  WARNING: realm role $ROLE does not exist; $CLIENT_ID cannot be granted it" >&2
+        continue
+    fi
+
+    printf '[%s]' "$REPRESENTATION" > /tmp/realm-role.json
+    curl -sf -o /dev/null -X POST -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" --data-binary @/tmp/realm-role.json \
+        "$KEYCLOAK_URL/admin/realms/$REALM/users/$ACCOUNT/role-mappings/realm"
+    rm -f /tmp/realm-role.json
+    echo "  granted $ROLE to $CLIENT_ID"
+done < /tmp/realm-svc-roles.txt
+rm -f /tmp/realm-svc-roles.txt
+
+echo "No person was created, changed or removed."
