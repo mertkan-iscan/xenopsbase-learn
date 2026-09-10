@@ -16,16 +16,29 @@ import type { Session } from './session.ts';
  * exactly that case, and this is the decision that keeps it reachable.
  */
 const ATTEMPTED = 'learn.sign-in-attempted';
+const SIGNED_OUT = 'learn.signed-out-on-purpose';
 
 export type Arrival =
   /** Nobody is here and nothing is at stake: send them to the issuer. */
   | { kind: 'sign-in-now' }
   /** Say what happened and let them choose, because something would be lost or already went wrong. */
-  | { kind: 'explain'; because: 'parked-work' | 'came-back-signed-out' };
+  | { kind: 'explain'; because: 'parked-work' | 'came-back-signed-out' | 'signed-out' };
 
 export function arrivalFor(session: Session): Arrival {
   if (hasParkedWork()) {
     return { kind: 'explain', because: 'parked-work' };
+  }
+  // SIGNING OUT MUST NOT BE UNDONE BY THE FRONT DOOR.
+  //
+  // Sign-out ends this application's session and then sends the browser to the issuer's
+  // end-session endpoint, which returns it here. Arriving here signed out is exactly the
+  // condition the automatic sign-in above was written for -- so without this, the click lands
+  // back at the issuer, and if the SSO session there has not gone the person is signed straight
+  // back in without ever seeing a form. From their side the button did nothing.
+  //
+  // Read and cleared in one go: the next arrival is an ordinary one.
+  if (justSignedOut()) {
+    return { kind: 'explain', because: 'signed-out' };
   }
   // THE LOOP GUARD. If sign-in has already been tried in this tab and the answer is still "signed
   // out", sending them again produces a redirect loop between two hosts, which reads to a person
@@ -35,6 +48,29 @@ export function arrivalFor(session: Session): Arrival {
   }
   void session;
   return { kind: 'sign-in-now' };
+}
+
+function justSignedOut(): boolean {
+  try {
+    const deliberate = window.sessionStorage.getItem(SIGNED_OUT) !== null;
+    window.sessionStorage.removeItem(SIGNED_OUT);
+    return deliberate;
+  } catch {
+    return false;
+  }
+}
+
+/** Called by `signOut` before it navigates away, while this tab still has storage. */
+export function rememberTheSignOut(): void {
+  try {
+    window.sessionStorage.setItem(SIGNED_OUT, new Date().toISOString());
+    // A deliberate sign-out also ends the loop guard's memory: the next sign-in is a fresh
+    // attempt, not a retry of whatever happened before it.
+    window.sessionStorage.removeItem(ATTEMPTED);
+  } catch {
+    // Without storage the front door signs them back in, which is the behaviour this fixes and
+    // not one worth throwing over -- the sign-out itself has already happened.
+  }
 }
 
 function alreadyTried(): boolean {
