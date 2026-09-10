@@ -2,6 +2,9 @@ import { useState, type FormEvent } from 'react';
 import { failureFrom, identity, type ApiFailure } from '../shared/api/client.ts';
 import { formatMoment } from '../shared/i18n/format.ts';
 import { useLocale } from '../shared/i18n/useLocale.ts';
+import { Button } from '../shared/design/Button.tsx';
+import { Input } from '../shared/design/Field.tsx';
+import { Card } from '../shared/design/Surface.tsx';
 import { ErrorState } from '../shared/state/States.tsx';
 
 type Invitation = {
@@ -55,51 +58,70 @@ export function People() {
   }
 
   return (
-    <>
-      <h1>{t('people.title')}</h1>
-      <form onSubmit={invite}>
-        <p>
-          <label htmlFor="invite-email">{t('people.email')}</label>
-          <input
-            id="invite-email"
+    /*
+     * THIS SCREEN HAD NO STYLING AT ALL before the redesign -- bare `h1`, `p`, `label`, `input`,
+     * `button`, with not one class on any of them. It worked, and it looked like a form somebody
+     * had not finished. Worth recording, because it is the reason `Input` requires its label: an
+     * unlabelled field is invisible in a screenshot and this screen proves how long that survives.
+     */
+    <div className="mx-auto flex max-w-2xl flex-col gap-6">
+      <h1 className="font-display text-2xl font-bold">{t('people.title')}</h1>
+
+      <Card className="p-5">
+        <form onSubmit={invite} className="flex flex-col gap-4">
+          <Input
+            label={t('people.email')}
             type="email"
             required
             value={email}
             onChange={(event) => setEmail(event.target.value)}
           />
-        </p>
-        <p>
-          <label htmlFor="invite-name">{t('people.name')}</label>
-          <input
-            id="invite-name"
+          <Input
+            label={t('people.name')}
             type="text"
             required
             value={displayName}
             onChange={(event) => setDisplayName(event.target.value)}
           />
-        </p>
-        <button type="submit" disabled={sending}>
-          {sending ? t('people.inviting') : t('people.invite')}
-        </button>
-      </form>
+          <Button type="submit" voice="primary" size="sm" disabled={sending} className="self-start">
+            {sending ? t('people.inviting') : t('people.invite')}
+          </Button>
+        </form>
+      </Card>
 
       {failure ? <ErrorState message={failure.message} /> : null}
 
       {invitation ? (
-        <div className="state" role="status" aria-live="polite">
-          <p>
+        /*
+         * `role="status"` with a polite live region: the token appears without a navigation, and
+         * an administrator using a screen reader would otherwise have no idea the invitation had
+         * succeeded -- let alone that the one thing they must copy is now on screen.
+         */
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex flex-col gap-3 rounded-xl border border-passed-edge bg-passed-bg p-5"
+        >
+          <p className="text-sm">
             {t('people.invited', {
               name: invitation.displayName,
               email: invitation.email,
               at: formatMoment(locale, invitation.expiresAt),
             })}
           </p>
-          <p>
-            <strong>{t('people.once.title')}</strong> {t('people.once.body')}
+          {/*
+           * SHOWN ONCE, AND SAID TO BE SHOWN ONCE, because that is true: the service keeps only
+           * the hash. The sentence is weighted rather than a footnote -- an administrator who
+           * navigates away assuming they can look it up later has to re-invite the person.
+           */}
+          <p className="text-sm font-semibold">
+            {t('people.once.title')} <span className="font-normal">{t('people.once.body')}</span>
           </p>
-          <code>{invitation.token}</code>
+          <code className="scroll-x block rounded-lg border border-hairline bg-surface p-3 font-mono text-xs">
+            {invitation.token}
+          </code>
         </div>
       ) : null}
-    </>
+    </div>
   );
 }

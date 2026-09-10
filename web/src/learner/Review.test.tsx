@@ -37,8 +37,8 @@ describe('review', () => {
       <AwaitingGradingReview
         testTitle="Anti-Bribery · Test"
         items={[
-          { id: '1', label: 'Q1 · Single choice', outcome: 'Correct' },
-          { id: '2', label: 'Q3 · Ordering', outcome: '2 of 3' },
+          { id: '1', label: 'Q1 · Single choice', outcome: { kind: 'correct' } },
+          { id: '2', label: 'Q3 · Ordering', outcome: { kind: 'scored', awarded: 2, points: 3 } },
           { id: '3', label: 'Q4 · Written', outcome: null },
           { id: '4', label: 'Q5 · Uploaded file', outcome: null },
         ]}

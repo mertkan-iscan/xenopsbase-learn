@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { catalog, failureFrom, type ApiFailure } from '../shared/api/client.ts';
+import { buttonClasses } from '../shared/design/Button.tsx';
+import { fieldClasses } from '../shared/design/Field.tsx';
 import type { components } from '../shared/api/catalog.d.ts';
 import { useMe } from '../shared/auth/useMe.ts';
 import { StateChip } from '../shared/design/State.tsx';
@@ -65,7 +67,7 @@ export function Assign() {
   }
 
   return (
-    <div className="assign">
+    <div className="flex flex-col gap-6">
       <NotEnforcedYet />
       <AssignForm
         courses={screen.courses}
@@ -132,17 +134,17 @@ function AssignForm({
   }
 
   return (
-    <section className="assign__form panel" aria-labelledby="assign-heading">
-      <h2 id="assign-heading" className="u-caps">
+    <section className="card flex flex-col gap-4 p-5" aria-labelledby="assign-heading">
+      <h2 id="assign-heading" className="label-caps">
         {t('assign.heading')}
       </h2>
 
-      <label className="u-caps" htmlFor="assign-course">
+      <label className="label-caps" htmlFor="assign-course">
         {t('assign.course')}
       </label>
       <select
         id="assign-course"
-        className="input input-dense"
+        className={fieldClasses(true)}
         value={courseId}
         onChange={(event) => setCourseId(event.target.value)}
       >
@@ -154,12 +156,12 @@ function AssignForm({
         ))}
       </select>
 
-      <label className="u-caps" htmlFor="assign-target">
+      <label className="label-caps" htmlFor="assign-target">
         {t('assign.to')}
       </label>
       <select
         id="assign-target"
-        className="input input-dense"
+        className={fieldClasses(true)}
         value={targetType}
         onChange={(event) => setTargetType(event.target.value as 'USER' | 'GROUP' | 'TENANT')}
       >
@@ -170,12 +172,12 @@ function AssignForm({
 
       {targetType === 'TENANT' ? null : (
         <>
-          <label className="u-caps" htmlFor="assign-target-id">
+          <label className="label-caps" htmlFor="assign-target-id">
             {t(targetType === 'USER' ? 'assign.learner-id' : 'assign.group-id')}
           </label>
           <input
             id="assign-target-id"
-            className="input input-dense"
+            className={fieldClasses(true)}
             value={targetId}
             onChange={(event) => setTargetId(event.target.value)}
             placeholder={t('assign.uuid')}
@@ -184,24 +186,24 @@ function AssignForm({
            * An id rather than a picker, and not by choice: identity publishes no user-list
            * endpoint and no group-member list, so there is nothing to populate a picker from.
            */}
-          <p className="u-meta">{t('assign.id-note')}</p>
+          <p className="text-sm text-muted">{t('assign.id-note')}</p>
         </>
       )}
 
-      <label className="u-caps" htmlFor="assign-due">
+      <label className="label-caps" htmlFor="assign-due">
         {t('assign.due-on')}
       </label>
       <input
         id="assign-due"
         type="date"
-        className="input input-dense"
+        className={fieldClasses(true)}
         value={dueOn}
         onChange={(event) => setDueOn(event.target.value)}
       />
-      <p className="u-meta">{t('assign.due-note')}</p>
+      <p className="text-sm text-muted">{t('assign.due-note')}</p>
 
       {problem ? (
-        <p className="authoring__short" role="alert">
+        <p className="rounded-lg border border-overdue-edge bg-overdue-bg p-3 text-sm text-overdue-fg" role="alert">
           {problem}
         </p>
       ) : null}
@@ -212,18 +214,18 @@ function AssignForm({
        * revoking each one.
        */}
       {confirming ? (
-        <div className="assign__confirm" role="alert">
+        <div className="flex flex-col gap-3 rounded-lg border border-brand-tint-edge bg-brand-tint p-4" role="alert">
           <p>
             {t('assign.confirm', {
               course: courses.find((c) => c.id === courseId)?.title ?? '',
               reach,
             })}
           </p>
-          <div className="assign__confirm-actions">
-            <button type="button" className="btn btn-primary" onClick={() => void assign()}>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className={buttonClasses('primary', 'sm')} onClick={() => void assign()}>
               {t('assign.confirm.yes')}
             </button>
-            <button type="button" className="btn btn-secondary" onClick={() => setConfirming(false)}>
+            <button type="button" className={buttonClasses('secondary', 'sm')} onClick={() => setConfirming(false)}>
               {t('assign.confirm.cancel')}
             </button>
           </div>
@@ -231,7 +233,7 @@ function AssignForm({
       ) : (
         <button
           type="button"
-          className="btn btn-primary"
+          className={buttonClasses('primary', 'sm')}
           disabled={!ready}
           onClick={() => setConfirming(true)}
         >
@@ -268,18 +270,18 @@ function Existing({
   if (assignments.length === 0) {
     return (
       <Empty title={t('assign.empty.title')}>
-        <p className="u-meta">{t('assign.empty.body')}</p>
+        <p className="text-sm text-muted">{t('assign.empty.body')}</p>
       </Empty>
     );
   }
 
   return (
-    <section className="assign__existing" aria-labelledby="existing">
-      <h2 id="existing" className="u-caps">
+    <section className="flex flex-col gap-3" aria-labelledby="existing">
+      <h2 id="existing" className="label-caps">
         {t('assign.existing')}
       </h2>
-      <div className="u-scroll-x">
-        <table className="table">
+      <div className="scroll-x">
+        <table className="table-plain">
           <thead>
             <tr>
               <th scope="col">{t('assign.course')}</th>
@@ -321,7 +323,7 @@ function Existing({
                 <td>
                   <button
                     type="button"
-                    className="btn btn-secondary btn-dense"
+                    className={buttonClasses('secondary', 'sm')}
                     onClick={() => assignment.id && void revoke(assignment.id)}
                   >
                     {t('assign.revoke')}

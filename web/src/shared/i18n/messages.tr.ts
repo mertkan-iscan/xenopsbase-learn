@@ -161,6 +161,17 @@ export const tr: Record<MessageKey, string> = {
   'progress.in-progress': 'Devam eden',
   'progress.due-soon': 'Süresi yaklaşan',
   'progress.overdue': 'Geciken',
+  'progress.per-course': 'Eğitim bazında',
+  'progress.course': 'Eğitim',
+  'progress.done': 'Tamamlanan',
+  'review.your-test': 'Sonucunuz',
+  'review.question-number': '{n}. soru',
+  'review.submitted': 'Gönderildi: {at}',
+  'review.attempt-number': '{n}. deneme.',
+  'review.just-now': 'az önce',
+  'review.outcome.correct': 'Doğru',
+  'review.outcome.not-correct': 'Doğru değil',
+  'review.outcome.scored': '{points} üzerinden {awarded}',
 
   // ------------------------------------------------------------------------------- questions
   'question.your-answer': 'Cevabınız',

@@ -556,3 +556,46 @@
     opacity: 1;
   }
 }
+
+/*
+ * A table, styled through its cells.
+ *
+ * THE ONE PLACE THIS SYSTEM STYLES DESCENDANTS RATHER THAN ELEMENTS, and the reason is arithmetic:
+ * the console's tables have five columns and a row per person, so the same three padding
+ * utilities would be repeated on every `th` and `td` in the file and a missed one would be a cell
+ * that does not line up. A table is the one structure whose cells genuinely all want the same
+ * thing.
+ *
+ * Alignment is `start` rather than `left`, so a right-to-left layout is right without a second
+ * rule.
+ */
+@utility table-plain {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+
+  & th,
+  & td {
+    padding: 0.625rem 1rem;
+    text-align: start;
+    vertical-align: top;
+  }
+
+  & thead th {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-subtle);
+    white-space: nowrap;
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  & tbody tr {
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  & tbody tr:last-child {
+    border-bottom: 0;
+  }
+}

@@ -26,6 +26,21 @@ const control = [
   'disabled:cursor-not-allowed disabled:opacity-60',
 ].join(' ');
 
+/**
+ * The field look, without the label machinery.
+ *
+ * <p>For the call sites that cannot use {@link Input}: a cell in a table whose column header is
+ * already the label, a control inside a `fieldset` whose `legend` names it, or a form that writes
+ * its own label because the sentence is longer than a caption. Exported so those do not each
+ * invent a border.
+ *
+ * <p>`dense` is the console's size — 36px rather than the 44px floor a learner's thumb needs. An
+ * administrator is on a desktop with a pointer, and a form of 44px rows is a form they scroll.
+ */
+export function fieldClasses(dense = false): string {
+  return `${dense ? 'min-h-9' : 'min-h-tap'} ${control}`;
+}
+
 function Shell({
   id,
   label,

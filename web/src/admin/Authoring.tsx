@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { catalog, failureFrom, type ApiFailure } from '../shared/api/client.ts';
+import { buttonClasses } from '../shared/design/Button.tsx';
+import { fieldClasses } from '../shared/design/Field.tsx';
 import type { components } from '../shared/api/catalog.d.ts';
 import { useMe } from '../shared/auth/useMe.ts';
 import { StateChip } from '../shared/design/State.tsx';
@@ -84,9 +86,9 @@ export function Authoring() {
   }
 
   return (
-    <div className="authoring-page">
+    <div className="flex flex-col gap-6">
       <NotEnforcedYet />
-      <div className="authoring-page__split">
+      <div className="grid gap-6 desk:grid-cols-[20rem_1fr] desk:items-start">
         <CourseList
           courses={screen.courses}
           openId={open?.course?.id}
@@ -105,7 +107,7 @@ export function Authoring() {
           />
         ) : (
           <Empty title={t('authoring.no-course.title')}>
-            <p className="u-meta">{t('authoring.no-course.body')}</p>
+            <p className="text-sm text-muted">{t('authoring.no-course.body')}</p>
           </Empty>
         )}
       </div>
@@ -128,19 +130,19 @@ function CourseList({
   const [title, setTitle] = useState('');
 
   return (
-    <section className="course-list" aria-labelledby="courses">
-      <h2 id="courses" className="u-caps">
+    <section className="flex flex-col gap-3" aria-labelledby="courses">
+      <h2 id="courses" className="label-caps">
         {t('authoring.courses')}
       </h2>
       {courses.length === 0 ? (
-        <p className="u-meta">{t('authoring.none-yet')}</p>
+        <p className="text-sm text-muted">{t('authoring.none-yet')}</p>
       ) : (
-        <ul className="panel course-list__items">
+        <ul className="flex flex-col overflow-hidden rounded-xl border border-hairline bg-surface">
           {courses.map((course) => (
             <li key={course.id}>
               <button
                 type="button"
-                className={course.id === openId ? 'node node--on' : 'node'}
+                className={`flex min-h-9 w-full items-center gap-2 border-b border-hairline px-4 text-start text-sm transition-colors duration-150 last:border-b-0 ${course.id === openId ? 'bg-brand-tint font-semibold text-brand' : 'text-muted hover:bg-surface-muted hover:text-ink'}`}
                 onClick={() => course.id && onOpen(course.id)}
               >
                 {course.title}
@@ -150,7 +152,7 @@ function CourseList({
         </ul>
       )}
       <form
-        className="course-list__new"
+        className="flex flex-col gap-2"
         onSubmit={(event) => {
           event.preventDefault();
           if (title.trim()) {
@@ -159,12 +161,12 @@ function CourseList({
           }
         }}
       >
-        <label className="u-caps" htmlFor="new-course">
+        <label className="label-caps" htmlFor="new-course">
           {t('authoring.new-course')}
         </label>
         <input
           id="new-course"
-          className="input input-dense"
+          className={fieldClasses(true)}
           value={title}
           onChange={(event) => setTitle(event.target.value)}
           placeholder={t('authoring.new-course.placeholder')}
@@ -173,8 +175,8 @@ function CourseList({
          * A title cannot be changed afterwards -- catalog has no PUT for a course -- so the form
          * says so rather than letting somebody discover it by trying.
          */}
-        <p className="u-meta">{t('authoring.no-rename')}</p>
-        <button type="submit" className="btn btn-primary" disabled={!title.trim()}>
+        <p className="text-sm text-muted">{t('authoring.no-rename')}</p>
+        <button type="submit" className={buttonClasses('primary', 'sm')} disabled={!title.trim()}>
           {t('authoring.create')}
         </button>
       </form>
@@ -240,19 +242,19 @@ function CourseTree({
   }
 
   return (
-    <section className="course-tree" aria-labelledby="tree">
-      <div className="course-tree__head">
+    <section className="flex flex-col gap-4" aria-labelledby="tree">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <StateChip state="draft" />
-          <h2 id="tree" className="u-display course-tree__title">
+          <h2 id="tree" className="font-display text-lg font-bold">
             {tree.course?.title}
           </h2>
         </div>
-        <div className="course-tree__actions">
-          {published ? <span className="u-meta">{published}</span> : null}
+        <div className="flex flex-wrap gap-2">
+          {published ? <span className="text-sm text-muted">{published}</span> : null}
           <button
             type="button"
-            className="btn btn-primary"
+            className={buttonClasses('primary', 'sm')}
             onClick={() => void publish()}
             disabled={authorId === null}
           >
@@ -263,20 +265,20 @@ function CourseTree({
 
       {(tree.modules ?? []).length === 0 ? (
         <Empty title={t('authoring.no-modules.title')}>
-          <p className="u-meta">{t('authoring.no-modules.body')}</p>
+          <p className="text-sm text-muted">{t('authoring.no-modules.body')}</p>
         </Empty>
       ) : null}
 
-      <ol className="course-tree__modules">
+      <ol className="flex flex-col gap-3">
         {(tree.modules ?? []).map((module) => (
-          <li key={module.id} className="panel course-tree__module">
-            <h3 className="course-tree__module-title">{module.title}</h3>
-            <ol className="course-tree__nodes">
+          <li key={module.id} className="flex flex-col gap-2 rounded-xl border border-hairline bg-surface p-4">
+            <h3 className="flex flex-wrap items-center gap-2 font-semibold">{module.title}</h3>
+            <ol className="flex flex-col">
               {(module.nodes ?? []).map((node) => (
-                <li key={node.id} className="node">
+                <li key={node.id} className="flex min-h-9 w-full items-center gap-2 border-b border-hairline px-4 text-start text-sm transition-colors duration-150 last:border-b-0 text-muted hover:bg-surface-muted hover:text-ink">
                   {items.find((item) => item.id === node.contentItemId)?.title ??
                     node.contentItemId}
-                  <span className="u-meta">
+                  <span className="text-sm text-muted">
                     {' '}
                     {items.find((item) => item.id === node.contentItemId)?.type ?? ''}
                     {` · ${t(node.required ? 'authoring.required' : 'authoring.optional')}`}
@@ -300,7 +302,7 @@ function AddModule({ onAdd }: { onAdd: (title: string) => void }) {
   const [title, setTitle] = useState('');
   return (
     <form
-      className="course-tree__add"
+      className="flex flex-wrap items-end gap-2"
       onSubmit={(event) => {
         event.preventDefault();
         if (title.trim()) {
@@ -309,17 +311,17 @@ function AddModule({ onAdd }: { onAdd: (title: string) => void }) {
         }
       }}
     >
-      <label className="u-caps" htmlFor="new-module">
+      <label className="label-caps" htmlFor="new-module">
         {t('authoring.add-module')}
       </label>
       <input
         id="new-module"
-        className="input input-dense"
+        className={fieldClasses(true)}
         value={title}
         onChange={(event) => setTitle(event.target.value)}
         placeholder={t('authoring.add-module.placeholder')}
       />
-      <button type="submit" className="btn btn-secondary" disabled={!title.trim()}>
+      <button type="submit" className={buttonClasses('secondary', 'sm')} disabled={!title.trim()}>
         {t('authoring.add')}
       </button>
     </form>
@@ -331,7 +333,7 @@ function AddNode({ items, onAdd }: { items: ItemView[]; onAdd: (contentItemId: s
   const [chosen, setChosen] = useState('');
   return (
     <form
-      className="course-tree__add"
+      className="flex flex-wrap items-end gap-2"
       onSubmit={(event) => {
         event.preventDefault();
         if (chosen) {
@@ -340,12 +342,12 @@ function AddNode({ items, onAdd }: { items: ItemView[]; onAdd: (contentItemId: s
         }
       }}
     >
-      <label className="u-caps" htmlFor="add-node">
+      <label className="label-caps" htmlFor="add-node">
         {t('authoring.add-node')}
       </label>
       <select
         id="add-node"
-        className="input input-dense"
+        className={fieldClasses(true)}
         value={chosen}
         onChange={(event) => setChosen(event.target.value)}
       >
@@ -356,7 +358,7 @@ function AddNode({ items, onAdd }: { items: ItemView[]; onAdd: (contentItemId: s
           </option>
         ))}
       </select>
-      <button type="submit" className="btn btn-secondary" disabled={!chosen}>
+      <button type="submit" className={buttonClasses('secondary', 'sm')} disabled={!chosen}>
         {t('authoring.add')}
       </button>
     </form>
@@ -409,14 +411,14 @@ function NewContentItem({
   }
 
   return (
-    <form className="panel new-content" onSubmit={(event) => void create(event)}>
-      <h3 className="u-caps">{t('authoring.new-item')}</h3>
-      <label className="u-caps" htmlFor="content-type">
+    <form className="card flex flex-col gap-3 p-5" onSubmit={(event) => void create(event)}>
+      <h3 className="label-caps">{t('authoring.new-item')}</h3>
+      <label className="label-caps" htmlFor="content-type">
         {t('authoring.type')}
       </label>
       <select
         id="content-type"
-        className="input input-dense"
+        className={fieldClasses(true)}
         value={type}
         onChange={(event) => setType(event.target.value)}
       >
@@ -427,18 +429,18 @@ function NewContentItem({
           </option>
         ))}
       </select>
-      <label className="u-caps" htmlFor="content-title">
+      <label className="label-caps" htmlFor="content-title">
         {t('authoring.title')}
       </label>
       <input
         id="content-title"
-        className="input input-dense"
+        className={fieldClasses(true)}
         value={title}
         onChange={(event) => setTitle(event.target.value)}
       />
       {type ? (
         <>
-          <label className="u-caps" htmlFor="content-reference">
+          <label className="label-caps" htmlFor="content-reference">
             {/*
              * A payload KEY, not a word: `assetId`, `testId`. It names the field the API expects,
              * so it stays as it is written in the contract and only the fallback is translated.
@@ -447,15 +449,15 @@ function NewContentItem({
           </label>
           <input
             id="content-reference"
-            className="input input-dense"
+            className={fieldClasses(true)}
             value={reference}
             onChange={(event) => setReference(event.target.value)}
             placeholder={t('authoring.reference.placeholder')}
           />
-          <p className="u-meta">{t('authoring.points-at')}</p>
+          <p className="text-sm text-muted">{t('authoring.points-at')}</p>
         </>
       ) : null}
-      <button type="submit" className="btn btn-secondary" disabled={!type || !title.trim()}>
+      <button type="submit" className={buttonClasses('secondary', 'sm')} disabled={!type || !title.trim()}>
         {t('authoring.create')}
       </button>
     </form>

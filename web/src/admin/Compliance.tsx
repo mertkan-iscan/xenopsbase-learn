@@ -18,7 +18,7 @@ import { NotEnforcedYet } from './NotEnforcedYet.tsx';
 export function Compliance() {
   const { locale, t } = useLocale();
   return (
-    <div className="compliance-page">
+    <div className="flex flex-col gap-6">
       <NotEnforcedYet />
       <Empty title={t('compliance.empty.title')}>
         {/*
@@ -28,7 +28,7 @@ export function Compliance() {
          * a name pinned to English word order.
          */}
         <p>{t('compliance.empty.body', { service: 'reporting' })}</p>
-        <p className="u-meta">
+        <p className="text-sm text-muted">
           {t('compliance.empty.note', { count: formatNumber(locale, 5182) })}
         </p>
       </Empty>

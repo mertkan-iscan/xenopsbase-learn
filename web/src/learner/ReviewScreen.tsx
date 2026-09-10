@@ -2,8 +2,15 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router';
 import { assessment, failureFrom, type ApiFailure } from '../shared/api/client.ts';
 import type { components } from '../shared/api/assessment.d.ts';
+import { formatMoment } from '../shared/i18n/format.ts';
+import { useLocale } from '../shared/i18n/useLocale.ts';
 import { ErrorState, Loading } from '../shared/state/States.tsx';
-import { AwaitingGradingReview, ScoreOnlyReview, type MarkedItem } from './Review.tsx';
+import {
+  AwaitingGradingReview,
+  ScoreOnlyReview,
+  type MarkedItem,
+  type Outcome,
+} from './Review.tsx';
 
 type Review = components['schemas']['Review'];
 type ReviewedItem = components['schemas']['ReviewedItem'];
@@ -20,35 +27,42 @@ type ReviewedItem = components['schemas']['ReviewedItem'];
  * <p>An unmarked attempt reviews as awaiting whatever its visibility says, because there is
  * nothing to show yet and a score-shaped screen with no score in it is the `passed: null` bug in a
  * different costume.
+ *
+ * <p><b>WHAT THIS FILE USED TO INVENT.</b> Four values were made up here and passed on as though
+ * the server had sent them: a pass mark of `70`, an attempts allowance equal to the attempt
+ * NUMBER, a test title of "Your test", and "a moment ago" for a missing timestamp. The `Review`
+ * response carries none of the first three (docs/api-surface.md), so a learner was reading this
+ * course's pass mark off a literal in a component. They are gone: the two unknowable numbers are
+ * simply not shown, and the two sentences come from the catalogue.
  */
 type Screen =
   | { status: 'loading' }
   | { status: 'ready'; review: Review }
   | { status: 'failed'; failure: ApiFailure };
 
-/** Human wording for one marked item, and the one case that must not be a number. */
-function outcomeOf(item: ReviewedItem): string | null {
-  // `correct` absent with no award is an item a person still holds: essay and file-upload have no
-  // answer key at all, so the machine could not have decided it and did not. Returning null here
-  // is what makes the row say "with a marker" instead of implying a zero.
+/**
+ * The verdict on one item, as data.
+ *
+ * <p>`correct` absent with no award is an item a person still holds: essay and file-upload have no
+ * answer key at all, so the machine could not have decided it and did not. Returning `null` here
+ * is what makes the row say "with a marker" instead of implying a zero.
+ */
+function outcomeOf(item: ReviewedItem): Outcome | null {
   if (item.correct === undefined && item.awarded === undefined) {
     return null;
   }
   if (item.correct === true) {
-    return 'Correct';
+    return { kind: 'correct' };
   }
   if (item.awarded !== undefined && item.points !== undefined) {
-    return `${item.awarded} of ${item.points}`;
+    return { kind: 'scored', awarded: item.awarded, points: item.points };
   }
-  return 'Not correct';
-}
-
-function label(item: ReviewedItem) {
-  return `Q${item.position ?? '?'}`;
+  return { kind: 'not-correct' };
 }
 
 export function ReviewScreen() {
   const { attemptId } = useParams();
+  const { locale, t } = useLocale();
   const [screen, setScreen] = useState<Screen>({ status: 'loading' });
 
   const load = useCallback(() => {
@@ -83,27 +97,32 @@ export function ReviewScreen() {
   const { review } = screen;
   const items: MarkedItem[] = (review.items ?? []).map((item, index) => ({
     id: item.formItemId ?? String(index),
-    label: label(item),
+    // "Q3", assembled from a number the response carries. `position` absent is a real gap in the
+    // payload rather than a question numbered "?", so it falls back to the row's own place.
+    label: t('review.question-number', { n: item.position ?? index + 1 }),
     outcome: outcomeOf(item),
   }));
 
+  // There is no test title anywhere on this response and no learner-facing endpoint that would
+  // give one for a `testId`. A translated phrase, not an English literal.
+  const title = t('review.your-test');
+
   if (review.grading === 'AWAITING_GRADING') {
-    return <AwaitingGradingReview testTitle="Your test" items={items} />;
+    return <AwaitingGradingReview testTitle={title} items={items} />;
   }
 
   return (
     <ScoreOnlyReview
-      testTitle="Your test"
+      testTitle={title}
       percent={review.scorePercent ?? 0}
-      passMark={70}
       // `passed` is optional on the response and `=== true` is deliberate: `undefined` is not a
       // fail, and `!review.passed` would draw one.
       passed={review.passed === true}
-      submittedAt={
-        review.submittedAt ? new Date(review.submittedAt).toLocaleString() : 'a moment ago'
-      }
+      // `formatMoment` and not `toLocaleString()`. The latter formats in the BROWSER's language,
+      // which is the wrong one the moment somebody reads in a language their browser is not set
+      // to -- Turkish sentences with an English date inside them read as a fault, not a setting.
+      submittedAt={review.submittedAt ? formatMoment(locale, review.submittedAt) : t('review.just-now')}
       attemptsUsed={review.attemptNumber ?? 1}
-      attemptsAllowed={review.attemptNumber ?? 1}
     />
   );
 }

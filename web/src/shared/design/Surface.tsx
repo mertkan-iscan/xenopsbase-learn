@@ -106,3 +106,28 @@ export function StatTile({
     </div>
   );
 }
+
+/**
+ * A standing note about the product itself, rather than about anything on this screen.
+ *
+ * <p>WHAT IT IS FOR, AND WHY IT IS A COMPONENT. Two console screens have to say something
+ * uncomfortable and true — that the console does not enforce permissions yet (ADR-0109), and that
+ * the permission catalogue has no endpoint to read. A UI that looks like it has administrators and
+ * does not is worse than an open one, because somebody plans around it. Making this a component
+ * means the next screen that owes such a sentence has somewhere to put it instead of inventing a
+ * yellow box.
+ *
+ * <p>Deliberately NOT `role="alert"`: it interrupts nothing and it is true on every render. It is
+ * a note, and `role="note"` is exactly what it is.
+ */
+export function Notice({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <p
+      role="note"
+      className="flex flex-col gap-1.5 rounded-lg border border-dashed border-awaiting-edge bg-awaiting-bg p-4 text-sm"
+    >
+      <span className="label-caps text-awaiting-fg">{label}</span>
+      <span className="text-ink">{children}</span>
+    </p>
+  );
+}

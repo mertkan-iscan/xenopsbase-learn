@@ -161,6 +161,17 @@ export const en = {
   'progress.in-progress': 'In progress',
   'progress.due-soon': 'Due soon',
   'progress.overdue': 'Overdue',
+  'progress.per-course': 'By course',
+  'progress.course': 'Course',
+  'progress.done': 'Done',
+  'review.your-test': 'Your result',
+  'review.question-number': 'Q{n}',
+  'review.submitted': 'Submitted {at}.',
+  'review.attempt-number': 'Attempt {n}.',
+  'review.just-now': 'a moment ago',
+  'review.outcome.correct': 'Correct',
+  'review.outcome.not-correct': 'Not correct',
+  'review.outcome.scored': '{awarded} of {points}',
 
   // ------------------------------------------------------------------------------- questions
   'question.your-answer': 'Your answer',

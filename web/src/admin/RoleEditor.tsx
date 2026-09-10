@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { failureFrom, identity, type ApiFailure } from '../shared/api/client.ts';
+import { buttonClasses } from '../shared/design/Button.tsx';
+import { fieldClasses } from '../shared/design/Field.tsx';
 import type { components } from '../shared/api/identity.d.ts';
 import { StateChip } from '../shared/design/State.tsx';
+import { Notice } from '../shared/design/Surface.tsx';
 import { formatNumber } from '../shared/i18n/format.ts';
 import { useLocale, useT } from '../shared/i18n/useLocale.ts';
 import { Empty, ErrorState, Loading } from '../shared/state/States.tsx';
@@ -65,39 +68,44 @@ export function RoleEditor() {
   const open = screen.roles.find((role) => role.id === openId) ?? null;
 
   return (
-    <div className="role-page">
-      <p className="not-enforced" role="note">
-        <span className="u-caps">{t('roles.half-missing.label')}</span>
-        <span>{t('roles.half-missing.body', { enum: 'Permission' })}</span>
-      </p>
+    <div className="flex flex-col gap-6">
+      <Notice label={t('roles.half-missing.label')}>
+        {t('roles.half-missing.body', { enum: 'Permission' })}
+      </Notice>
 
-      <div className="role-page__split">
+      <div className="grid gap-6 desk:grid-cols-[20rem_1fr] desk:items-start">
         <section aria-labelledby="roles">
-          <h2 id="roles" className="u-caps">
+          <h2 id="roles" className="label-caps">
             {t('roles.title')}
           </h2>
           {screen.roles.length === 0 ? (
             <Empty title={t('roles.empty.title')}>
-              <p className="u-meta">{t('roles.empty.body')}</p>
+              <p className="text-sm text-muted">{t('roles.empty.body')}</p>
             </Empty>
           ) : (
-            <ul className="panel role-page__list">
+            <ul className="flex flex-col overflow-hidden rounded-xl border border-hairline bg-surface">
               {screen.roles.map((role) => (
                 <li key={role.id}>
                   <button
                     type="button"
-                    className={role.id === openId ? 'node node--on' : 'node'}
                     onClick={() => setOpenId(role.id ?? null)}
+                    aria-current={role.id === openId ? 'true' : undefined}
+                    className={`flex w-full flex-col items-start gap-1 border-b border-hairline px-4 py-2.5 text-start transition-colors duration-150 last:border-b-0 ${
+                      role.id === openId
+                        ? 'bg-brand-tint text-brand'
+                        : 'hover:bg-surface-muted'
+                    }`}
                   >
-                    {role.name}
-                    {role.system ? (
-                      <StateChip state="published" detail={t('roles.system')} />
-                    ) : null}
-                    <span className="u-meta">
-                      {' '}
-                      {plural('roles.permission-count', role.permissions?.length ?? 0, {
-                        count: formatNumber(locale, role.permissions?.length ?? 0),
-                      })}
+                    <span className="w-full truncate text-sm font-semibold">{role.name}</span>
+                    <span className="flex flex-wrap items-center gap-2">
+                      {role.system ? (
+                        <StateChip state="published" detail={t('roles.system')} />
+                      ) : null}
+                      <span className="text-xs text-muted">
+                        {plural('roles.permission-count', role.permissions?.length ?? 0, {
+                          count: formatNumber(locale, role.permissions?.length ?? 0),
+                        })}
+                      </span>
                     </span>
                   </button>
                 </li>
@@ -144,22 +152,27 @@ function RolePermissions({ role, onChanged }: { role: RoleView; onChanged: () =>
   }
 
   return (
-    <section className="role-page__permissions panel" aria-labelledby="permissions">
-      <h2 id="permissions" className="u-caps">
+    <section className="card flex flex-col gap-4 p-5" aria-labelledby="permissions">
+      <h2 id="permissions" className="label-caps">
         {role.name}
       </h2>
-      <p className="u-meta">{role.description}</p>
+      <p className="text-sm text-muted">{role.description}</p>
 
       {held.length === 0 ? (
-        <p className="u-meta">{t('roles.holds-nothing')}</p>
+        <p className="text-sm text-muted">{t('roles.holds-nothing')}</p>
       ) : (
-        <ul className="role-page__held">
+        <ul className="flex flex-col gap-2">
           {held.map((code) => (
-            <li key={code}>
-              <code>{code}</code>
+            <li
+              key={code}
+              className="flex items-center justify-between gap-3 rounded-lg border border-hairline bg-surface-muted px-3 py-2"
+            >
+              {/* Monospace, because a permission is a code somebody has to type exactly -- the one
+                  place in this product where the characters matter more than the reading. */}
+              <code className="font-mono text-xs font-semibold">{code}</code>
               <button
                 type="button"
-                className="btn btn-ghost btn-dense"
+                className={buttonClasses('ghost', 'sm')}
                 disabled={role.system === true}
                 onClick={() => void save(held.filter((one) => one !== code))}
               >
@@ -171,10 +184,10 @@ function RolePermissions({ role, onChanged }: { role: RoleView; onChanged: () =>
       )}
 
       {role.system ? (
-        <p className="u-meta">{t('roles.seeded')}</p>
+        <p className="text-sm text-muted">{t('roles.seeded')}</p>
       ) : (
         <form
-          className="role-page__add"
+          className="flex flex-wrap items-end gap-2"
           onSubmit={(event) => {
             event.preventDefault();
             if (adding.trim()) {
@@ -183,24 +196,24 @@ function RolePermissions({ role, onChanged }: { role: RoleView; onChanged: () =>
             }
           }}
         >
-          <label className="u-caps" htmlFor="add-permission">
+          <label className="label-caps" htmlFor="add-permission">
             {t('roles.add-permission')}
           </label>
           <input
             id="add-permission"
-            className="input input-dense"
+            className={fieldClasses(true)}
             value={adding}
             onChange={(event) => setAdding(event.target.value)}
             placeholder={t('roles.code-placeholder')}
           />
-          <button type="submit" className="btn btn-secondary" disabled={!adding.trim()}>
+          <button type="submit" className={buttonClasses('secondary', 'sm')} disabled={!adding.trim()}>
             {t('roles.add')}
           </button>
         </form>
       )}
 
       {problem ? (
-        <p className="authoring__short" role="alert">
+        <p className="rounded-lg border border-overdue-edge bg-overdue-bg p-3 text-sm text-overdue-fg" role="alert">
           {problem}
         </p>
       ) : null}

@@ -1,4 +1,6 @@
-import type { ReactNode } from 'react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
+import { useId, type ReactNode } from 'react';
+import { Button } from '../shared/design/Button.tsx';
 import type { MessageKey } from '../shared/i18n/messages.en.ts';
 import { useT } from '../shared/i18n/useLocale.ts';
 
@@ -29,6 +31,20 @@ export type Response = Record<string, unknown>;
 
 type Choice = { id?: string; text?: string };
 
+/*
+ * The shared look for a chooseable row -- a radio, a checkbox, an option in an interstitial. The
+ * focus ring is drawn on the LABEL via `has-[:focus-visible]`, because the input inside it is what
+ * receives focus and the thing a person needs to see outlined is the whole row.
+ */
+const optionRow = [
+  'flex min-h-tap cursor-pointer items-center gap-3 rounded-lg border px-4 py-2.5 text-sm',
+  'transition-colors duration-150',
+  'has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[var(--focus)]',
+].join(' ');
+
+const optionOn = 'border-brand bg-brand-tint font-semibold text-brand';
+const optionOff = 'border-hairline hover:border-hairline-strong hover:bg-surface-muted';
+
 export function Question({
   body,
   optionOrder,
@@ -45,8 +61,8 @@ export function Question({
   const stem = body.stem ?? '';
 
   return (
-    <fieldset className="question">
-      <legend className="u-display question__stem">{stem}</legend>
+    <fieldset className="min-w-0 border-0 p-0">
+      <legend className="mb-4 font-display text-lg font-bold sm:text-xl">{stem}</legend>
       {renderBody()}
     </fieldset>
   );
@@ -78,9 +94,7 @@ export function Question({
             label={t('question.your-answer')}
             value={answer?.value === undefined ? '' : String(answer.value)}
             inputMode="decimal"
-            onChange={(raw) =>
-              onAnswer(raw.trim() === '' ? {} : { value: Number(raw) })
-            }
+            onChange={(raw) => onAnswer(raw.trim() === '' ? {} : { value: Number(raw) })}
           />
         );
       case 'essay':
@@ -112,7 +126,10 @@ export function Question({
         // matching, hotspot and file-upload need an interaction this screen does not have yet.
         // Saying so beats a control that looks answerable and submits nothing.
         return (
-          <p className="question__unsupported" role="note">
+          <p
+            role="note"
+            className="rounded-lg border border-dashed border-hairline-strong bg-surface-muted p-4 text-sm text-muted"
+          >
             {t('question.unsupported', { type })}
           </p>
         );
@@ -132,11 +149,7 @@ export function Question({
 }
 
 /** true-false has no choices in the body: they are ours, and they are the same two every time. */
-function choicesOf(
-  body: QuestionBody,
-  type: string,
-  t: (key: MessageKey) => string,
-): Choice[] {
+function choicesOf(body: QuestionBody, type: string, t: (key: MessageKey) => string): Choice[] {
   if (type === 'true-false') {
     return [
       { id: 'true', text: t('question.true') },
@@ -158,16 +171,17 @@ function Choices({
   onChange: (chosen: string[]) => void;
 }) {
   return (
-    <div className="interstitial__options">
+    <div className="flex flex-col gap-2">
       {choices.map((choice) => {
         const id = choice.id ?? '';
         const on = chosen.includes(id);
         return (
-          <label key={id} className={on ? 'option option--on' : 'option'}>
+          <label key={id} className={`${optionRow} ${on ? optionOn : optionOff}`}>
             <input
               type={multiple ? 'checkbox' : 'radio'}
               name="answer"
               checked={on}
+              className="size-4 shrink-0 accent-[var(--brand)]"
               // ON CLICK, NOT ON CHANGE, and a test found out why: clicking a radio that is
               // already checked fires no change event, so "choose it again to clear it" silently
               // did nothing. `onClick` fires either way. React wants an onChange beside a
@@ -191,6 +205,17 @@ function Choices({
   );
 }
 
+/*
+ * The field look, repeated from `shared/design/Field.tsx` rather than imported from it. These
+ * inputs cannot use `Input`: that component renders its own label above the control, and an
+ * answer field in an exam is labelled by the question's `legend` or by a blank's own prompt. One
+ * shared constant would be a component boundary drawn through the middle of two different jobs.
+ */
+const answerField = [
+  'w-full rounded-lg border border-hairline bg-surface-muted px-3 text-sm text-ink',
+  'transition-colors duration-150 hover:border-hairline-strong focus:border-brand focus:bg-surface',
+].join(' ');
+
 function Free({
   label,
   value,
@@ -204,29 +229,32 @@ function Free({
   inputMode?: 'decimal';
   onChange: (value: string) => void;
 }) {
+  // `useId` and not a literal `"answer"`. A fixed id is a duplicate id the moment two of these
+  // render, and a duplicate id silently points every label at the first input.
+  const id = useId();
   return (
-    <p className="question__free">
-      <label className="u-caps" htmlFor="answer">
+    <div className="flex flex-col gap-1.5">
+      <label className="label-caps" htmlFor={id}>
         {label}
       </label>
       {long ? (
         <textarea
-          id="answer"
-          className="input question__long"
+          id={id}
           rows={8}
           value={value}
           onChange={(event) => onChange(event.target.value)}
+          className={`${answerField} resize-y py-2 leading-relaxed`}
         />
       ) : (
         <input
-          id="answer"
-          className="input"
+          id={id}
           inputMode={inputMode}
           value={value}
           onChange={(event) => onChange(event.target.value)}
+          className={`min-h-tap ${answerField}`}
         />
       )}
-    </p>
+    </div>
   );
 }
 
@@ -239,19 +267,21 @@ function Blanks({
   filled: Record<string, string>;
   onChange: (filled: Record<string, string>) => void;
 }) {
+  const base = useId();
   return (
-    <div className="question__blanks">
+    <div className="flex flex-col gap-4">
       {blanks.map((blank) => {
         const id = blank.id ?? '';
+        const fieldId = `${base}-${id}`;
         return (
-          <p key={id} className="question__free">
-            <label className="u-caps" htmlFor={`blank-${id}`}>
+          <div key={id} className="flex flex-col gap-1.5">
+            <label className="label-caps" htmlFor={fieldId}>
               {blank.text ?? id}
             </label>
             <input
-              id={`blank-${id}`}
-              className="input"
+              id={fieldId}
               value={filled[id] ?? ''}
+              className={`min-h-tap ${answerField}`}
               onChange={(event) => {
                 const next = { ...filled, [id]: event.target.value };
                 if (event.target.value.trim() === '') {
@@ -260,7 +290,7 @@ function Blanks({
                 onChange(next);
               }}
             />
-          </p>
+          </div>
         );
       })}
     </div>
@@ -272,6 +302,11 @@ function Blanks({
  *
  * <p>Buttons rather than drag: T-10.8 requires every interaction to be keyboard operable, and a
  * drag list that is only usable with a mouse fails that on the screen where it matters most.
+ *
+ * <p>The arrows are drawn icons rather than the `↑` and `↓` characters they used to be. A glyph in
+ * a button is at the mercy of whatever font renders it — and both are read aloud by a screen
+ * reader as their Unicode name, which is why each button carries a real label naming the ITEM it
+ * moves rather than the direction.
  */
 function Ordering({
   items,
@@ -295,34 +330,40 @@ function Ordering({
     onChange(next);
   }
 
+  const textOf = (id: string) => items.find((item) => item.id === id)?.text ?? id;
+
   return (
-    <ol className="question__ordering panel">
+    <ol className="flex flex-col overflow-hidden rounded-lg border border-hairline">
       {current.map((id, index) => (
-        <li key={id}>
-          <span>{items.find((item) => item.id === id)?.text ?? id}</span>
-          <span className="question__ordering-moves">
-            <button
-              type="button"
-              className="btn btn-secondary btn-dense"
+        <li
+          key={id}
+          className="flex items-center gap-3 border-b border-hairline bg-surface px-3 py-2 last:border-b-0"
+        >
+          <span className="w-6 shrink-0 text-center text-xs font-bold text-subtle tabular-nums">
+            {index + 1}
+          </span>
+          <span className="min-w-0 flex-1 text-sm">{textOf(id)}</span>
+          <span className="flex shrink-0 gap-1">
+            <Button
+              voice="secondary"
+              size="sm"
+              className="px-2"
               onClick={() => move(index, -1)}
               disabled={index === 0}
-              aria-label={t('question.move-earlier', {
-                item: items.find((item) => item.id === id)?.text ?? id,
-              })}
+              aria-label={t('question.move-earlier', { item: textOf(id) })}
             >
-              ↑
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary btn-dense"
+              <ChevronUp aria-hidden="true" className="size-4" />
+            </Button>
+            <Button
+              voice="secondary"
+              size="sm"
+              className="px-2"
               onClick={() => move(index, 1)}
               disabled={index === current.length - 1}
-              aria-label={t('question.move-later', {
-                item: items.find((item) => item.id === id)?.text ?? id,
-              })}
+              aria-label={t('question.move-later', { item: textOf(id) })}
             >
-              ↓
-            </button>
+              <ChevronDown aria-hidden="true" className="size-4" />
+            </Button>
           </span>
         </li>
       ))}

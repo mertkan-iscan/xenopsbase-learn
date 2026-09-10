@@ -6,7 +6,11 @@ import { useT } from '../shared/i18n/useLocale.ts';
 import { ErrorState } from '../shared/state/States.tsx';
 import { PLAYER_PROTOCOL, isCommand, type Event } from './messages.ts';
 import { VideoPlayer } from './VideoPlayer.tsx';
+// The application stylesheet, for the tokens and for the shared ErrorState this document
+// renders; then the player's own layout, which travels WITH the player rather than with the
+// application that embeds it -- see player.css for what went wrong when it did not.
 import '../styles.css';
+import './player.css';
 
 /**
  * What runs inside the iframe (ADR-0110, T-3.5): the player, plus the translation between

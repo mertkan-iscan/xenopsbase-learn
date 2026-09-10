@@ -252,6 +252,86 @@ const interstitials: Record<string, unknown> = {
   },
 };
 
+/*
+ * THE CONSOLE'S READS. Enough for each screen to be looked at in the state it is normally in,
+ * which for four of the six is "a company that has been set up and is being run" rather than the
+ * empty one a fresh stack gives you.
+ *
+ * The roles are the four every tenant is seeded with (`SystemRole`, T-2.7) plus one a customer
+ * built, because the difference matters on screen: a seeded role cannot be edited and says so.
+ */
+const roles = [
+  {
+    id: 'r-admin',
+    name: 'Şirket yöneticisi',
+    description: 'Her şeyi yönetir.',
+    system: true,
+    permissions: ['user:manage', 'role:manage', 'group:manage', 'course:manage', 'report:read'],
+  },
+  {
+    id: 'r-author',
+    name: 'Yazar',
+    description: 'Eğitim hazırlar ve yayınlar.',
+    system: true,
+    permissions: ['course:manage', 'content:view'],
+  },
+  {
+    id: 'r-learner',
+    name: 'Öğrenen',
+    description: 'Atanan eğitimleri görür.',
+    system: true,
+    permissions: ['content:view'],
+  },
+  {
+    id: 'r-group-admin',
+    name: 'Grup yöneticisi',
+    description: 'Yalnızca kendi grubundaki kişileri yönetir.',
+    system: true,
+    permissions: ['user:read', 'report:read'],
+  },
+  {
+    // The one a customer made. Editable, and the only one whose remove buttons are live.
+    id: 'r-audit',
+    name: 'Denetim gözlemcisi',
+    description: 'Rapor okur, hiçbir şeyi değiştirmez.',
+    system: false,
+    permissions: ['report:read'],
+  },
+];
+
+const courses = [
+  { id: 'c-kvkk', title: 'Kişisel Verilerin Korunması 2026', state: 'PUBLISHED' },
+  { id: 'c-yangin', title: 'Yangın Güvenliği Tazeleme', state: 'PUBLISHED' },
+  { id: 'c-yeni', title: 'Yeni Başlayan Oryantasyonu', state: 'DRAFT' },
+];
+
+/*
+ * A marking queue with rows in it, which is the state this screen exists for and the one that is
+ * tedious to arrange for real -- somebody has to sit a test with an essay in it first.
+ */
+const gradingQueue = [
+  {
+    attemptId: 'a-1',
+    attemptNumber: 1,
+    learnerId: 'u-7',
+    testId: 't-kvkk',
+    testTitle: 'Kişisel verilerin işlenmesi',
+    submittedAt: new Date(Date.now() - 3_600_000 * 26).toISOString(),
+    outstanding: 2,
+    waitingSeconds: 3_600 * 26,
+  },
+  {
+    attemptId: 'a-2',
+    attemptNumber: 2,
+    learnerId: 'u-9',
+    testId: 't-yangin',
+    testTitle: 'Yangın Güvenliği',
+    submittedAt: new Date(Date.now() - 3_600_000 * 3).toISOString(),
+    outstanding: 1,
+    waitingSeconds: 3_600 * 3,
+  },
+];
+
 const answers: Record<string, unknown> = {
   '/auth/session': { signedIn: true, name: 'Ayşe Demir', signInUrl: '/in' },
 
@@ -267,6 +347,21 @@ const answers: Record<string, unknown> = {
   },
 
   '/api/v1/me/home': home,
+
+  // The console. Every one of these is a real endpoint (docs/api-surface.md); what is fake is only
+  // the company inside them.
+  '/api/v1/roles': roles,
+  '/api/v1/courses': courses,
+  '/api/v1/grading/queue': gradingQueue,
+  '/api/v1/assignments': [],
+  '/api/v1/content-items': [],
+  '/api/v1/content-items/types': [
+    { code: 'video', displayName: 'Video' },
+    { code: 'scorm', displayName: 'SCORM package' },
+    { code: 'cmi5', displayName: 'cmi5 package' },
+    { code: 'slides', displayName: 'Slides or document' },
+    { code: 'test', displayName: 'Test' },
+  ],
 };
 
 /**
