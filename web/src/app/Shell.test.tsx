@@ -2,6 +2,8 @@ import { render, screen } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../test/axe.ts';
+import { rememberTheAttempt } from '../shared/auth/arrival.ts';
+import { parkWork } from '../shared/auth/recovery.ts';
 import { Shell } from './Shell.tsx';
 
 /**
@@ -22,7 +24,19 @@ describe('the application shell', () => {
     );
   }
 
-  beforeEach(() => signedIn(true));
+  const assign = vi.fn();
+
+  beforeEach(() => {
+    window.sessionStorage.clear();
+    assign.mockClear();
+    // jsdom's location.assign is not implemented and logs a "Not implemented" error; stubbing it
+    // is also what lets a test assert WHERE the shell tried to send somebody.
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...window.location, assign },
+    });
+    signedIn(true);
+  });
 
   afterEach(() => vi.unstubAllGlobals());
 
@@ -74,14 +88,39 @@ describe('the application shell', () => {
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
   });
 
-  it('says so plainly when nobody is, rather than a screen of failed calls', async () => {
+  it('sends a first visitor to the sign-in page rather than a panel about it', async () => {
+    signedIn(false);
+    renderShell();
+
+    // The front door opens the issuer's login page. A panel here would tell somebody what they
+    // already know and make them click the only button on it.
+    await vi.waitFor(() => expect(assign).toHaveBeenCalledWith('/in'));
+    expect(screen.queryByText('A screen')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'You are signed out' })).not.toBeInTheDocument();
+  });
+
+  it('explains rather than redirecting when a session ended over somebody’s work', async () => {
+    // The forty-minute exam (T-10.2). Sending this person to the issuer without a word is the
+    // reason the panel exists, and it has to survive the panel becoming conditional.
+    parkWork('attempt-submission', { answers: ['a'] }, '/review/an-attempt');
+    signedIn(false);
+    const { container } = renderShell();
+
+    expect(await screen.findByRole('heading', { name: 'Your work is saved' })).toBeInTheDocument();
+    expect(screen.getByText(/Nothing was lost/)).toBeInTheDocument();
+    // And it did NOT navigate away from the screen saying so.
+    expect(assign).not.toHaveBeenCalled();
+    await expectNoAxeViolations(container);
+  });
+
+  it('stops after one automatic attempt rather than looping between two hosts', async () => {
+    rememberTheAttempt();
     signedIn(false);
     const { container } = renderShell();
 
     expect(await screen.findByRole('heading', { name: 'You are signed out' })).toBeInTheDocument();
-    expect(screen.queryByText('A screen')).not.toBeInTheDocument();
-    // And the promise that makes the exam case survivable is on the screen, not only in the code.
-    expect(screen.getByText(/still here when you come back/)).toBeInTheDocument();
+    expect(screen.getByText(/Signing in did not complete/)).toBeInTheDocument();
+    expect(assign).not.toHaveBeenCalled();
     await expectNoAxeViolations(container);
   });
 });

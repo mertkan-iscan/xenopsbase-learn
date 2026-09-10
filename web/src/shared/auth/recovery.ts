@@ -42,6 +42,24 @@ export function parkWork(label: string, payload: unknown, route = window.locatio
   }
 }
 
+/**
+ * Is there parked work, without taking it?
+ *
+ * <p>Separate from {@link takeParkedWork} because that one REMOVES, deliberately — reading it
+ * twice would replay a submission twice. The shell needs to ask the question without answering
+ * it: somebody whose exam answers are parked must be told so rather than bounced silently to the
+ * issuer, and the screen that will actually replay them is not this one.
+ */
+export function hasParkedWork(): boolean {
+  try {
+    return window.sessionStorage.getItem(KEY) !== null;
+  } catch {
+    // Storage unavailable is not "there is work" -- guessing yes here would strand a first-time
+    // visitor on a panel about answers they never wrote.
+    return false;
+  }
+}
+
 /** Reads and removes the parked work. Reading it twice would replay a submission twice. */
 export function takeParkedWork(label?: string): ParkedWork | null {
   let raw: string | null;
