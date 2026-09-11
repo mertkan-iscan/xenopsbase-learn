@@ -24,6 +24,33 @@ resources:
   - catalog.yaml
   - assessment.yaml
 
+  # PACKAGING IS NOT LISTED YET, AND THAT IS AN ORDERING FACT RATHER THAN AN
+  # OVERSIGHT. `packaging.yaml` and `content-origin.yaml` are both here in the
+  # directory, complete, and neither is applied.
+  #
+  # Images are pinned below BY DIGEST, and CI publishes only from main
+  # (`if: github.event_name == 'push' && github.ref == 'refs/heads/main'`) --
+  # deliberately, so a pull request cannot publish. So no digest for this service
+  # can exist until the commit that adds it has merged, and listing it here
+  # before then would deploy the `:main` placeholder tag that every Deployment in
+  # this directory says MUST NOT be what runs.
+  #
+  # So the deploy is the follow-up commit that pins the digest and adds these two
+  # lines -- the same two-step catalog and assessment went through (#143 routed
+  # them, #144 deployed them). Written here rather than remembered, because the
+  # failure mode is a service that builds, tests and publishes for weeks with no
+  # Deployment, and nothing reports it.
+  #
+  # BEFORE THAT COMMIT, TWO THINGS MUST EXIST THAT ARE THE STEMCELL'S:
+  #   - the `learn_packaging` database and role, and `learn-packaging-db`
+  #   - two object-storage buckets and `learn-packaging-storage`
+  # and two DNS records pointing acme--usercontent-dev and globex--usercontent-dev
+  # at the tunnel. A pod that starts before any of them is a CrashLoopBackOff
+  # with a five-minute backoff.
+  #
+  # - packaging.yaml
+  # - content-origin.yaml
+
   # THE PUBLIC HALF (T-10.2), added together because none of the three is any
   # use without the other two: the ingress needs both backends to exist, and a
   # backend with no ingress is a pod nobody outside the cluster can reach.

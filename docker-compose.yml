@@ -138,8 +138,16 @@ services:
     ports: ["8090:8090"]
     volumes:
       - ./local/content-origin/Caddyfile:/etc/caddy/Caddyfile:ro
-    depends_on:
-      minio: {condition: service_healthy}
+    environment:
+      # Where the packaging service is. It runs on the developer's machine
+      # (`make run S=packaging`), not in this file, which is why this is a host
+      # address rather than a compose service name.
+      PACKAGING_UPSTREAM: ${PACKAGING_UPSTREAM:-host.docker.internal:8087}
+    extra_hosts:
+      # Docker Desktop provides host.docker.internal; Linux does not, and
+      # without this the content origin answers 502 for every package with an
+      # error naming only DNS.
+      - "host.docker.internal:host-gateway"
 
   # ---------------------------------------------------------------------------
   # NATS JetStream -- transport. Disposable: the outbox row is the record.

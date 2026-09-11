@@ -68,6 +68,16 @@ const services = [
     spec: join(root, 'api', 'assessment-openapi.json'),
     types: join(root, 'src', 'shared', 'api', 'assessment.d.ts'),
   },
+  {
+    // Uploaded SCORM, cmi5 and slide packages (E4). Only the MANAGEMENT half of this service is
+    // described here, because only that half is something a browser on this origin talks to: the
+    // packages themselves are served by the tenant's content origin, which the application
+    // reaches by putting a URL in an iframe and never by calling (ADR-0105).
+    name: 'packaging',
+    url: process.env.PACKAGING_URL ?? 'http://localhost:8087',
+    spec: join(root, 'api', 'packaging-openapi.json'),
+    types: join(root, 'src', 'shared', 'api', 'packaging.d.ts'),
+  },
 ];
 
 const mode = process.argv[2];

@@ -13,7 +13,17 @@ import { useLocale } from '../shared/i18n/useLocale.ts';
 import { Empty, ErrorState, Loading } from '../shared/state/States.tsx';
 import { NODE_AVAILABLE, NODE_COMPLETE, NODE_IN_PROGRESS, NODE_LOCKED } from './course.ts';
 import { ItemShell } from './Item.tsx';
+import { PackagePlayer } from './PackagePlayer.tsx';
 import { refreshHome, useHome, type HomeView } from './useHome.ts';
+
+/**
+ * The content types that open as an uploaded package rather than as a video (T-4.2, T-4.8).
+ *
+ * <p>The registry's own codes, lower case, exactly as `Item.tsx` holds them — and a set rather
+ * than a check for "not video", because the honest default for a type nobody has taught this
+ * screen about is the shell saying what it is and not pretending to open it.
+ */
+const PACKAGE_TYPES = new Set(['scorm', 'cmi5', 'html5', 'slides']);
 
 type PlayerView = components['schemas']['PlayerView'];
 type TabId = 'overview' | 'questions' | 'contents';
@@ -198,12 +208,32 @@ export function WatchScreen({ home, nodeId }: { home: HomeView; nodeId: string }
       onBack={() => void navigate('/')}
       aside={desktop ? <div className="w-80 shrink-0">{syllabus}</div> : undefined}
     >
-      {/* Through the same iframe and the same loader a customer uses (ADR-0110). Rendering the
-          player component directly would be one import shorter and would leave the embed path
-          exercised by nobody who would notice it break. */}
-      <div className="overflow-hidden rounded-xl border border-hairline bg-ink shadow-lift">
-        <EmbeddedPlayer nodeId={nodeId} title={node.title ?? t('player.untitled')} />
-      </div>
+      {/*
+        * TWO KINDS OF CONTENT, ONE SHELL, AND THE SHELL IS THE DESIGN (T-10.3).
+        *
+        * `ItemShell` knows nothing about what it is hosting; this is the one place that decides.
+        * A video plays through the embeddable player; an uploaded package opens in an iframe on
+        * the tenant's content origin, with a `postMessage` bridge to a runtime the platform stores
+        * (T-4.4, ADR-0105). A test is neither and is not reachable from here yet.
+        *
+        * `contentRef` is the id inside the content item's payload, added to the home response
+        * because a learner could not open a package without it: this screen knew the node was a
+        * `scorm` and had no way to learn WHICH package.
+        */}
+      {PACKAGE_TYPES.has(node.type ?? '') && node.contentRef ? (
+        <PackagePlayer
+          packageId={node.contentRef}
+          nodeId={nodeId}
+          title={node.title ?? t('item.type.unknown')}
+        />
+      ) : (
+        /* Through the same iframe and the same loader a customer uses (ADR-0110). Rendering the
+           player component directly would be one import shorter and would leave the embed path
+           exercised by nobody who would notice it break. */
+        <div className="overflow-hidden rounded-xl border border-hairline bg-ink shadow-lift">
+          <EmbeddedPlayer nodeId={nodeId} title={node.title ?? t('player.untitled')} />
+        </div>
+      )}
 
       <Tabs label={t('item.tabs')} tabs={tabs} active={active} onChange={setTab} />
     </ItemShell>

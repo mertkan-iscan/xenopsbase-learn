@@ -367,6 +367,36 @@
       "protocol": "openid-connect"
     },
     {
+      "clientId": "svc-packaging",
+      "name": "packaging service",
+      "description": "Service credentials for packaging (T-9.11). Client credentials only; per-service secret. It calls identity to turn a learner's token into an app_user id, which is what a SCORM runtime row is keyed by (T-4.4).",
+      "enabled": true,
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "secret": "local-development-only-packaging-secret",
+      "attributes": {
+        "access.token.lifespan": "300"
+      },
+      "protocolMappers": [
+        {
+          "name": "service-id-claim",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "svc",
+            "claim.value": "packaging",
+            "jsonType.label": "String",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ],
+      "protocol": "openid-connect"
+    },
+    {
       "clientId": "svc-assessment",
       "name": "assessment service",
       "description": "Service credentials for assessment (T-9.11). Client credentials only; per-service secret.",
@@ -571,6 +601,15 @@
       "username": "service-account-svc-assessment",
       "enabled": true,
       "serviceAccountClientId": "svc-assessment",
+      "realmRoles": [
+        "svc-caller"
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-0000000000a6",
+      "username": "service-account-svc-packaging",
+      "enabled": true,
+      "serviceAccountClientId": "svc-packaging",
       "realmRoles": [
         "svc-caller"
       ]

@@ -157,7 +157,7 @@ class ContentItemTest extends PostgresTestHarness {
     void theTypeListIsWhateverTheRegistryHolds() throws Exception {
         String types = bodyOf("/api/v1/content-items/types");
 
-        assertThat(types).contains("video", "scorm", "cmi5", "slides", "test");
+        assertThat(types).contains("video", "scorm", "cmi5", "html5", "slides", "test");
         assertThat(types)
             .as("the picker is derived from the registry, so it cannot drift from what validates")
             .doesNotContain("hologram");

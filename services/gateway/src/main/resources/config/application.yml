@@ -70,6 +70,7 @@ gateway:
   reporting: ${REPORTING_URL:http://localhost:8084}
   catalog: ${CATALOG_URL:http://localhost:8085}
   assessment: ${ASSESSMENT_URL:http://localhost:8086}
+  packaging: ${PACKAGING_URL:http://localhost:8087}
   app-url: ${APP_URL:http://localhost:5173}
 
 management:

@@ -1,0 +1,695 @@
+{
+  "components": {
+    "schemas": {
+      "CreateUploadRequest": {
+        "properties": {
+          "filename": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "IssuedUploadView": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "uploadExpiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "uploadUrl": {
+            "format": "uri",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PackageView": {
+        "properties": {
+          "contentOrigin": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "entryPath": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "fileCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "launchUrl": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "sourceBytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sourceName": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "unpackedBytes": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Problem": {
+        "description": "An RFC 9457 problem document. Every refusal this platform writes has this shape, on `application/problem+json`.\n\nRFC 9457 permits extension members and this platform uses one, `code`. Switch on that rather than on `type`: a URI invites prefix-matching and string surgery, and the short token is the thing that stays readable in a client.",
+        "properties": {
+          "code": {
+            "description": "The extension member a client switches on, e.g. `PLAYBACK_NOT_ENTITLED`. Absent when the refusal has no machine-readable identity behind it, such as a bare `ResponseStatusException`.",
+            "type": "string"
+          },
+          "detail": {
+            "description": "What went wrong THIS time, written for whoever is on the other end. Absent when the refusal must not describe itself.",
+            "type": "string"
+          },
+          "instance": {
+            "description": "The occurrence this document is about, when there is one.",
+            "format": "uri",
+            "type": "string"
+          },
+          "status": {
+            "description": "The HTTP status code, repeated in the document.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "title": {
+            "description": "A short, human-readable summary of the kind of problem.",
+            "type": "string"
+          },
+          "type": {
+            "description": "A stable URI identifying the kind of problem. It does not resolve; RFC 9457 says it need not.",
+            "format": "uri",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RuntimeView": {
+        "properties": {
+          "completed": {
+            "type": "boolean"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "contentOrigin": {
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "entry": {
+            "type": "string"
+          },
+          "launchUrl": {
+            "type": "string"
+          },
+          "launches": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "nodeId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "packageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "passed": {
+            "type": "boolean"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "scoreRaw": {
+            "type": "number"
+          },
+          "secondsSpent": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "session": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "sessionSeconds": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "totalSeconds": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SaveRequest": {
+        "properties": {
+          "addedSeconds": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "session": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "OpenAPI definition",
+    "version": "v0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/internal/whoami": {
+      "get": {
+        "operationId": "whoami",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "service-chain-resource"
+        ]
+      }
+    },
+    "/api/v1/me/runtime/{packageId}": {
+      "get": {
+        "operationId": "open",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "packageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "nodeId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeView"
+                }
+              }
+            },
+            "description": "Their place in this package"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The package is not ready to be opened"
+          }
+        },
+        "tags": [
+          "runtime-resource"
+        ]
+      },
+      "put": {
+        "operationId": "save",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "packageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "nodeId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeView"
+                }
+              }
+            },
+            "description": "Saved, with what this platform derived from it"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Another launch has taken this registration, so this one has stopped saving"
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "More data than one runtime may hold"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "This registration is over its write budget. Nothing is lost: the next save carries the whole data model again"
+          }
+        },
+        "tags": [
+          "runtime-resource"
+        ]
+      }
+    },
+    "/api/v1/uploads": {
+      "get": {
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PackageView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "upload-resource"
+        ]
+      },
+      "post": {
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUploadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssuedUploadView"
+                }
+              }
+            },
+            "description": "The package is reserved and the target issued"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The declared size is past the per-package ceiling"
+          }
+        },
+        "tags": [
+          "upload-resource"
+        ]
+      }
+    },
+    "/api/v1/uploads/{id}": {
+      "delete": {
+        "operationId": "delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageView"
+                }
+              }
+            },
+            "description": "Accepted. `state` is DELETED once the objects are actually gone, and DELETING while they are not"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "upload-resource"
+        ]
+      },
+      "get": {
+        "operationId": "one",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          }
+        },
+        "tags": [
+          "upload-resource"
+        ]
+      }
+    },
+    "/api/v1/uploads/{id}/ingest": {
+      "post": {
+        "operationId": "ingest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageView"
+                }
+              }
+            },
+            "description": "The archive was processed. `state` is READY, REJECTED or FAILED; on the last two, `error` says why"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.\n\nA permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting."
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Nothing has been uploaded for this package yet"
+          }
+        },
+        "tags": [
+          "upload-resource"
+        ]
+      }
+    },
+    "/served/{tenantId}/{packageId}/files/**": {
+      "get": {
+        "operationId": "file",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenantId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "packageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "content-origin-resource"
+        ]
+      }
+    },
+    "/served/{tenantId}/{packageId}/launch": {
+      "get": {
+        "operationId": "launch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenantId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "packageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "content-origin-resource"
+        ]
+      }
+    }
+  },
+  "servers": [
+    {
+      "description": "Generated server url",
+      "url": "http://localhost:8087"
+    }
+  ]
+}

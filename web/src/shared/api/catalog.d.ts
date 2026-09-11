@@ -600,6 +600,8 @@ export interface components {
             title?: string;
         };
         HomeNode: {
+            /** Format: uuid */
+            contentRef?: string;
             lockedReason?: string;
             /** Format: uuid */
             nodeId?: string;

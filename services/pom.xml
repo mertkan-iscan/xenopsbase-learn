@@ -45,6 +45,7 @@
         <module>streaming</module>
         <module>reporting</module>
         <module>catalog</module>
+        <module>packaging</module>
         <module>assessment</module>
         <module>gateway</module>
     </modules>

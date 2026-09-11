@@ -1,0 +1,850 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Course</title>
+<!--
+  THE WRAPPER (ADR-0105, T-4.3, T-4.4).
+
+  This document is served from the tenant's CONTENT ORIGIN and holds nothing: no cookie is set
+  here, no token is passed in, and nothing is written to this origin's storage across launches.
+  The package below it is third-party JavaScript from a vendor nobody has met, and the reason that
+  is survivable is entirely that it is running here rather than on the application's origin.
+
+  WHAT THE PACKAGE SEES. SCORM's API discovery walks window.parent looking for an object called
+  `API` (1.2) or `API_1484_11` (2004). Reading a property off another window is a same-origin
+  operation, so that walk only works if the API is on a window in the package's own origin -- which
+  is this one. The package finds exactly what the standard says it should find, and never learns
+  that anything unusual is happening.
+
+  WHAT IT DOES NOT SEE. window.parent from HERE is the application, on a different origin, so every
+  property access across that boundary throws. The only channel is postMessage, and both ends name
+  the other exactly (never '*') and check event.origin by string equality -- not endsWith, not a
+  regular expression, because `acme.usercontent.example.com.evil.test` ends with something useful
+  to an attacker and equals nothing.
+-->
+<style>
+  html, body { margin: 0; height: 100%; background: #000; }
+  iframe { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
+  .note {
+    display: grid; place-items: center; height: 100%; margin: 0;
+    font: 14px/1.6 system-ui, sans-serif; color: #cbd5e1; padding: 2rem; text-align: center;
+  }
+  /* Shown only when another launch has taken the course. Covers the frame rather than sitting
+     beside it: the package underneath keeps running and keeps accepting clicks, and a learner
+     working on in a window that is no longer saving is the failure this whole rule exists to
+     prevent. */
+  #superseded {
+    position: fixed; inset: 0; display: none; place-items: center; padding: 2rem;
+    background: rgba(2, 6, 23, 0.92); color: #e2e8f0; text-align: center;
+    font: 15px/1.7 system-ui, sans-serif;
+  }
+  #superseded[data-shown] { display: grid; }
+</style>
+</head>
+<body>
+<p class="note" id="waiting">Loading…</p>
+<div id="superseded" role="alert"><p id="superseded-text"></p></div>
+
+<script type="application/json" id="launch">{{LAUNCH_JSON}}</script>
+
+<script>
+(function () {
+  'use strict';
+
+  var launch = JSON.parse(document.getElementById('launch').textContent);
+  var APP_ORIGIN = launch.appOrigin;
+
+  /* ------------------------------------------------------------------ the data model ------ */
+
+  /*
+   * The CMI data model, as a flat map of element name to string value.
+   *
+   * Flat rather than nested, because that is what the API is: GetValue and SetValue take dotted
+   * strings, and a nested object would mean parsing and re-joining those strings on every call
+   * for no benefit. Every value is a STRING -- the standard says so, and a package that stores
+   * 0.85 and reads back 0.85000000001 because something helpfully made it a number is a package
+   * that fails its own comparison.
+   */
+  var data = Object.create(null);
+
+  /*
+   * When the last save happened, so each one can say how long the learner has been in the package
+   * since it. A wall-clock delta rather than a timer: a tab that was backgrounded for an hour did
+   * not have somebody looking at it, and neither number is evidence of anything -- time in a
+   * package is corroboration and never the decision (ADR-0107). It is bounded again on the server.
+   */
+  var sinceLastSave = Date.now();
+
+  /* When this launch began, which is what a session time is measured from. See sessionTime(). */
+  var openedAt = Date.now();
+
+  /*
+   * THE THREE STATES THE API HAS, and they are three rather than two on purpose.
+   *
+   * SCORM 2004 gives "before Initialize" and "after Terminate" different error codes for every
+   * entry point (122 vs 123, 132 vs 133, 142 vs 143), because they are different mistakes: one is
+   * a package that has not started and the other is a package that will not start again. A
+   * conformance suite checks both, and a runtime that answered 122 for each would fail on the
+   * half of the tests that ask what happens after Terminate.
+   */
+  var NOT_STARTED = 0, RUNNING = 1, TERMINATED = 2;
+  var state = NOT_STARTED;
+
+  var dirty = false;
+  var lastError = '0';
+
+  /*
+   * Set when the application tells us another launch has taken the registration (T-4.4).
+   *
+   * From then on nothing is posted. The learner is told, because the alternative -- a window that
+   * looks like it is working and saves nothing -- is exactly the silent failure the rule replaces.
+   */
+  var superseded = false;
+
+  /* The two vocabularies, so a default is never invented in the wrong one. */
+  var IS_2004 = launch.profile === 'scorm-2004';
+
+  /*
+   * WHICH RUNTIME THIS PACKAGE GETS, and it is decided here and nowhere else.
+   *
+   * SCORM and cmi5 packages are written against a standard and go looking for its API object.
+   * An HTML5 bundle (T-4.8) is not: it has no contract with an LMS, and handing it an `API` it
+   * never asked for would be a lie the discovery walk cannot detect. Slides have neither.
+   */
+  var IS_SCORM = launch.profile === 'scorm-1.2' || launch.profile === 'scorm-2004'
+    || launch.profile === 'cmi5';
+  var IS_HTML5 = launch.profile === 'html5';
+
+  /*
+   * The ceiling on one element, matching RuntimeService.MAX_VALUE_LENGTH exactly.
+   *
+   * DECLARED IN BOTH PLACES ON PURPOSE. The server has to enforce it because a browser is not a
+   * boundary; this has to enforce it because the server's refusal arrives on a network call the
+   * package never made and cannot see. A package that writes an over-long suspend blob and is told
+   * `true` would carry on believing it was saved -- so the answer it gets here is `false` with the
+   * standard's own out-of-range code, at the moment it wrote it, which is the only point where its
+   * own error handling can do anything about it.
+   *
+   * Not truncated, for the reason the server gives: half a suspend blob does not deserialise, so a
+   * package handed one back does not resume badly -- it fails to start.
+   */
+  var MAX_VALUE_LENGTH = 65536;
+
+  /*
+   * Elements the LMS owns. Writing to one is an error in both standards, and the standards are
+   * right: `total_time` is accumulated across sessions the package knows nothing about, and
+   * `entry` is the answer to "have you been here before", which a package cannot answer about
+   * itself. Both spellings of each, because both objects are exposed (see below).
+   */
+  var READ_ONLY = {
+    'cmi.core.student_id': 1, 'cmi.core.student_name': 1, 'cmi.core.credit': 1,
+    'cmi.core.entry': 1, 'cmi.core.lesson_mode': 1, 'cmi.core.total_time': 1,
+    'cmi.launch_data': 1, 'cmi.comments_from_lms': 1,
+    'cmi.student_data.mastery_score': 1, 'cmi.student_data.max_time_allowed': 1,
+    'cmi.student_data.time_limit_action': 1,
+    'cmi.learner_id': 1, 'cmi.learner_name': 1, 'cmi.credit': 1, 'cmi.entry': 1,
+    'cmi.mode': 1, 'cmi.total_time': 1, 'cmi.max_time_allowed': 1,
+    'cmi.time_limit_action': 1, 'cmi.scaled_passing_score': 1,
+    'cmi.completion_threshold': 1, 'cmi._version': 1
+  };
+
+  /*
+   * Elements the package writes and may not read back. Both standards define them this way
+   * because neither is state -- `exit` and `session_time` are things the package TELLS the LMS on
+   * its way out, and a package reading its own last answer to them is reading a value that means
+   * nothing to the session it is in.
+   */
+  var WRITE_ONLY = {
+    'cmi.core.exit': 1, 'cmi.core.session_time': 1, 'cmi.exit': 1, 'cmi.session_time': 1
+  };
+
+  /*
+   * The error strings, which are a real table rather than "Error " + code.
+   *
+   * GetErrorString is what a package puts in front of a support engineer, and a course that logs
+   * "Error 407" has told nobody anything. The two vocabularies overlap in numbers and differ in
+   * meaning -- 403 is "element is read only" in 1.2 and "value not initialized" in 2004 -- so
+   * there are two tables and the one that answers is the one belonging to the API object the
+   * package actually called.
+   */
+  var STRINGS_12 = {
+    '0': 'No error',
+    '101': 'General exception',
+    '201': 'Invalid argument error',
+    '202': 'Element cannot have children',
+    '203': 'Element not an array - cannot have count',
+    '301': 'Not initialized',
+    '401': 'Not implemented error',
+    '402': 'Invalid set value, element is a keyword',
+    '403': 'Element is read only',
+    '404': 'Element is write only',
+    '405': 'Incorrect data type'
+  };
+  var STRINGS_2004 = {
+    '0': 'No error',
+    '101': 'General exception',
+    '102': 'General initialization failure',
+    '103': 'Already initialized',
+    '104': 'Content instance terminated',
+    '111': 'General termination failure',
+    '112': 'Termination before initialization',
+    '113': 'Termination after termination',
+    '122': 'Retrieve data before initialization',
+    '123': 'Retrieve data after termination',
+    '132': 'Store data before initialization',
+    '133': 'Store data after termination',
+    '142': 'Commit before initialization',
+    '143': 'Commit after termination',
+    '201': 'General argument error',
+    '301': 'General get failure',
+    '351': 'General set failure',
+    '391': 'General commit failure',
+    '401': 'Undefined data model element',
+    '402': 'Unimplemented data model element',
+    '403': 'Data model element value not initialized',
+    '404': 'Data model element is read only',
+    '405': 'Data model element is write only',
+    '406': 'Data model element type mismatch',
+    '407': 'Data model element value out of range',
+    '408': 'Data model dependency not established'
+  };
+
+  var seeded = false;
+
+  function seed(stored) {
+    /*
+     * ONCE, AND BEFORE THE COURSE OPENS, whether or not the application ever answered.
+     *
+     * This used to run only from the `state` message handler, and the effect was invisible until
+     * a package was actually launched: with no answer from the application, `data` stayed empty,
+     * so `LMSGetValue('cmi.core.lesson_status')` returned "" instead of "not attempted" -- which
+     * is the exact failure the comment below this one warns about. A package reading "" takes the
+     * wrong branch and reports a completion the learner has not earned, or refuses to resume one
+     * they have. Measured by opening a real SCORM package and asking the API for its own default.
+     */
+    if (seeded) {
+      return;
+    }
+    seeded = true;
+    if (stored && typeof stored === 'object') {
+      for (var key in stored) {
+        if (Object.prototype.hasOwnProperty.call(stored, key)
+            && typeof stored[key] === 'string') {
+          data[key] = stored[key];
+        }
+      }
+    }
+    /*
+     * Defaults, and only for elements a package is entitled to read before it has written them.
+     *
+     * `lesson_status` / `completion_status` in particular: a package that reads it and gets ""
+     * where the standard promises "not attempted" takes the wrong branch and reports a completion
+     * the learner has not earned -- or refuses to resume one they have.
+     */
+    if (IS_2004) {
+      fill('cmi.completion_status', 'unknown');
+      fill('cmi.success_status', 'unknown');
+      fill('cmi.entry', data['cmi.exit'] ? 'resume' : 'ab-initio');
+      fill('cmi.credit', 'credit');
+      fill('cmi.mode', 'normal');
+      fill('cmi.location', '');
+      fill('cmi.suspend_data', '');
+      fill('cmi._version', '1.0');
+      /* Filled in by the application from the accumulated total; nought when it never answered. */
+      fill('cmi.total_time', 'PT0H0M0S');
+    } else {
+      fill('cmi.core.lesson_status', 'not attempted');
+      fill('cmi.core.entry', data['cmi.core.exit'] ? 'resume' : 'ab-initio');
+      fill('cmi.core.credit', 'credit');
+      fill('cmi.core.lesson_mode', 'normal');
+      fill('cmi.core.lesson_location', '');
+      fill('cmi.suspend_data', '');
+      fill('cmi.core.score.raw', '');
+      fill('cmi.core.total_time', '0000:00:00.00');
+    }
+  }
+
+  function fill(key, value) {
+    if (data[key] === undefined) {
+      data[key] = value;
+    }
+  }
+
+  /* ------------------------------------------------------------ talking to the application -- */
+
+  function post(type, payload) {
+    var message = { source: 'xenopslearn.scorm', type: type, packageId: launch.packageId };
+    if (payload !== undefined) {
+      message.payload = payload;
+    }
+    /*
+     * NOT EMBEDDED AT ALL? Then there is nobody to tell, and saying so is not an error.
+     *
+     * `window.parent === window` at the top level, so posting would target this origin with the
+     * application's origin as the target and the browser would log a mismatch warning for every
+     * message -- on a page that is working exactly as it should. Opening a launch URL directly is
+     * a legitimate thing to do (checking an upload, reproducing a report), and it should not fill
+     * the console with warnings that look like a fault.
+     */
+    if (window.parent === window) {
+      return;
+    }
+    /*
+     * The target origin is named exactly. '*' here would hand the SCORM runtime data -- which is
+     * a learner's answers and score -- to whatever origin happened to be hosting this frame,
+     * which is the one thing an attacker who can frame this page would want.
+     */
+    try {
+      window.parent.postMessage(message, APP_ORIGIN);
+    } catch (unreachable) {
+      /* A parent that has gone. The course keeps working; nothing is recorded. */
+    }
+  }
+
+  /* ---------------------------------------------------------------- saving, and how often --- */
+
+  /*
+   * THE COMMIT STORM, AND WHERE IT IS FLATTENED (T-4.4).
+   *
+   * A conformant package calls Commit at every slide boundary and some call it on a timer measured
+   * in seconds. That is correct content behaving correctly, which is what makes it a load problem
+   * rather than an abuse problem: a thousand learners in a course that commits every three seconds
+   * is three hundred writes a second against one table, each replacing a jsonb document that can
+   * be sixty kilobytes.
+   *
+   * Coalescing here is what stops it before it becomes a request. It is SAFE, and only because of
+   * a property of this protocol rather than a hope: every commit carries the WHOLE data model --
+   * `Commit` means "this is the state", never "this is what changed" -- so a commit that is folded
+   * into the next one loses nothing at all. What must never be dropped is the LAST one, which is
+   * why Terminate and pagehide both force, and why a coalesced commit always leaves a timer behind
+   * it rather than assuming another call will come.
+   *
+   * The server keeps its own budget for the same storm (CommitBudget), because this half runs in
+   * a browser and a browser is not a boundary.
+   */
+  var MIN_COMMIT_INTERVAL_MS = 5000;
+  var lastCommitAt = 0;
+  var pendingCommit = null;
+
+  function commit(force) {
+    if (pendingCommit !== null) {
+      window.clearTimeout(pendingCommit);
+      pendingCommit = null;
+    }
+    if (!dirty || superseded) {
+      return;
+    }
+    var now = Date.now();
+    var waited = now - lastCommitAt;
+    if (!force && waited < MIN_COMMIT_INTERVAL_MS) {
+      /* Not now -- but definitely later. The trailing timer is what makes folding lossless. */
+      pendingCommit = window.setTimeout(function () {
+        pendingCommit = null;
+        commit(true);
+      }, MIN_COMMIT_INTERVAL_MS - waited);
+      return;
+    }
+    dirty = false;
+    lastCommitAt = now;
+    var seconds = Math.max(0, Math.round((now - sinceLastSave) / 1000));
+    sinceLastSave = now;
+    post('commit', { data: withSessionTime(), addedSeconds: seconds });
+  }
+
+  /*
+   * The map to send, with a session time in it.
+   *
+   * WHOSE CLOCK THIS IS depends on whether the content has one. A SCORM package owns
+   * `session_time` -- it is a write-only element it reports itself, and overwriting it would
+   * replace the package's own account of a session with a guess made outside it. An HTML5 bundle
+   * (T-4.8) has no such notion and never writes one, and without this its total time would be
+   * nought forever however long anybody spent in it.
+   *
+   * So: if the package has written a session time, it stands. If it has not, this fills one in
+   * from the wall clock. The distinction is visible in the stored map, which is the point.
+   */
+  function withSessionTime() {
+    var copy = shallowCopy(data);
+    var key = IS_2004 ? 'cmi.session_time' : 'cmi.core.session_time';
+    if (copy['cmi.session_time'] === undefined && copy['cmi.core.session_time'] === undefined) {
+      copy[key] = sessionTime();
+    }
+    return copy;
+  }
+
+  /** This launch so far, in whichever vocabulary the profile speaks. */
+  function sessionTime() {
+    var seconds = Math.max(0, Math.round((Date.now() - openedAt) / 1000));
+    if (IS_2004) {
+      return 'PT' + Math.floor(seconds / 3600) + 'H'
+        + Math.floor((seconds % 3600) / 60) + 'M' + (seconds % 60) + 'S';
+    }
+    return pad(Math.floor(seconds / 3600), 4) + ':' + pad(Math.floor((seconds % 3600) / 60), 2)
+      + ':' + pad(seconds % 60, 2) + '.00';
+  }
+
+  function pad(value, width) {
+    var text = String(value);
+    while (text.length < width) {
+      text = '0' + text;
+    }
+    return text;
+  }
+
+  function shallowCopy(source) {
+    var copy = {};
+    for (var key in source) {
+      if (Object.prototype.hasOwnProperty.call(source, key)) {
+        copy[key] = source[key];
+      }
+    }
+    return copy;
+  }
+
+  /* ---------------------------------------------------------------------- the API objects -- */
+
+  /*
+   * SCORM 1.2 and SCORM 2004 are the same eight functions under different names, and the
+   * differences that matter to a package are the vocabulary (`passed` vs `success_status`) and the
+   * error codes. Both are exposed here regardless of which profile the manifest declared, because
+   * a manifest's declaration is not always the truth about the JavaScript inside it, and a package
+   * that finds neither object stops at its first line with no message anybody will see.
+   *
+   * ONE FACTORY, PARAMETERISED BY DIALECT, and that is the fix for a subtle wrong answer: the
+   * error codes belong to the API OBJECT the package called, not to the profile its manifest
+   * declared. A 2004-declared export built from a 1.2 template calls `LMSInitialize` twice and
+   * must hear 1.2's 101, not 2004's 103, because 103 means nothing in the vocabulary it is
+   * checking against.
+   */
+
+  function boolString(value) {
+    return value ? 'true' : 'false';
+  }
+
+  function api(is2004) {
+    function fail(code) {
+      lastError = String(code);
+      return boolString(false);
+    }
+
+    function initialize() {
+      if (state === RUNNING) {
+        return fail(is2004 ? '103' : '101');          /* already initialised */
+      }
+      if (state === TERMINATED) {
+        return fail(is2004 ? '104' : '101');          /* content instance terminated */
+      }
+      state = RUNNING;
+      lastError = '0';
+      post('initialized');
+      return boolString(true);
+    }
+
+    function terminate() {
+      if (state === NOT_STARTED) {
+        return fail(is2004 ? '112' : '301');          /* termination before initialization */
+      }
+      if (state === TERMINATED) {
+        return fail(is2004 ? '113' : '101');          /* termination after termination */
+      }
+      state = TERMINATED;
+      lastError = '0';
+      /*
+       * The commit is forced rather than conditional, in both senses of the word.
+       *
+       * A package that sets its status and then calls Terminate without Commit is relying on the
+       * LMS to save on exit -- and many real ones do exactly that, so `dirty` is set here rather
+       * than tested. And it bypasses the coalescing interval, because this is the save that
+       * carries the completion and there is no later one to fold it into.
+       */
+      dirty = true;
+      commit(true);
+      post('terminated');
+      return boolString(true);
+    }
+
+    function getValue(element) {
+      if (state === NOT_STARTED) {
+        lastError = is2004 ? '122' : '301';
+        return '';
+      }
+      if (state === TERMINATED) {
+        lastError = is2004 ? '123' : '301';
+        return '';
+      }
+      if (WRITE_ONLY[element] === 1) {
+        lastError = is2004 ? '405' : '404';           /* element is write only */
+        return '';
+      }
+      lastError = '0';
+      var value = data[element];
+      if (value === undefined) {
+        /*
+         * An element the package has not written and this runtime has no default for. Answering ""
+         * with error 0 is what almost every LMS does, and it is what packages are written against:
+         * answering 401 ("not implemented") makes conformance-checking packages abort a course
+         * that would otherwise have run perfectly.
+         */
+        return '';
+      }
+      return value;
+    }
+
+    function setValue(element, value) {
+      if (state === NOT_STARTED) {
+        return fail(is2004 ? '132' : '301');
+      }
+      if (state === TERMINATED) {
+        return fail(is2004 ? '133' : '301');
+      }
+      if (READ_ONLY[element] === 1) {
+        return fail(is2004 ? '404' : '403');          /* element is read only */
+      }
+      var text = String(value);
+      if (text.length > MAX_VALUE_LENGTH) {
+        /*
+         * TOLD, RATHER THAN TRUNCATED. See MAX_VALUE_LENGTH: a package handed back half a suspend
+         * blob does not resume badly, it fails to start, and it finds out on the NEXT launch with
+         * nothing anywhere naming the cause. `false` here, now, is the only answer its own error
+         * handling can act on -- and every authoring tool of any size has a path for a suspend
+         * blob that would not fit, because every LMS has a limit.
+         */
+        return fail(is2004 ? '407' : '405');          /* value out of range / incorrect data type */
+      }
+      data[element] = text;
+      dirty = true;
+      lastError = '0';
+      /* Told immediately, so the application can show progress without waiting for a Commit. */
+      post('set', { element: element, value: text });
+      return boolString(true);
+    }
+
+    function commitCall() {
+      if (state === NOT_STARTED) {
+        return fail(is2004 ? '142' : '301');
+      }
+      if (state === TERMINATED) {
+        return fail(is2004 ? '143' : '301');
+      }
+      lastError = '0';
+      dirty = true;
+      /*
+       * NOT forced. The package asked for a save and gets `true`, and the save happens within the
+       * coalescing interval -- which is what makes a package that commits every two seconds cost
+       * one write every five rather than a write every two. Nothing is lost: the whole map goes
+       * every time, and Terminate forces.
+       */
+      commit(false);
+      return boolString(true);
+    }
+
+    function getLastError() {
+      return lastError;
+    }
+
+    function getErrorString(code) {
+      var table = is2004 ? STRINGS_2004 : STRINGS_12;
+      var wanted = code === undefined || code === null || code === '' ? lastError : String(code);
+      return table[wanted] || '';
+    }
+
+    /*
+     * The diagnostic is the platform's own detail, and this platform has none to add.
+     *
+     * Returning the error string rather than the bare number: the standard says a diagnostic is
+     * vendor-specific and may be empty, and a package that logs it is trying to give somebody
+     * something readable. Echoing "407" back at them is the one answer that helps nobody.
+     */
+    function getDiagnostic(code) {
+      return getErrorString(code);
+    }
+
+    return {
+      initialize: initialize, terminate: terminate, getValue: getValue, setValue: setValue,
+      commitCall: commitCall, getLastError: getLastError, getErrorString: getErrorString,
+      getDiagnostic: getDiagnostic
+    };
+  }
+
+  /*
+   * EXPOSED ONLY TO CONTENT THAT COULD BE LOOKING FOR THEM.
+   *
+   * Both objects, for a SCORM or cmi5 package, regardless of which version its manifest declared:
+   * a declaration is not always the truth about the JavaScript inside, and a package that finds
+   * neither stops at its first line with no message anybody will see. Neither, for an HTML5
+   * bundle, which has no standard to be conformant to -- see IS_SCORM above.
+   */
+  if (IS_SCORM) {
+    var scorm2004 = api(true);
+    var scorm12 = api(false);
+
+    /* SCORM 2004: API_1484_11 */
+    window.API_1484_11 = {
+      Initialize: scorm2004.initialize,
+      Terminate: scorm2004.terminate,
+      GetValue: scorm2004.getValue,
+      SetValue: scorm2004.setValue,
+      Commit: scorm2004.commitCall,
+      GetLastError: scorm2004.getLastError,
+      GetErrorString: scorm2004.getErrorString,
+      GetDiagnostic: scorm2004.getDiagnostic
+    };
+
+    /* SCORM 1.2: API */
+    window.API = {
+      LMSInitialize: scorm12.initialize,
+      LMSFinish: scorm12.terminate,
+      LMSGetValue: scorm12.getValue,
+      LMSSetValue: scorm12.setValue,
+      LMSCommit: scorm12.commitCall,
+      LMSGetLastError: scorm12.getLastError,
+      LMSGetErrorString: scorm12.getErrorString,
+      LMSGetDiagnostic: scorm12.getDiagnostic
+    };
+  }
+
+  /* ------------------------------------------------------- the API an HTML5 bundle can use -- */
+
+  /*
+   * A SMALL, DOCUMENTED API FOR CONTENT THAT HAS NO STANDARD (T-4.8).
+   *
+   * An HTML5 bundle reports nothing unless somebody wrote code to. This is that code's target: four
+   * calls, all optional, and a bundle that never calls any of them is still a valid HTML5 item --
+   * the platform records that it was opened and nothing more, which is the honest amount to claim
+   * about content that told us nothing.
+   *
+   * <b>It writes into the SCORM 2004 element names on purpose.</b> `Cmi` on the server already
+   * reads those, in three vocabularies, and giving this one a fourth would mean a second
+   * derivation to keep in step with the first. So `complete()` sets `cmi.completion_status`, and a
+   * report cannot tell -- and does not need to tell -- whether a completion was asserted by a
+   * conformant SCORM package or by four lines in somebody's index.html. Both are SELF_REPORTED, and
+   * that is the distinction that matters (ADR-0107).
+   *
+   * Frozen, so a bundle cannot replace a method with one that reports something else for the next
+   * bundle on the page. There is no next bundle on the page -- but freezing costs one line and the
+   * assumption behind not doing it is the kind that stops being true quietly.
+   */
+  if (IS_HTML5) {
+    window.xenopslearn = Object.freeze({
+      /** The version of this contract. A bundle that wants to feature-detect has something to read. */
+      version: 1,
+
+      /** Mark the item complete. Idempotent; calling it twice reports one completion. */
+      complete: function () {
+        setRaw('cmi.completion_status', 'completed');
+        /*
+         * FORCED, unlike an ordinary commit. This is the call that decides whether a gate opens,
+         * and a bundle that calls it and then navigates away has given us the only two hundred
+         * milliseconds we are going to get. The coalescing interval exists for chatty progress
+         * saves, which this is not.
+         */
+        commit(true);
+      },
+
+      /**
+       * Report a score on the bundle's own scale, alongside whatever it calls a pass.
+       *
+       * @param score  a number, stored as the package's own raw score. NOTHING compares it to
+       *               anything: without min and max a percentage would be invented (see Cmi).
+       * @param passed true, false, or omitted for content that has no notion of passing
+       */
+      score: function (score, passed) {
+        if (typeof score === 'number' && isFinite(score)) {
+          setRaw('cmi.score.raw', String(score));
+        }
+        if (passed === true || passed === false) {
+          setRaw('cmi.success_status', passed ? 'passed' : 'failed');
+        }
+        commit(true);
+      },
+
+      /**
+       * Where the learner is, so the next launch can put them back.
+       *
+       * <p>The bundle chooses what the string means -- a slide number, a route, a JSON blob it
+       * parses itself. Nothing here reads it; it is handed back verbatim to {@link #resume}.
+       *
+       * @returns false when the data was too large to store, in which case NOTHING was stored --
+       *          the same refusal a SCORM package gets from SetValue, for the same reason
+       */
+      save: function (location, suspendData) {
+        if (typeof suspendData === 'string' && suspendData.length > MAX_VALUE_LENGTH) {
+          return false;
+        }
+        if (typeof location === 'string') {
+          setRaw('cmi.location', location);
+        }
+        if (typeof suspendData === 'string') {
+          setRaw('cmi.suspend_data', suspendData);
+        }
+        /* Not forced: a bundle saving its position on every slide is the storm this folds. */
+        commit(false);
+        return true;
+      },
+
+      /** What `save` last stored, or nulls on a first launch. */
+      resume: function () {
+        return {
+          location: data['cmi.location'] || null,
+          suspendData: data['cmi.suspend_data'] || null,
+          completed: data['cmi.completion_status'] === 'completed'
+        };
+      }
+    });
+  }
+
+  /** Writes without the initialise/terminate gate the SCORM entry points enforce. */
+  function setRaw(element, value) {
+    data[element] = String(value);
+    dirty = true;
+    post('set', { element: element, value: data[element] });
+  }
+
+  /* --------------------------------------------------------------------- opening the course -- */
+
+  var opened = false;
+
+  function open() {
+    if (opened) {
+      return;
+    }
+    opened = true;
+    // Defaults before the package's first line runs. A no-op when a `state` message already
+    // seeded them; the whole point is that it is not a no-op when nothing did.
+    seed(null);
+    openedAt = Date.now();
+    var waiting = document.getElementById('waiting');
+    if (waiting) {
+      waiting.remove();
+    }
+    var frame = document.createElement('iframe');
+    frame.title = 'Course content';
+    /*
+     * No sandbox attribute, and that is deliberate rather than an omission.
+     *
+     * A sandboxed iframe gets an OPAQUE origin, which is not the same origin as this document --
+     * so the package's discovery walk would find no API and the course would not start. The
+     * isolation that matters here is the ORIGIN, which this whole document is about, and the CSP
+     * the content origin serves (`connect-src 'self'`, `frame-ancestors` naming only the
+     * application) is what constrains the residue. ADR-0105 names the one thing neither reaches:
+     * a package can navigate itself and leak its own content, which its author already has.
+     */
+    frame.src = launch.entryUrl;
+    frame.allow = 'autoplay; fullscreen';
+    document.body.appendChild(frame);
+    post('opened');
+
+    /*
+     * CONTENT THAT CANNOT REPORT IS COMPLETE WHEN IT IS OPENED, and that is the honest reading
+     * rather than a generous one.
+     *
+     * Slides have no runtime and an HTML5 bundle has one only if its author wrote it. For those,
+     * "was it opened" is the entire evidence available, and the alternatives are worse in both
+     * directions: recording nothing leaves a gate shut behind an item nobody can ever satisfy,
+     * and inventing a measurement would claim to know something about content whose interior is
+     * an opaque iframe on another origin (ADR-0105).
+     *
+     * A bundle that DOES report overrides nothing -- `complete()` sets the same field, and the
+     * completion is a ratchet on the server, so the first one wins and the timestamp does not move.
+     * SCORM and cmi5 are excluded because they have a contract and using it is what conformance
+     * means; crediting them for opening would make `cmi.completion_status` decorative.
+     */
+    if (!IS_SCORM) {
+      setRaw('cmi.completion_status', 'completed');
+      commit(true);
+    }
+  }
+
+  /* ---------------------------------------------------------------- messages from the app --- */
+
+  window.addEventListener('message', function (event) {
+    /*
+     * BOTH CHECKS, ALWAYS. The origin has to be the application's, by equality; and the sender has
+     * to be the window this document is actually inside -- otherwise a third frame on the page,
+     * or a popup, could post a message that looks like the application's and seed the runtime with
+     * whatever it liked.
+     */
+    if (event.origin !== APP_ORIGIN || event.source !== window.parent) {
+      return;   /* Dropped silently. A reply saying "wrong origin" helps somebody find the right one. */
+    }
+    var message = event.data;
+    if (!message || message.source !== 'xenopslearn.app') {
+      return;
+    }
+    if (message.type === 'state') {
+      seed(message.payload && message.payload.data);
+      /*
+       * The entry is the APPLICATION's answer, not one derived from the map.
+       *
+       * `cmi.core.entry` is `ab-initio` on a first launch and `resume` afterwards, and only the
+       * server knows which this is -- it counts launches. A wrapper guessing from "is there any
+       * suspend_data" would tell a package it was resuming a course it had never opened, or
+       * starting one it had, and a conformant package branches on that.
+       */
+      if (message.payload && message.payload.entry) {
+        data[IS_2004 ? 'cmi.entry' : 'cmi.core.entry'] = message.payload.entry;
+      }
+      /*
+       * Who they are, for the packages that display it. Read-only in both vocabularies and seeded
+       * in both, because a 2004-declared export built from a 1.2 template reads the 1.2 names.
+       * A blank name is what a course renders as "Welcome, " with nothing after it.
+       */
+      var learner = message.payload && message.payload.learner;
+      if (learner && typeof learner.id === 'string') {
+        data['cmi.core.student_id'] = learner.id;
+        data['cmi.learner_id'] = learner.id;
+      }
+      if (learner && typeof learner.name === 'string') {
+        data['cmi.core.student_name'] = learner.name;
+        data['cmi.learner_name'] = learner.name;
+      }
+      open();
+      return;
+    }
+    /*
+     * ANOTHER LAUNCH HAS TAKEN THE COURSE (T-4.4).
+     *
+     * The application saw a 409 and is telling us. Everything after this is unsaveable, so the
+     * honest thing is to stop trying and say so: a learner who keeps answering questions in a
+     * window whose answers are being discarded is the exact failure the rule was written to end,
+     * and leaving the window looking functional would reproduce it with extra steps.
+     */
+    if (message.type === 'superseded') {
+      superseded = true;
+      dirty = false;
+      if (pendingCommit !== null) {
+        window.clearTimeout(pendingCommit);
+        pendingCommit = null;
+      }
+      var text = message.payload && message.payload.text;
+      var panel = document.getElementById('superseded');
+      document.getElementById('superseded-text').textContent =
+        typeof text === 'string' && text ? text : '';
+      panel.setAttribute('data-shown', '');
+    }
+  });
+
+  /*
+   * Ask for the learner's saved state, then open the course whether or not an answer comes.
+   *
+   * The timeout is what keeps a package launchable when the application has nothing to say --
+   * during development, or when the runtime endpoint is refusing. Waiting forever for a message
+   * nobody is going to send would turn a missing feature into a blank screen.
+   */
+  post('ready', { profile: launch.profile });
+  window.setTimeout(open, 1500);
+
+  /*
+   * A learner closing the tab mid-course still gets what they did saved, where the browser lets us.
+   * Forced past the coalescing interval, because there is no later commit to fold into: this is
+   * the last thing that will ever run in this document.
+   */
+  window.addEventListener('pagehide', function () {
+    commit(true);
+  });
+})();
+</script>
+</body>
+</html>

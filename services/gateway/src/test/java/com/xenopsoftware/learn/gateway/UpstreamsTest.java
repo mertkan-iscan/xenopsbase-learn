@@ -21,9 +21,10 @@ class UpstreamsTest {
     private static final String REPORTING = "http://reporting:8084";
     private static final String CATALOG = "http://catalog:8085";
     private static final String ASSESSMENT = "http://assessment:8086";
+    private static final String PACKAGING = "http://packaging:8087";
 
     private final Upstreams upstreams = new Upstreams(new GatewayProperties(
-        IDENTITY, STREAMING, REPORTING, CATALOG, ASSESSMENT, "http://app"));
+        IDENTITY, STREAMING, REPORTING, CATALOG, ASSESSMENT, PACKAGING, "http://app"));
 
     @Test
     void theMoreSpecificRuleWins() {
@@ -108,6 +109,45 @@ class UpstreamsTest {
         assertThat(upstreams.forPath("/api/v1/webhooks/media"))
             .isNotEqualTo(STREAMING)
             .isEqualTo(IDENTITY);
+    }
+
+    /**
+     * ONLY THE MANAGEMENT HALF OF PACKAGING IS BEHIND THIS DOOR (ADR-0105).
+     *
+     * <p>{@code /api/v1/uploads} is where an author reserves a package and asks for the archive to
+     * be processed, and it routes like anything else. {@code /served/**} is where that same service
+     * answers the CONTENT origin, and it must never be reachable here: an uploaded package served
+     * through this gateway is an uploaded package on the application's origin, with the
+     * application's DOM, cookies and session in reach — which is the compromise the whole decision
+     * exists to prevent.
+     *
+     * <p>Nothing has to be REMOVED for that to break. It breaks by somebody ADDING a route, on a
+     * Friday, to make a demo work — so the absence is asserted rather than assumed, next to the
+     * webhook rule above, which exists for the same reason.
+     */
+    @Test
+    void onlyTheManagementHalfOfPackagingIsReachableThroughThisDoor() {
+        assertThat(upstreams.forPath("/api/v1/uploads")).isEqualTo(PACKAGING);
+        assertThat(upstreams.forPath("/api/v1/uploads/abc/ingest")).isEqualTo(PACKAGING);
+
+        // The content origin's route, and the path prefix a browser reaches it by. Neither is in
+        // the table at all, so this door does not open onto either.
+        assertThat(upstreams.forPath("/served/acme/abc/launch")).isNull();
+        assertThat(upstreams.forPath("/served/acme/abc/files/index.html")).isNull();
+        assertThat(upstreams.forPath("/packages/acme/abc/files/index.html")).isNull();
+
+        /*
+         * Under /api the answer is identity rather than null, because the table's last rule is a
+         * catch-all for the service that owns the most of it -- and that is exactly as safe.
+         *
+         * The property being asserted is not "these paths are refused", it is "these paths cannot
+         * reach PACKAGING". A request that lands on identity gets a 404 from a service that has
+         * never heard of a package and holds none of the files, which is the same outcome by a
+         * different route. What would break the decision is either of these answering
+         * `PACKAGING`.
+         */
+        assertThat(upstreams.forPath("/api/v1/served/acme/abc/launch")).isEqualTo(IDENTITY);
+        assertThat(upstreams.forPath("/api/v1/packages")).isEqualTo(IDENTITY);
     }
 
     @Test

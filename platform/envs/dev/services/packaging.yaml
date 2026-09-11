@@ -1,0 +1,203 @@
+# packaging: uploaded courses, and the origin they are served from (E4, ADR-0105).
+#
+# THE ONLY SERVICE IN THIS NAMESPACE REACHED THROUGH TWO DIFFERENT HOSTNAMES,
+# and that is the decision rather than an accident of routing:
+#
+#   learn-dev.xenopsoftware.com/api/…   the management half, through the gateway
+#   <tenant>--usercontent-dev.…/packages/…   the packages themselves
+#
+# The second is a different ORIGIN to a browser, which is the entire mechanism —
+# an uploaded SCORM package is third-party JavaScript, and served from the
+# application's origin it would reach that origin's DOM, cookies and session for
+# every tenant.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: packaging
+  namespace: learn
+  labels: {app.kubernetes.io/name: packaging, app.kubernetes.io/part-of: xenopslearn}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: packaging}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: packaging, app.kubernetes.io/part-of: xenopslearn}
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+
+      initContainers:
+        - name: wait-for-oidc
+          image: curlimages/curl@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13  # 8.21.0
+          # THE DIGEST IS SHARED WITH THE STEMCELL AND MUST STAY IN STEP. This
+          # namespace is enrolled in policy-controller and this image gets in
+          # only through `third-party-images-by-digest`, which passes one exact
+          # digest. Bumping it here without bumping it there leaves pods stuck
+          # in Init with clean logs.
+          securityContext:
+            runAsUser: 100
+            runAsGroup: 101
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          env:
+            - name: OIDC_ISSUER_URI
+              valueFrom: {configMapKeyRef: {name: learn-oidc, key: OIDC_ISSUER_URI}}
+          command: [sh, -c]
+          args:
+            - |
+              set -u
+              url="${OIDC_ISSUER_URI}/.well-known/openid-configuration"
+              echo "waiting for OIDC discovery before starting: $url"
+              start=$(date +%s)
+              while :; do
+                code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "$url" 2>/dev/null || true)
+                [ -n "$code" ] || code=000
+                elapsed=$(( $(date +%s) - start ))
+                if [ "$code" = "200" ]; then
+                  echo "OIDC discovery answered 200 after ${elapsed}s — starting"
+                  exit 0
+                fi
+                echo "  ${elapsed}s: ${code} — waiting (000 is DNS/edge/cert, 404 is the wrong realm path)"
+                sleep 5
+              done
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 32Mi}
+
+      containers:
+        - name: packaging
+          # Overridden by digest in kustomization.yaml. This tag is a
+          # placeholder and MUST NOT be what runs.
+          image: ghcr.io/mertkan-iscan/xenopsbase-learn/packaging:main
+          imagePullPolicy: IfNotPresent
+          ports:
+            - {name: http, containerPort: 8087}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          env:
+            - {name: SERVER_PORT, value: "8087"}
+            - name: OIDC_ISSUER_URI
+              valueFrom: {configMapKeyRef: {name: learn-oidc, key: OIDC_ISSUER_URI}}
+
+            # Its own database and its own role inside the SHARED cluster, like
+            # every other module here. The isolation that matters — one module
+            # unable to read or rewrite another's tables — comes from separate
+            # roles and databases rather than separate Postgres clusters.
+            - name: PACKAGING_DB_URL
+              value: jdbc:postgresql://postgres-rw.database.svc.cluster.local:5432/learn_packaging
+            - name: PACKAGING_DB_USER
+              valueFrom: {secretKeyRef: {name: learn-packaging-db, key: username}}
+            - name: PACKAGING_DB_PASSWORD
+              valueFrom: {secretKeyRef: {name: learn-packaging-db, key: password}}
+
+            # The tenant status fast path (T-1.4). A suspended company must not
+            # be able to upload a course either.
+            - {name: VALKEY_HOST, value: valkey-cache.cache.svc.cluster.local}
+            - {name: VALKEY_PORT, value: "6379"}
+            - name: VALKEY_PASSWORD
+              valueFrom: {secretKeyRef: {name: valkey-client, key: password}}
+
+            # Service-to-service (T-9.11). Per service and rotatable on its own.
+            - {name: SERVICE_CLIENT_ID, value: svc-packaging}
+            - name: SERVICE_CLIENT_SECRET
+              valueFrom: {secretKeyRef: {name: learn-service-clients, key: packaging}}
+            - {name: IDENTITY_URL, value: http://identity.learn.svc.cluster.local:8082}
+            - {name: CATALOG_URL, value: http://catalog.learn.svc.cluster.local:8085}
+
+            # THE BUS. This service publishes and does not consume: a package
+            # that says a learner finished announces it, and catalog folds that
+            # into node_completion as SELF_REPORTED (T-4.4, T-5.3). Without this
+            # the completion is recorded here and the gate behind it stays shut
+            # forever, which is a failure with no error anywhere in it.
+            - {name: NATS_URL, value: nats://nats.messaging.svc.cluster.local:4222}
+
+            # OBJECT STORAGE, which is where an unpacked course actually lives.
+            #
+            # Hetzner's S3-compatible endpoint, the same one the stemcell's
+            # documents bucket uses, and two buckets rather than one: an archive
+            # as uploaded, and the files extracted from it. They are separated
+            # because their lifecycles are — an upload target expires in hours
+            # and a package is served for years — and because the uploads bucket
+            # is the only one a browser is ever handed a signed URL into.
+            #
+            # THESE BUCKETS AND THIS CREDENTIAL DO NOT EXIST YET. They are the
+            # stemcell's to create, beside the three in
+            # infra/terraform/storage/main.tf; until they do this pod starts and
+            # refuses every upload, which is the honest failure — the alternative
+            # is a service that looks healthy and loses courses.
+            - {name: S3_ENDPOINT, value: "https://fsn1.your-objectstorage.com"}
+            - {name: S3_REGION, value: "fsn1"}
+            - {name: S3_PATH_STYLE, value: "true"}
+            - {name: S3_UPLOADS_BUCKET, value: "xenopsbase-dev-package-uploads"}
+            - {name: S3_PACKAGES_BUCKET, value: "xenopsbase-dev-packages"}
+            - name: S3_ACCESS_KEY
+              valueFrom: {secretKeyRef: {name: learn-packaging-storage, key: access-key}}
+            - name: S3_SECRET_KEY
+              valueFrom: {secretKeyRef: {name: learn-packaging-storage, key: secret-key}}
+
+            # ONE ORIGIN PER TENANT, AND NOT RETROFITTABLE (ADR-0105). A launch
+            # URL is embedded in course content and recorded in attempt history,
+            # so changing this scheme later rewrites data rather than
+            # configuration.
+            #
+            # ONE LABEL BELOW THE APEX, which is what makes it free: Cloudflare's
+            # Universal SSL covers *.xenopsoftware.com and nothing deeper, so
+            # `acme--usercontent-dev` is a certificate we already have and
+            # `acme.usercontent-dev` is one that costs $10 a month. ADR-0105
+            # records that amendment and what it gives up.
+            - {name: CONTENT_ORIGIN_TEMPLATE, value: "https://{tenant}--usercontent-dev.xenopsoftware.com"}
+
+            # The application's own origin, exactly as a browser writes it. The
+            # ONLY origin the wrapper posts to and the only one it accepts a
+            # message from, compared by string equality on both ends — and now
+            # also the frame-ancestors of the CSP this service serves itself.
+            - {name: APP_ORIGIN, value: "https://learn-dev.xenopsoftware.com"}
+
+            # The path the content origin routes here, minus this service's own
+            # /served prefix. Configuration because the value has to match a
+            # route in something that is not this codebase — content-origin.yaml
+            # here, local/content-origin/Caddyfile locally.
+            - {name: CONTENT_PATH_PREFIX, value: "/packages"}
+          readinessProbe:
+            httpGet: {path: /management/health/readiness, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /management/health/liveness, port: http}
+            periodSeconds: 20
+          resources:
+            # 512Mi/896Mi, the shared envelope scripts/verify_capacity.py holds
+            # every JVM service to.
+            #
+            # NOT MEASURED HERE, and this service has more reason than most to
+            # be measured once it has traffic: unpacking streams an archive
+            # through a request thread with bounded buffers, and a launch reads
+            # a whole CMI document out of Postgres. Both are bounded on purpose
+            # (UnpackLimits, RuntimeService), and bounded is not the same as
+            # measured.
+            requests: {cpu: 100m, memory: 512Mi}
+            limits: {memory: 896Mi}
+          volumeMounts:
+            # readOnlyRootFilesystem is on and Tomcat still needs a writable
+            # java.io.tmpdir. Without this the pod does not fail a health check,
+            # it fails to start at all.
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: packaging
+  namespace: learn
+  labels: {app.kubernetes.io/name: packaging, app.kubernetes.io/part-of: xenopslearn}
+spec:
+  selector: {app.kubernetes.io/name: packaging}
+  ports:
+    - {name: http, port: 8087, targetPort: http}

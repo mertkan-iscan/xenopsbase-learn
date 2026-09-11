@@ -40,7 +40,11 @@ public final class Streams {
         // Added when assessment started publishing, which is later than it should have been: it
         // began publishing at T-6.7 and this list did not move, so `assessment.attempt.graded`
         // went into no stream at all. See StreamsTest, which now fails the build for the next one.
-        stream("assessment", "assessment.>"));
+        stream("assessment", "assessment.>"),
+        // Added in the same change that made packaging publish (T-4.4). The comment above is
+        // about assessment and it is about this too: a stream missing here is a subject that
+        // goes nowhere, with nothing failing anywhere near the omission.
+        stream("packaging", "packaging.>"));
 
     /**
      * Every subject a {@code MessageHandler} in this repository subscribes to.
@@ -56,7 +60,11 @@ public final class Streams {
         "streaming.node.completed",
         "streaming.node.progress",
         "assessment.attempt.graded",
-        "assessment.interstitial.answered");
+        "assessment.interstitial.answered",
+        // A package's own claim that a learner finished (T-4.4). A different subject from
+        // streaming's completion because it is a different KIND of evidence, and catalog records
+        // which (ADR-0107).
+        "packaging.node.completed");
 
     private Streams() {}
 

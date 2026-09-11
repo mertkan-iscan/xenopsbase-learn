@@ -18,6 +18,12 @@ SERVICES = [
     ("streaming", "Streaming", "Playback tokens and watched-interval progress."),
     ("assessment", "Assessment", "Banks, questions, tests, attempts and marking."),
     ("reporting", "Reporting", "Telemetry ingest."),
+    ("packaging", "Packaging",
+     "Uploaded SCORM, cmi5 and slide packages. **The two `/served/` routes are not "
+     "reachable from a browser on the application's origin, and that is the whole "
+     "decision:** they answer the tenant's CONTENT ORIGIN, which proxies to them, and "
+     "the gateway has no route to them at all (ADR-0105, `UpstreamsTest`). They are "
+     "listed because this service serves them, not because a page here may call them."),
 ]
 METHODS = ["get", "post", "put", "patch", "delete"]
 
@@ -110,7 +116,7 @@ lines.append("| `GET /oauth2/authorization/oidc` | starts sign-in (a redirect to
 lines.append("| `POST /auth/logout` | ends the session |")
 lines.append("")
 
-lines.append("## The five services, and how many endpoints each owns")
+lines.append("## The six services, and how many endpoints each owns")
 lines.append("")
 lines.append("| service | endpoints | owns |")
 lines.append("|---|---|---|")
