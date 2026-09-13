@@ -1,0 +1,195 @@
+# packaging — configuration.
+#
+# Values here are the LOCAL STACK's. Anything that differs per environment is an
+# environment variable with this as the development default, so a developer runs
+# `make up` and then the service, with no setup step in between.
+
+spring:
+  application:
+    name: packaging
+
+  servlet:
+    multipart:
+      # OFF, and for a sharper reason than streaming's.
+      #
+      # Streaming disables it because video bytes must never pass through a
+      # request thread. Here bytes DO get read -- somebody has to open the
+      # archive before a learner's browser does (ADR-0105) -- but they are read
+      # from object storage, on this service's own terms, inside limits that were
+      # checked before a single one arrived.
+      #
+      # A multipart endpoint would be the shortcut past all of that: an archive
+      # spooled by the container, sized by a header the client wrote, arriving
+      # through the gateway. The upload target exists precisely so that path
+      # does not.
+      enabled: false
+
+  datasource:
+    url: ${PACKAGING_DB_URL:jdbc:postgresql://localhost:5432/packaging}
+    username: ${PACKAGING_DB_USER:packaging}
+    password: ${PACKAGING_DB_PASSWORD:packaging}
+    hikari:
+      maximum-pool-size: 10
+      pool-name: packaging
+
+  data:
+    jpa:
+      repositories:
+        # Same reason as identity's and streaming's: repository bootstrap opens
+        # a session on the tenant-less startup thread, and the resolver rightly
+        # refuses it.
+        bootstrap-mode: lazy
+
+    redis:
+      # The tenant status fast path only (T-1.4). A suspended company must not
+      # be able to upload a course either.
+      #
+      # Empty password is the LOCAL default rather than the only one: the
+      # compose Valkey has none and the cluster's requires one, and a deployment
+      # that could not supply it would fail every read with NOAUTH and degrade
+      # silently into the "Valkey is down" path -- which is the worst shape,
+      # because nothing would look broken.
+      host: ${VALKEY_HOST:localhost}
+      port: ${VALKEY_PORT:6379}
+      password: ${VALKEY_PASSWORD:}
+      connect-timeout: 250ms
+      timeout: 250ms
+      client-name: packaging
+      repositories:
+        enabled: false
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate.jdbc.time_zone: UTC
+      hibernate.tenant_identifier_resolver: com.xenopsoftware.learn.common.tenancy.TenantIdentifierResolver
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OIDC_ISSUER_URI:http://localhost:8081/realms/xenopslearn}
+
+platform:
+  service-auth:
+    client-id: ${SERVICE_CLIENT_ID:svc-packaging}
+    client-secret: ${SERVICE_CLIENT_SECRET:local-development-only-packaging-secret}
+  services:
+    endpoints:
+      identity: ${IDENTITY_URL:http://localhost:8082}
+      catalog: ${CATALOG_URL:http://localhost:8085}
+
+  # The transactional outbox and the bus (T-9.8). On because this service now
+  # announces something: a package said a learner finished (T-4.4). A completion
+  # written without its event would leave the gate behind it shut forever, and
+  # an event without the row would open a gate for training nobody did -- which
+  # is why the announcement is a row in the same transaction rather than a call.
+  outbox:
+    enabled: true
+    interval: PT1S
+    batch-size: 100
+  messaging:
+    # EMPTY BY DEFAULT, and that is the local default rather than the only one.
+    # Without it the outbox still fills and drains, and messages are delivered
+    # nowhere -- with a WARN at every startup, because a green run against that
+    # proves the outbox works and nothing at all about the bus.
+    nats-url: ${NATS_URL:}
+    poll-interval: PT1S
+    batch-size: 50
+
+server:
+  port: ${SERVER_PORT:8087}
+
+packaging:
+  storage:
+    # MinIO locally; the provider's URL in a cluster. Every call is plain S3, so
+    # nothing but this line and the credentials change between the two.
+    endpoint: ${S3_ENDPOINT:http://localhost:9000}
+    region: ${S3_REGION:us-east-1}
+    access-key: ${S3_ACCESS_KEY:xenopslearn}
+    secret-key: ${S3_SECRET_KEY:xenopslearn-secret}
+    # MinIO addresses buckets as a path segment. Virtual-host style needs
+    # wildcard DNS a laptop does not have.
+    path-style: ${S3_PATH_STYLE:true}
+    uploads-bucket: ${S3_UPLOADS_BUCKET:uploads}
+    packages-bucket: ${S3_PACKAGES_BUCKET:packages}
+    # Long enough for a 500MB archive on an office connection, short enough that
+    # a leaked target is not a standing write. Re-creating the package issues a
+    # fresh one, so an expired target costs a retry rather than a support call.
+    upload-valid-for: ${UPLOAD_VALID_FOR:PT2H}
+
+  limits:
+    # EVERY ONE OF THESE IS ENFORCED WHILE STREAMING, against bytes actually
+    # read -- see UnpackLimits. The sizes an archive declares about itself are
+    # written by whoever built it.
+    #
+    # 1 GiB. Larger than any honest course export: video does not go inside a
+    # package (ADR-0101), and a package this size is almost always an export
+    # that swept up a working directory.
+    max-source-bytes: ${PACKAGE_MAX_SOURCE_BYTES:1073741824}
+    # 4 GiB expanded. The number that actually stops a zip bomb.
+    max-unpacked-bytes: ${PACKAGE_MAX_UNPACKED_BYTES:4294967296}
+    max-entry-bytes: ${PACKAGE_MAX_ENTRY_BYTES:536870912}
+    max-entries: ${PACKAGE_MAX_ENTRIES:20000}
+    # 200:1 per entry. Ordinary HTML and JavaScript manage well under 10:1;
+    # data engineered to compress does thousands. This leaves an order of
+    # magnitude over anything an exporter produces.
+    max-ratio: ${PACKAGE_MAX_RATIO:200}
+    max-path-length: ${PACKAGE_MAX_PATH_LENGTH:512}
+
+  content-origin:
+    # ONE ORIGIN PER TENANT (ADR-0105). `*.localhost` resolves with no DNS
+    # record and no hosts-file entry, which is what makes the local stack
+    # faithful here: acme.localhost:8090 and globex.localhost:8090 are two
+    # different origins to a browser, exactly as they will be in production.
+    #
+    # NOT RETROFITTABLE. A launch URL is embedded in course content and recorded
+    # in attempt history, so changing this scheme later rewrites data rather
+    # than configuration.
+    template: ${CONTENT_ORIGIN_TEMPLATE:http://{tenant}.localhost:8090}
+    # The application's own origin, exactly as a browser writes it. The ONLY
+    # origin the wrapper posts to, and the only one it accepts a message from,
+    # compared by string equality on both ends. Vite's dev server by default;
+    # http://localhost:8080 when the app is served through the gateway.
+    app-origin: ${APP_ORIGIN:http://localhost:5173}
+    # The path the content origin routes here, minus this service's own /served
+    # prefix. It is configuration because the value has to match a route in
+    # something that is not this codebase -- local/content-origin/Caddyfile.
+    path-prefix: ${CONTENT_PATH_PREFIX:/packages}
+
+management:
+  endpoints:
+    web:
+      base-path: /management
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when-authorized
+  health:
+    db:
+      enabled: true
+    redis:
+      # Off, for identity's and catalog's reason: DOWN on the aggregate would
+      # stop a rollout for a dependency this service is built to run without.
+      # `caches` (CacheHealth) is what reports which caches are being skipped.
+      enabled: false
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  writer-with-order-by-keys: true
+  writer-with-default-pretty-printer: true
+
+logging:
+  level:
+    com.xenopsoftware.learn: DEBUG

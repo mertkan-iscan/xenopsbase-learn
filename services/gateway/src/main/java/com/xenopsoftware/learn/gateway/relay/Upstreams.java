@@ -9,10 +9,11 @@ import org.springframework.stereotype.Component;
  *
  * <h2>The order is the whole file, and it is the one thing to read twice</h2>
  *
- * <p>Five services answer under {@code /api}, and four of them answer under {@code /api/v1/me}:
+ * <p>Six services answer under {@code /api}, and four of them answer under {@code /api/v1/me}:
  * identity owns {@code /me} itself, streaming owns {@code /me/nodes/{id}/playback-token} and
  * {@code /progress}, catalog owns {@code /me/home} and {@code /me/nodes/{id}/interstitials},
- * assessment owns {@code /me/tests}, {@code /me/attempts} and {@code /me/monitoring}.
+ * assessment owns {@code /me/tests}, {@code /me/attempts} and {@code /me/monitoring}, and
+ * packaging owns {@code /me/runtime}.
  *
  * <p><b>The more specific rules come first and the first match wins.</b> Put {@code /api} at the
  * top and every playback-token request goes to identity and answers 404 — which is
@@ -62,9 +63,30 @@ public class Upstreams {
             new Route("/api/v1/me/tests", properties.assessment()),
             new Route("/api/v1/me/attempts", properties.assessment()),
             new Route("/api/v1/me/monitoring", properties.assessment()),
+            // Where a learner got to inside a SCORM, cmi5 or HTML5 package (T-4.4). Packaging's
+            // only learner-facing path, and the one the application calls on behalf of a wrapper
+            // that holds no credential of its own (ADR-0105).
+            new Route("/api/v1/me/runtime", properties.packaging()),
 
             new Route("/api/v1/telemetry", properties.reporting()),
             new Route("/api/v1/videos", properties.streaming()),
+
+            /*
+             * Packaging, and ONLY its management half.
+             *
+             * `/api/v1/uploads` is where an author reserves a package, gets an upload target and
+             * asks for the archive to be processed. What is deliberately absent is any route to
+             * `/served/**`, which is where packaging answers the CONTENT origin: an uploaded
+             * package reached through this gateway would be an uploaded package on the
+             * application's origin, with the application's DOM, cookies and session in reach --
+             * the exact compromise ADR-0105 exists to prevent.
+             *
+             * That absence is not left to memory. This table has no default route (an unmatched
+             * /api path is a 404 from here), and an ArchUnit rule in every module fails the build
+             * on any mapping whose path contains "packages" -- which is why the resource below is
+             * called `uploads` rather than the noun a reader would expect.
+             */
+            new Route("/api/v1/uploads", properties.packaging()),
 
             // Catalog: what training exists, who it reaches, and what is inside a video.
             new Route("/api/v1/content-items", properties.catalog()),

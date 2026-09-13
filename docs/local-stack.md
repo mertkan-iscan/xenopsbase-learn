@@ -18,7 +18,7 @@ Keycloak fails in a way that reads as a configuration error.
 |---|---|---|
 | app origin | http://localhost:8080 | services — nothing runs here yet |
 | web | http://localhost:5173 | the frontend — `make web` (T-10.1, docs/frontend.md) |
-| **content origin** | **http://localhost:8090** | **a different origin, deliberately** |
+| **content origin** | **http://\<tenant\>.localhost:8090** | **a different origin per company, deliberately** |
 | Keycloak | http://localhost:8081 | `admin` / `admin` |
 | MinIO console | http://localhost:9001 | |
 | NATS monitoring | http://localhost:8222 | |
@@ -98,11 +98,12 @@ cross-module query does not return the wrong answer, it fails to connect.
 | `assessment` | banks, questions, tests, forms, attempts |
 | `streaming` | video assets, encode state, playback tokens |
 | `reporting` | telemetry, rollups, exports |
+| `packaging` | uploaded packages: state, manifest facts, entry point |
 | `keycloak` | Keycloak's own |
 
 ## The content origin
 
-`http://localhost:8090` serves the `packages` bucket and nothing else.
+`http://<tenant>.localhost:8090` serves one tenant's uploaded packages and nothing else.
 
 It exists because a SCORM package is third-party JavaScript uploaded by a customer, and the
 standard's API discovery walks `window.parent` — a same-origin operation. Serving packages from the
@@ -117,11 +118,40 @@ Do not "simplify" this by serving packages from the app origin. That is not a si
 the vulnerability (ADR-0105).
 
 **ADR-0105 fixes the production scheme as one origin per tenant** — `<tenant>.<content-domain>`,
-because packages from two customers sharing an origin share everything an origin is. The local
-stack serves a single origin on `:8090` today; `*.localhost` resolves to loopback with no DNS
-record and no hosts entry (measured 2026-08-31: `acme.localhost:8090` and `globex.localhost:8090`
-both reached it on `::1`), so making the local stack per-tenant is a Caddyfile change owed by
-T-4.3, not a new dependency.
+because packages from two customers sharing an origin share everything an origin is. **The local
+stack is per-tenant now.** `*.localhost` resolves to loopback with no DNS record and no hosts entry
+(measured 2026-08-31: `acme.localhost:8090` and `globex.localhost:8090` both reached it on `::1`),
+so the launch URLs `packaging` issues are `http://<tenant>.localhost:8090/packages/<tenant>/<id>/…`
+and two companies are two origins to a browser exactly as they will be in production.
+
+### It proxies to `packaging`, not to MinIO
+
+An earlier version of the Caddyfile pointed `/packages/*` straight at MinIO, and it could not have
+worked: the `packages` bucket is private on purpose, and Caddy cannot sign an S3 request. The two
+ways out were making the bucket public — which makes every tenant's uploaded content
+world-readable by URL guess, silently — or putting something in front that holds the credential.
+
+The something is the `packaging` service, and it is strictly better than the proxy-to-storage
+version, because object storage cannot do the two things ADR-0105 requires of every response here:
+serve each file as the type **we** decided from an extension allowlist rather than a type the
+archive chose, and refuse to let the browser sniff past it.
+
+So the chain is: browser → `<tenant>.localhost:8090/packages/…` → Caddy strips `/packages` and
+rewrites to `/served/…` → `packaging` on `:8087`. The rename is not decoration: an ArchUnit rule in
+every module fails the build on any mapping whose path contains the word `packages`, because the
+mistake this decision guards against is a convenience route appearing on the **application's**
+origin. `packaging.content-origin.path-prefix` is the setting that keeps the two ends agreeing.
+
+`packaging` runs on the developer's machine like every other service, so the Caddyfile reaches it
+at `host.docker.internal:8087` (mapped to the host gateway by `extra_hosts` for Linux, where
+Docker does not provide it).
+
+### One header worth knowing about
+
+`frame-ancestors` on that origin lists `'self'` as well as the application's origins. Without
+`'self'` the wrapper cannot frame the package's own entry point — which is the second half of the
+launch chain — and the symptom is a wrapper that loads, both SCORM API objects present, and a
+blank white frame with `ERR_BLOCKED_BY_RESPONSE` in the console.
 
 ## Resetting
 

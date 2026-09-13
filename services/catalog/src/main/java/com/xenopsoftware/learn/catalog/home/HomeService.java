@@ -29,6 +29,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -65,6 +67,24 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class HomeService {
+
+    /**
+     * The payload keys the built-in types use, in the order they are tried.
+     *
+     * <p>Mirrors {@code BuiltInContentTypes} rather than importing from it, because the registry
+     * models a payload as something each type VALIDATES and this needs to READ one — a type could
+     * legitimately validate a payload with no single reference in it, and an interface method for
+     * "your one id" would be an interface making a promise about shape that the registry
+     * deliberately does not make.
+     *
+     * <p>The cost is that a sixth type with a new key has to be added here as well, and the
+     * consequence of forgetting is exactly one thing: `contentRef` is null and the screen renders a
+     * step it cannot open. Bounded, visible, and not a failure of the home screen.
+     */
+    private static final List<String> REFERENCE_KEYS =
+        List.of("assetId", "packageId", "documentId", "testId");
+
+    private static final JsonMapper PAYLOADS = JsonMapper.builder().build();
 
     /** A deadline inside this window is "due soon" — the number a header line warns on. */
     private static final int DUE_SOON_DAYS = 7;
@@ -227,6 +247,39 @@ public class HomeService {
             return item == null ? null : item.getType();
         }
 
+        /**
+         * The one id a content item's payload references — the video asset, the package, the test.
+         *
+         * <p>Every built-in type's payload is exactly one reference under a type-specific key
+         * ({@code BuiltInContentTypes}), which is what makes this a single value rather than a
+         * shape. A type whose payload is genuinely different answers null here and its client will
+         * need something else; that is the same "the interface is the extension point" argument the
+         * registry makes, and it fails visibly rather than by returning half an answer.
+         *
+         * <p>Null for a missing item, an unparseable payload, or a value that is not a UUID.
+         * <b>None of those is an error worth failing a home screen for</b>: the screen renders the
+         * step, without a way to open it, which is a great deal better than a learner's whole
+         * training list refusing to load because one content item is malformed.
+         */
+        UUID referenceOf(CourseNode node) {
+            ContentItem item = items.get(node.getContentItemId());
+            if (item == null || item.getPayload() == null) {
+                return null;
+            }
+            try {
+                JsonNode payload = PAYLOADS.readTree(item.getPayload());
+                for (String key : REFERENCE_KEYS) {
+                    JsonNode value = payload.get(key);
+                    if (value != null && value.isTextual()) {
+                        return UUID.fromString(value.asString());
+                    }
+                }
+            } catch (RuntimeException notAReference) {
+                return null;
+            }
+            return null;
+        }
+
         /** The titles the gate rule needs to say "complete Week one" (T-5.3). */
         Map<UUID, String> titlesIn(CourseService.CourseTree tree) {
             Map<UUID, String> titles = new LinkedHashMap<>();
@@ -300,7 +353,7 @@ public class HomeService {
             : "AVAILABLE";
         return new HomeView.NodeView(node.getId(), structure.titleOf(node), structure.typeOf(node),
             node.isRequired(), state, locked ? answer.explanation() : null, percent,
-            made == null ? 0 : made.resumeSecond());
+            made == null ? 0 : made.resumeSecond(), structure.referenceOf(node));
     }
 
     private HomeView.ItemView itemView(AssignmentService.Obligation obligation,

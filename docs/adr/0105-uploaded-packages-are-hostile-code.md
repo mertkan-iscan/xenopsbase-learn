@@ -195,3 +195,65 @@ to accept it — cost — turned out to be one DNS record and one certificate (m
   single origin **plus** the storage isolation that no longer comes for free.
 - A browser changes what an origin guarantees — the decision rests on the same-origin policy, and
   it is worth re-reading if that ever stops being the boundary it is today.
+
+## Amendment, 2026-09-11 (T-4.1): the separator, and what the measurement missed
+
+**The origin scheme is now `https://<tenant>--usercontent-<env>.<domain>`** — one label below the
+apex, with a double hyphen where this document originally wrote a dot. On dev:
+`https://acme--usercontent-dev.xenopsoftware.com`. Locally nothing changes:
+`http://<tenant>.localhost:8090`, because `*.localhost` needs neither DNS nor a certificate.
+
+### Why the original scheme could not be deployed
+
+The measurement above says the production cost is "one wildcard DNS record and one wildcard
+certificate, both of which Cloudflare issues for a zone as a matter of course". **That is true of a
+zone and false of this one**, and the difference was not visible until somebody tried to deploy it.
+
+- Cloudflare's Universal SSL covers the apex and **one** label below it. `*.xenopsoftware.com` is
+  covered; `*.usercontent-dev.xenopsoftware.com` is not, and needs an Advanced Certificate at
+  roughly $10 a month per zone. The stemcell's own edge configuration already says this in as many
+  words — "One label below the apex, so Cloudflare's Universal SSL certificate covers it" — and
+  this ADR was written without reading it.
+- The wildcard DNS record is worse. `xenopsoftware.com` is a **company** zone with a live site on
+  it. A `*` record there captures every name in the zone that does not already exist, which is not
+  a thing to do to a domain that is not this project's.
+
+So the honest cost of the original scheme was a recurring certificate bill plus a wildcard record
+on somebody else's domain — not "approximately free". The criterion that asked for a number was
+right; the number was taken from a general fact about Cloudflare rather than from this zone.
+
+### What the amendment buys and what it gives up
+
+**Buys:** every tenant origin is covered by a certificate that already exists, at no cost, and the
+per-tenant isolation the decision is entirely about is unchanged. `acme--usercontent-dev` and
+`globex--usercontent-dev` are two different origins to a browser in exactly the way
+`acme.usercontent` and `globex.usercontent` would have been.
+
+**Gives up two things**, and neither is free:
+
+1. **Provisioning a company now includes creating a DNS record**, because there is no wildcard.
+   One record and one ingress rule per tenant, created with the tenant. On dev that is two of each,
+   listed in `platform/envs/dev/services/content-origin.yaml`. In production it is an API call on
+   the provisioning path, which is work this decision did not previously imply.
+2. **A company id may not be two characters long.** RFC 5891 reserves any label with `--` in its
+   third and fourth characters for internationalised domain names, so `ab--usercontent-dev` is a
+   name resolvers and registrars are entitled to refuse. `ContentOriginProperties` throws rather
+   than building one — loudly, because the alternative is a customer whose courses do not load and
+   an id that cannot be changed by then.
+
+The separate-domain option — a dedicated zone with tenants at its first label, which is what "with
+the application on its own separate domain" above literally asks for — is strictly better than
+either: Universal SSL covers it, a wildcard record is safe on a zone that is only ours, and a
+different **registrable** domain means no shared cookie scope with the application at all. It costs
+a domain registration. It is the right move the moment somebody is willing to buy one, and it is a
+change of configuration rather than of design: `CONTENT_ORIGIN_TEMPLATE` and one DNS record.
+
+### Also amended: the CSP is served by the service
+
+This document's isolation has two halves, and for a while only one of them was in the product. The
+`Content-Security-Policy` that stops package code calling anywhere outbound lived in
+`local/content-origin/Caddyfile` — a development file — and nothing would have served it from a
+cluster. `ContentOriginProperties.contentSecurityPolicy()` now emits it from the service, on both
+the wrapper and every file, built from the application origin the service is already configured
+with. The decision criteria ask whether a mitigation is structural or remembered; this one was
+remembered.

@@ -2,19 +2,14 @@ package com.xenopsoftware.learn.catalog.gate;
 
 import com.xenopsoftware.learn.common.messaging.MessageHandler;
 import com.xenopsoftware.learn.common.messaging.OutboxMessage;
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
-import javax.sql.DataSource;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Fills {@code node_completion} from what streaming derived (T-3.7, T-9.8, T-5.3).
+ * Fills {@code node_completion} from what streaming DERIVED (T-3.7, T-9.8, T-5.3).
  *
  * <p><b>This is the writer the gates shipped without.</b> Until now a gate requiring "complete
  * Module 1" was unreachable for everybody, which was the correct answer for a platform where
@@ -26,30 +21,23 @@ import tools.jackson.databind.json.JsonMapper;
  * a gate evaluation stays one query against catalog's own table rather than three calls that fail
  * whenever any of them is slow — on the screen a learner looks at most.
  *
- * <p><b>Idempotent by the shape of the row, not by care.</b> The bus is at-least-once, so the same
- * completion will arrive twice sooner or later. The insert is conditional on the unique key rather
- * than guarded by a read: checking "have I recorded this" and then recording it has a window where
- * two deliveries both find nothing and both write, and the database is the only thing that can
- * arbitrate that without one.
- *
- * <p><b>A completion for a node this tenant does not have is dropped, not retried.</b> The node was
- * deleted between the learner finishing it and this arriving, which is ordinary; a failing insert
- * would put a poison message at the head of the queue and stop every other learner's completion
- * behind it.
+ * <p><b>The row shape lives in {@link NodeCompletions}, because there are two of these now.</b>
+ * {@code PackageCompletionHandler} is the other, and the two differ in exactly one field — the
+ * source — which is the field ADR-0107 says every compliance view has to carry. Keeping the insert
+ * in one place is what stops that difference becoming a difference in the {@code ON CONFLICT}
+ * clause as well.
  */
 @Component
 public class NodeCompletionHandler implements MessageHandler {
 
-    private static final Logger LOG = LoggerFactory.getLogger(NodeCompletionHandler.class);
+    /** The one value streaming writes. It measured the coverage itself (ADR-0107). */
+    private static final String DERIVED = "DERIVED";
 
-    private final JdbcTemplate jdbc;
-    private final com.xenopsoftware.learn.catalog.home.HomeVersions versions;
+    private final NodeCompletions completions;
     private final JsonMapper json = JsonMapper.builder().build();
 
-    public NodeCompletionHandler(DataSource dataSource,
-            com.xenopsoftware.learn.catalog.home.HomeVersions versions) {
-        this.jdbc = new JdbcTemplate(dataSource);
-        this.versions = versions;
+    public NodeCompletionHandler(NodeCompletions completions) {
+        this.completions = completions;
     }
 
     @Override
@@ -60,33 +48,19 @@ public class NodeCompletionHandler implements MessageHandler {
     @Override
     public void handle(OutboxMessage message) {
         JsonNode body = json.readTree(message.payload());
-        String tenantId = body.get("tenantId").asString();
-        UUID learnerId = UUID.fromString(body.get("learnerId").asString());
-        UUID nodeId = UUID.fromString(body.get("nodeId").asString());
-        Instant completedAt = Instant.parse(body.get("completedAt").asString());
-
-        // The recorded time is when the learner crossed the threshold, not when this was
-        // delivered. A completion that sat in a backlog for an hour did not happen an hour late,
-        // and a compliance report that said so would be wrong about the only thing it is for.
-        int written = jdbc.update("""
-            INSERT INTO node_completion (id, tenant_id, learner_id, node_id, state, recorded_at)
-            SELECT ?, ?, ?, ?, 'COMPLETED', ?
-             WHERE EXISTS (SELECT 1 FROM course_node WHERE id = ? AND tenant_id = ?)
-            ON CONFLICT ON CONSTRAINT uq_node_completion DO NOTHING
-            """, UUID.randomUUID(), tenantId, learnerId, nodeId, Timestamp.from(completedAt),
-            nodeId, tenantId);
-
-        // Their home screen said this was still to do; it is not any more (T-5.8). In the same
-        // transaction as the row, so a cached screen keyed on the old version stops being
-        // addressed the moment this commits.
-        versions.bumpLearner(tenantId, learnerId);
-
-        if (written == 0) {
-            // Either already recorded (a redelivery, which is expected) or the node is gone.
-            // Logged at debug rather than warn for that reason: neither is a fault, and a warning
-            // for the ordinary case is how a log stops being read.
-            LOG.debug("Completion of node {} by {} in {} changed nothing here", nodeId, learnerId,
-                tenantId);
-        }
+        completions.record(
+            body.get("tenantId").asString(),
+            UUID.fromString(body.get("learnerId").asString()),
+            UUID.fromString(body.get("nodeId").asString()),
+            Instant.parse(body.get("completedAt").asString()),
+            /*
+             * NOT READ FROM THE MESSAGE, even though streaming puts a `source` in it.
+             *
+             * The subject is the guarantee. Anything arriving on `streaming.node.completed` was
+             * measured by streaming against an encoded duration, and that is what makes it
+             * DERIVED -- a field in a payload is a claim, and reading provenance out of a claim is
+             * how a self-reported completion would eventually arrive labelled as measured.
+             */
+            DERIVED);
     }
 }

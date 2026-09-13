@@ -95,9 +95,19 @@ public record HomeView(String state, Summary summary, NextUp nextUp, List<Course
      * @param lockedReason T-5.3's sentence, verbatim, or null when nothing is in the way
      * @param resumeSecond where playback picks up, from the same derivation reporting uses (T-3.7)
      */
+    /**
+     * @param contentRef the one id inside the content item's payload — the video asset, the
+     *                   package, the test — or null when the type has none or the item has gone.
+     *                   <b>Added because a learner could not open a package without it</b> (T-4.4):
+     *                   the screen knew this was a {@code scorm} node and had no way to learn WHICH
+     *                   package, and there is no learner-facing endpoint that reads a content item.
+     *                   Sending the whole payload instead would publish whatever a future type
+     *                   chose to put in one; sending the id it references is the fact a client can
+     *                   act on.
+     */
     @Schema(name = "HomeNode")
     public record NodeView(UUID nodeId, String title, String type, boolean required, String state,
-                           String lockedReason, int percent, int resumeSecond) {}
+                           String lockedReason, int percent, int resumeSecond, UUID contentRef) {}
 
     /** An assignment that is not a course: a module, a node, or a content item on its own. */
     @Schema(name = "HomeItem")

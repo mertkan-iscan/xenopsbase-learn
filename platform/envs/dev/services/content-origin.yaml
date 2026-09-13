@@ -1,0 +1,64 @@
+# The content origin: one hostname per tenant, and nothing of ours on it (ADR-0105).
+#
+# WHY THIS IS A SECOND INGRESS AND NOT A RULE IN learn.yaml
+#
+# `ingress.yaml` exists to make the application ONE origin, because the session
+# cookie belongs to an origin. This exists for the opposite reason: to make
+# uploaded packages a DIFFERENT origin from the application, and a different one
+# per tenant. Two opposite invariants in one file is how one of them gets edited
+# away by somebody serving the other.
+#
+# ONE HOSTNAME PER TENANT, LISTED, RATHER THAN A WILDCARD
+#
+# `*.xenopsoftware.com` is not available to us as a DNS record: this is a company
+# zone with a live site on it, and a wildcard here would capture every name in it
+# that does not already exist. So each tenant's origin is a host rule, created
+# with the tenant.
+#
+# That is the cost of ADR-0105's amended scheme and it is worth stating plainly:
+# provisioning a company now includes creating a DNS record and adding a rule
+# here. It buys a certificate we already have — Cloudflare's Universal SSL covers
+# one label below the apex, so `acme--usercontent-dev` is free and
+# `acme.usercontent-dev` is a $10/month Advanced Certificate.
+#
+# THE DOUBLE HYPHEN IS PART OF THE NAME, AND TWO-CHARACTER TENANT IDS ARE NOT
+# ALLOWED because of it: a label whose third and fourth characters are `--` is
+# reserved for IDN A-labels (RFC 5891), so `ab--usercontent-dev` is a name some
+# resolvers and registrars will refuse. `TenantOrigins` refuses to build one.
+#
+# NO TLS BLOCK, for ingress.yaml's reason: nothing in this cluster terminates
+# TLS. cloudflared dials out and Cloudflare's edge holds the certificate.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: learn-content-origin
+  namespace: learn
+  labels: {app.kubernetes.io/part-of: xenopslearn}
+  annotations:
+    # `/packages/<tenant>/<id>/…` on this origin is `/served/<tenant>/<id>/…` on
+    # the service, and the prefix mismatch is deliberate: an ArchUnit rule in
+    # every service fails the build on any mapping whose path contains the word
+    # `packages`, because the mistake ADR-0105 guards against is a convenience
+    # route to package content appearing on the application's origin. Keeping
+    # the two names different is what stops that rule being satisfied by
+    # accident.
+    nginx.ingress.kubernetes.io/rewrite-target: /served/$1
+    # A course is a ZIP of a few hundred megabytes and it does NOT come through
+    # here — the browser PUTs it straight to a signed object-storage URL. This
+    # bounds what a package's own files can be on the way out, which is a
+    # response rather than a request, so the modest default is right.
+    nginx.ingress.kubernetes.io/proxy-body-size: "1m"
+spec:
+  ingressClassName: nginx
+  rules:
+    # The two companies the dev realm seeds. A third tenant is a third rule and
+    # a third DNS record; see the header.
+    - host: acme--usercontent-dev.xenopsoftware.com
+      http: &content
+        paths:
+          - path: /packages/(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service: {name: packaging, port: {number: 8087}}
+    - host: globex--usercontent-dev.xenopsoftware.com
+      http: *content

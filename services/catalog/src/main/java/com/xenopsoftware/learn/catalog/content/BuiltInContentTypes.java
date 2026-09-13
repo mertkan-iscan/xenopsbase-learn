@@ -40,6 +40,30 @@ public class BuiltInContentTypes {
             + "differ, and the reference does not.");
     }
 
+    /**
+     * A web bundle with no runtime standard behind it (T-4.8).
+     *
+     * <p><b>Why this is a type of its own rather than "SCORM without a manifest".</b> A great deal
+     * of real course content is exported as plain HTML5 — an authoring tool's "Web" output, a
+     * developer's own interaction, a simulation somebody built. It is the same kind of archive as a
+     * SCORM package and goes through exactly the same ingest (ADR-0105's list applies unchanged;
+     * the danger was never the manifest), and it differs in the one thing that matters downstream:
+     * <b>there is no standard for it to tell us anything.</b>
+     *
+     * <p>SCORM and cmi5 report completion through a contract their authors already implement. An
+     * HTML5 bundle reports nothing unless somebody wrote code to, so its completion is opening it
+     * plus whatever the bundle chooses to say through the small API the wrapper exposes
+     * ({@code window.xenopslearn}). Modelling it as SCORM would mean serving a fake SCORM API to
+     * content that never asked for one, and then reading silence as a failure to complete.
+     */
+    @Bean
+    ContentTypeDefinition html5ContentType() {
+        return reference("html5", "HTML5 package", "packageId",
+            "An HTML5 item points at a bundle packaging extracted and validated (T-4.8). It has no "
+            + "runtime standard, so completion is what the bundle reports and otherwise that it "
+            + "was opened (ADR-0107).");
+    }
+
     @Bean
     ContentTypeDefinition slidesContentType() {
         return reference("slides", "Slides or document", "documentId",

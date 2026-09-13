@@ -5,6 +5,7 @@ import { currentT } from '../i18n/t.ts';
 import type { paths as assessmentPaths } from './assessment.d.ts';
 import type { paths as catalogPaths } from './catalog.d.ts';
 import type { paths as identityPaths } from './identity.d.ts';
+import type { paths as packagingPaths } from './packaging.d.ts';
 import type { paths as reportingPaths } from './reporting.d.ts';
 import type { paths as streamingPaths } from './streaming.d.ts';
 
@@ -124,6 +125,24 @@ catalog.use(browserSession);
  */
 export const assessment = createClient<assessmentPaths>({ baseUrl, fetch: currentFetch });
 assessment.use(browserSession);
+
+/**
+ * `packaging`: uploading a SCORM, cmi5 or slides archive and turning it into something launchable
+ * (E4, ADR-0105).
+ *
+ * <p><b>Only half of that service is behind this client, and the other half is deliberately not
+ * reachable from here.</b> This one talks to `/api/v1/uploads` — reserve a package, get a signed
+ * target, ask for the archive to be processed — through the same gateway as everything else. The
+ * package's own files are served by the tenant's CONTENT ORIGIN, which this application touches
+ * only by putting a URL into an iframe: it never fetches from it, and could not usefully, because
+ * that origin holds nothing of ours and answers nothing about anybody.
+ *
+ * <p>The archive itself does not travel through this client either. It goes browser → object
+ * storage, with a plain `fetch` to the signed URL and <b>no credentials of ours attached</b> —
+ * see `uploadArchive` in `admin/upload.ts`, which is where that is explained.
+ */
+export const packaging = createClient<packagingPaths>({ baseUrl, fetch: currentFetch });
+packaging.use(browserSession);
 
 /**
  * What a screen shows when a call fails. The shape is deliberately small: a sentence a person can

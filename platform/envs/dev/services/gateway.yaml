@@ -142,6 +142,12 @@ spec:
             - {name: REPORTING_URL, value: http://reporting.learn.svc.cluster.local:8084}
             - {name: CATALOG_URL, value: http://catalog.learn.svc.cluster.local:8085}
             - {name: ASSESSMENT_URL, value: http://assessment.learn.svc.cluster.local:8086}
+            # Packaging answers /api/v1/uploads and /api/v1/me/runtime here. It ALSO
+            # answers /served/**, and the gateway has deliberately no route to that:
+            # an uploaded package reached through this gateway would be an uploaded
+            # package on the application's origin (ADR-0105). Its own hostnames are in
+            # content-origin.yaml.
+            - {name: PACKAGING_URL, value: http://packaging.learn.svc.cluster.local:8087}
           readinessProbe:
             httpGet: {path: /management/health/readiness, port: http}
             periodSeconds: 10

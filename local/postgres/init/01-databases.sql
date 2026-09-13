@@ -35,12 +35,14 @@ CREATE ROLE identity   WITH LOGIN PASSWORD 'identity';
 CREATE ROLE catalog    WITH LOGIN PASSWORD 'catalog';
 CREATE ROLE assessment WITH LOGIN PASSWORD 'assessment';
 CREATE ROLE streaming  WITH LOGIN PASSWORD 'streaming';
+CREATE ROLE packaging  WITH LOGIN PASSWORD 'packaging';
 CREATE ROLE reporting  WITH LOGIN PASSWORD 'reporting';
 
 CREATE DATABASE identity   OWNER identity;
 CREATE DATABASE catalog    OWNER catalog;
 CREATE DATABASE assessment OWNER assessment;
 CREATE DATABASE streaming  OWNER streaming;
+CREATE DATABASE packaging  OWNER packaging;
 CREATE DATABASE reporting  OWNER reporting;
 
 -- ---------------------------------------------------------------------------
@@ -56,6 +58,7 @@ REVOKE CONNECT ON DATABASE identity   FROM PUBLIC;
 REVOKE CONNECT ON DATABASE catalog    FROM PUBLIC;
 REVOKE CONNECT ON DATABASE assessment FROM PUBLIC;
 REVOKE CONNECT ON DATABASE streaming  FROM PUBLIC;
+REVOKE CONNECT ON DATABASE packaging  FROM PUBLIC;
 REVOKE CONNECT ON DATABASE reporting  FROM PUBLIC;
 REVOKE CONNECT ON DATABASE keycloak   FROM PUBLIC;
 
@@ -63,5 +66,6 @@ GRANT CONNECT ON DATABASE identity   TO identity;
 GRANT CONNECT ON DATABASE catalog    TO catalog;
 GRANT CONNECT ON DATABASE assessment TO assessment;
 GRANT CONNECT ON DATABASE streaming  TO streaming;
+GRANT CONNECT ON DATABASE packaging  TO packaging;
 GRANT CONNECT ON DATABASE reporting  TO reporting;
 GRANT CONNECT ON DATABASE keycloak   TO keycloak;

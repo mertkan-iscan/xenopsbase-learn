@@ -3,16 +3,62 @@
 # A DIFFERENT ORIGIN from the application, and that is the whole reason it
 # exists. Uploaded SCORM packages are third-party JavaScript. Served from the
 # application's origin they would reach its DOM, its cookies and its tokens --
-# for every tenant. Here they are on :8090 while the app is on :8080, which a
-# browser treats as a different origin, so the postMessage bridge is exercised
-# in development rather than first met in production.
+# for every tenant. Here they are on :8090 while the app is on :8080 (or the
+# dev server's :5173), which a browser treats as a different origin, so the
+# postMessage bridge is exercised in development rather than first met in
+# production.
 #
-# It proxies ONLY the packages bucket. Pointing a browser at MinIO directly
-# would put the entire S3 API on the content origin.
+# ONE ORIGIN PER TENANT. The launch URLs the packaging service issues are
+# http://<tenant>.localhost:8090/packages/<tenant>/<packageId>/…, and
+# `*.localhost` resolves with no DNS record and no hosts-file entry -- measured
+# on 2026-08-31 and written up in ADR-0105. acme.localhost:8090 and
+# globex.localhost:8090 are two different origins to a browser, exactly as
+# acme.usercontent.… and globex.usercontent.… will be.
+#
+# WHY THIS PROXIES TO THE PACKAGING SERVICE AND NOT TO MINIO
+#
+# An earlier version of this file pointed /packages/* straight at MinIO, and it
+# could not work: the packages bucket is private (local/minio/init.sh sets it so
+# deliberately), and Caddy cannot sign an S3 request. The two ways out of that
+# were making the bucket public -- which makes every tenant's uploaded content
+# world-readable by URL guess, silently -- or putting something in front that
+# holds the credential. This is that something.
+#
+# It is also strictly better than the proxy-to-storage version, because object
+# storage cannot do the two things ADR-0105 requires of every response here:
+# serve each file as the type WE decided from an extension allowlist, rather
+# than a type the archive chose, and refuse to let the browser sniff past it.
+# The packaging service does both (see ContentOriginResource).
+#
+# It proxies ONLY /packages/*. Everything else on this origin is a 404, so the
+# origin has exactly one capability.
 
 :8090 {
-	handle /packages/* {
-		reverse_proxy minio:9000
+	handle_path /packages/* {
+		# `handle_path` strips /packages, leaving <tenant>/<id>/launch or
+		# <tenant>/<id>/files/…, and the rewrite puts it under the route the
+		# packaging service actually maps.
+		#
+		# THAT ROUTE IS NOT CALLED /packages, AND THAT IS ENFORCED. An ArchUnit
+		# rule in every service fails the build on any mapping whose path
+		# contains the word, because the mistake this whole decision guards
+		# against is a convenience route appearing on the application origin.
+		# The prefix mismatch between this file and that service is the price,
+		# and it is paid on purpose -- `packaging.content-origin.path-prefix` is
+		# the setting that keeps the two ends agreeing.
+		rewrite * /served{uri}
+		# host.docker.internal, because the SERVICES run on the developer's
+		# machine and only the infrastructure runs in compose (`make up`, then
+		# `make run S=packaging`). `extra_hosts` in docker-compose.yml maps it
+		# to the host gateway on Linux, where Docker does not provide it.
+		reverse_proxy {$PACKAGING_UPSTREAM:host.docker.internal:8087} {
+			# The service builds every launch URL from its own configuration and
+			# never from a request header (ADR-0105), so nothing here is
+			# load-bearing -- but a Host that says what it was is what makes an
+			# access log readable when somebody asks which tenant's origin a
+			# request came in on.
+			header_up X-Forwarded-Host {host}
+		}
 	}
 
 	handle {
@@ -23,7 +69,28 @@
 		# Package code must not be able to call anything outbound. This is the
 		# second half of the isolation: the first stops it reaching the app,
 		# this stops it reaching anywhere else.
-		Content-Security-Policy "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src 'self'; frame-ancestors http://localhost:8080 http://localhost:5173"
+		#
+		# 'unsafe-inline' and 'unsafe-eval' are allowed because real authoring
+		# tools emit both, and a CSP that forbids them forbids SCORM. That is
+		# survivable precisely because of where this runs: the script it permits
+		# has no session, no token and no cookie within reach.
+		#
+		# frame-ancestors names the application's two development origins --
+		# and 'self', WITHOUT WHICH NO PACKAGE LOADS AT ALL.
+		#
+		# The launch chain is two nested frames: the application frames the
+		# wrapper, and the wrapper frames the package's own entry point. Both
+		# frames are on this origin, because that is the entire mechanism -- the
+		# package's API discovery walks window.parent, and reading a property
+		# off another window is a same-origin operation.
+		#
+		# So the second nesting is this origin framing itself, which
+		# frame-ancestors governs exactly as strictly as it governs a stranger.
+		# Listing only the app's origins blocks it: the wrapper loads, both API
+		# objects appear, and the course itself is refused with
+		# ERR_BLOCKED_BY_RESPONSE and a blank white frame. Found by opening a
+		# real SCORM package rather than by reading this file.
+		Content-Security-Policy "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src 'self'; frame-ancestors 'self' http://localhost:8080 http://localhost:5173"
 		X-Content-Type-Options "nosniff"
 		-Server
 	}
