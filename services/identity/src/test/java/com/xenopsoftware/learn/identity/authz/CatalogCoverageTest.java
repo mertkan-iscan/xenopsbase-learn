@@ -103,6 +103,16 @@ class CatalogCoverageTest extends PostgresTestHarness {
             "the caller is accepting an invitation, so they hold nothing yet -- requiring a "
             + "permission would require a grant, and a grant requires the account this creates. "
             + "The token is the whole credential (T-1.9)"),
+        Map.entry("PreferencesResource#get",
+            "reports the CALLER's own language and theme -- the person is resolved from the token "
+            + "(or from the impersonation session, exactly as /me is) and never from a path, so "
+            + "there is nobody else's preference it could disclose (T-10.9)"),
+        Map.entry("PreferencesResource#put",
+            "sets the CALLER's own language and theme, for the same reason moveTo below is here: "
+            + "nobody chooses somebody else's palette, so a permission would be one that every "
+            + "member of every company had to hold in order to turn on the light theme. Under an "
+            + "impersonation session the subject is the person being impersonated, and the "
+            + "session is read-only unless the engineer holds support:impersonate_write (T-10.9)"),
         Map.entry("UserLifecycleResource#moveTo",
             "sets the caller's OWN timezone, taken from the token and never from the path, so "
             + "there is no other person's it could change. A permission would be one that every "

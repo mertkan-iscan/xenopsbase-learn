@@ -56,6 +56,20 @@ public class UserProfilePublisher {
         body.put("email", user.getEmail());
         body.put("displayName", user.getDisplayName());
         body.put("timeZone", user.getTimeZone());
+        /*
+         * LANGUAGE TRAVELS AND THEME DOES NOT, and the line between them is whether anything
+         * outside a browser has to act on it (T-10.9).
+         *
+         * A reminder is written by a scheduled job in another service and arrives in somebody's
+         * inbox; sending it in a language they do not read is the same failure as sending it at
+         * the wrong hour, which is why `timeZone` is already here. Null still means "has not told
+         * us" on the far side, so a consumer picks its own fallback rather than being handed one.
+         *
+         * A palette is rendered by a browser that has already asked /api/v1/me. Putting it on the
+         * bus would be a fact nothing consumes, copied into tables that would then be stale --
+         * exactly what ADR-0109 keeps out of these messages.
+         */
+        body.put("language", user.getLanguage());
         body.put("updatedAt", Instant.now().toString());
         outbox.publish(SUBJECT, CHANGED, json.writeValueAsString(body));
     }

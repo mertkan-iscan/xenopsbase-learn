@@ -1,6 +1,6 @@
 # The API surface, in one page
 
-**Generated** by `scripts/api_surface.py` from the OpenAPI descriptions in `web/api/`, which `npm run api:check` proves match the running services. Regenerate it rather than editing it: a hand-kept inventory of 161 endpoints is one that stops matching the code, and the first person to notice is whoever designed a screen around a call that does not exist.
+**Generated** by `scripts/api_surface.py` from the OpenAPI descriptions in `web/api/`, which `npm run api:check` proves match the running services. Regenerate it rather than editing it: a hand-kept inventory of 163 endpoints is one that stops matching the code, and the first person to notice is whoever designed a screen around a call that does not exist.
 
 ## What a browser talks to
 
@@ -23,13 +23,13 @@
 
 | service | endpoints | owns |
 |---|---|---|
-| **Identity** | 46 | People, companies, groups, roles and sign-in. |
+| **Identity** | 48 | People, companies, groups, roles and sign-in. |
 | **Catalog** | 38 | What training exists, who it reaches, and what is pinned inside it. |
 | **Streaming** | 9 | Playback tokens and watched-interval progress. |
 | **Assessment** | 56 | Banks, questions, tests, attempts and marking. |
 | **Reporting** | 2 | Telemetry ingest. |
 | **Packaging** | 10 | Uploaded SCORM, cmi5 and slide packages. **The two `/served/` routes are not reachable from a browser on the application's origin, and that is the whole decision:** they answer the tenant's CONTENT ORIGIN, which proxies to them, and the gateway has no route to them at all (ADR-0105, `UpstreamsTest`). They are listed because this service serves them, not because a page here may call them. |
-| | **161** | |
+| | **163** | |
 
 ## Learner-facing endpoints, all of them
 
@@ -39,6 +39,8 @@ Everything under `/me/` answers **only about the caller** and takes no learner i
 |---|---|---|---|
 | `GET` | `/api/v1/me` | Identity | me |
 | `GET` | `/api/v1/me/reach/{resource}/{action}` | Identity | reach |
+| `GET` | `/api/v1/users/me/preferences` | Identity | get |
+| `PUT` | `/api/v1/users/me/preferences` | Identity | The preferences as they now stand |
 | `PUT` | `/api/v1/users/me/timezone` | Identity | move to |
 | `GET` | `/api/v1/me/home` | Catalog | home |
 | `GET` | `/api/v1/me/nodes/{nodeId}/interstitials` | Catalog | for me |
@@ -102,6 +104,8 @@ _People, companies, groups, roles and sign-in._
 | `POST` | `/api/v1/users/import` | import users | 403 |
 | `POST` | `/api/v1/users/invitations` | invite | 403 |
 | `POST` | `/api/v1/users/invitations/accept` | accept | 403 |
+| `GET` | `/api/v1/users/me/preferences` | get | 403 |
+| `PUT` | `/api/v1/users/me/preferences` | The preferences as they now stand | 400, 403 |
 | `PUT` | `/api/v1/users/me/timezone` | move to | 403 |
 | `GET` | `/api/v1/users/{id}` | user | 403 |
 | `PUT` | `/api/v1/users/{id}` | update | 403 |

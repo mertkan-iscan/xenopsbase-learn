@@ -310,7 +310,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get"];
+        get: operations["get_1"];
         put: operations["rename"];
         post?: never;
         delete: operations["delete"];
@@ -473,6 +473,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["accept"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get"];
+        put: operations["put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -671,8 +687,10 @@ export interface components {
             email?: string;
             /** Format: uuid */
             id?: string;
+            language?: string;
             status?: string;
             tenant?: string;
+            theme?: string;
         };
         MoveGroupRequest: {
             /** Format: uuid */
@@ -690,6 +708,10 @@ export interface components {
             id?: string;
             status?: string;
             timeZone?: string;
+        };
+        Preferences: {
+            language?: string;
+            theme?: string;
         };
         /**
          * @description An RFC 9457 problem document. Every refusal this platform writes has this shape, on `application/problem+json`.
@@ -1715,7 +1737,7 @@ export interface operations {
             };
         };
     };
-    get: {
+    get_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -2241,6 +2263,85 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["PersonView"];
+                };
+            };
+            /**
+             * @description The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.
+             *
+             *     A permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting.
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Preferences"];
+                };
+            };
+            /**
+             * @description The account was refused before the handler ran: the company is suspended, or it is read-only and this is a write. Every path under `/api` answers this.
+             *
+             *     A permission denial can also answer 403, and it carries **no body** — a refusal that described itself would confirm the resource exists, which is what the disclosure rule is protecting.
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Preferences"];
+            };
+        };
+        responses: {
+            /** @description The preferences as they now stand */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Preferences"];
+                };
+            };
+            /** @description A theme this product does not have, or a string that is not a language tag */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /**
