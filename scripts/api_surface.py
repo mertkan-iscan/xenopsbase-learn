@@ -19,7 +19,8 @@ SERVICES = [
     ("assessment", "Assessment", "Banks, questions, tests, attempts and marking."),
     ("reporting", "Reporting", "Telemetry ingest."),
     ("packaging", "Packaging",
-     "Uploaded SCORM, cmi5 and slide packages. **The two `/served/` routes are not "
+     "Uploaded SCORM, cmi5, HTML5 and slide packages, and the runtime behind them "
+     "(docs/packages.md). **The two `/served/` routes are not "
      "reachable from a browser on the application's origin, and that is the whole "
      "decision:** they answer the tenant's CONTENT ORIGIN, which proxies to them, and "
      "the gateway has no route to them at all (ADR-0105, `UpstreamsTest`). They are "

@@ -1,6 +1,6 @@
 # Uploaded packages, and the runtime behind them
 
-**Tasks:** T-4.1 · T-4.2 · T-4.3 · T-4.4 ·
+**Tasks:** T-4.1 · T-4.2 · T-4.3 · T-4.4 · T-4.8 (HTML5)
 **Decisions:** [ADR-0105](adr/0105-uploaded-packages-are-hostile-code.md) ·
 [ADR-0107](adr/0107-completion-is-derived-by-the-server.md)
 

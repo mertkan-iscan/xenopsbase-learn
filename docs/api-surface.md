@@ -28,7 +28,7 @@
 | **Streaming** | 9 | Playback tokens and watched-interval progress. |
 | **Assessment** | 56 | Banks, questions, tests, attempts and marking. |
 | **Reporting** | 2 | Telemetry ingest. |
-| **Packaging** | 10 | Uploaded SCORM, cmi5 and slide packages. **The two `/served/` routes are not reachable from a browser on the application's origin, and that is the whole decision:** they answer the tenant's CONTENT ORIGIN, which proxies to them, and the gateway has no route to them at all (ADR-0105, `UpstreamsTest`). They are listed because this service serves them, not because a page here may call them. |
+| **Packaging** | 10 | Uploaded SCORM, cmi5, HTML5 and slide packages, and the runtime behind them (docs/packages.md). **The two `/served/` routes are not reachable from a browser on the application's origin, and that is the whole decision:** they answer the tenant's CONTENT ORIGIN, which proxies to them, and the gateway has no route to them at all (ADR-0105, `UpstreamsTest`). They are listed because this service serves them, not because a page here may call them. |
 | | **161** | |
 
 ## Learner-facing endpoints, all of them
@@ -244,7 +244,7 @@ _Telemetry ingest._
 
 ## Packaging
 
-_Uploaded SCORM, cmi5 and slide packages. **The two `/served/` routes are not reachable from a browser on the application's origin, and that is the whole decision:** they answer the tenant's CONTENT ORIGIN, which proxies to them, and the gateway has no route to them at all (ADR-0105, `UpstreamsTest`). They are listed because this service serves them, not because a page here may call them._
+_Uploaded SCORM, cmi5, HTML5 and slide packages, and the runtime behind them (docs/packages.md). **The two `/served/` routes are not reachable from a browser on the application's origin, and that is the whole decision:** they answer the tenant's CONTENT ORIGIN, which proxies to them, and the gateway has no route to them at all (ADR-0105, `UpstreamsTest`). They are listed because this service serves them, not because a page here may call them._
 
 | method | path | what it returns | refusals |
 |---|---|---|---|
